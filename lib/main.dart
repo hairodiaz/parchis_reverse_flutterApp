@@ -109,11 +109,11 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     await Future.delayed(const Duration(milliseconds: 500));
     _textController.forward();
     
-    // Esperar y navegar a configuración
+    // Esperar y navegar al menú principal
     await Future.delayed(const Duration(milliseconds: 2500));
     if (mounted) {
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const PlayerConfigScreen()),
+        MaterialPageRoute(builder: (context) => const MainMenuScreen()),
       );
     }
   }
@@ -227,6 +227,390 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
           ),
         ),
       ),
+    );
+  }
+}
+
+// 🏠 PANTALLA PRINCIPAL DEL MENÚ - ¡PROFESIONAL!
+class MainMenuScreen extends StatefulWidget {
+  const MainMenuScreen({super.key});
+
+  @override
+  State<MainMenuScreen> createState() => _MainMenuScreenState();
+}
+
+class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStateMixin {
+  late AnimationController _backgroundController;
+  late AnimationController _buttonsController;
+  late Animation<double> _backgroundAnimation;
+  late Animation<double> _buttonsAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    
+    _backgroundController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+    
+    _buttonsController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    
+    _backgroundAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _backgroundController,
+      curve: Curves.easeInOut,
+    ));
+    
+    _buttonsAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _buttonsController,
+      curve: Curves.elasticOut,
+    ));
+    
+    _startAnimations();
+  }
+  
+  void _startAnimations() async {
+    _backgroundController.forward();
+    await Future.delayed(const Duration(milliseconds: 500));
+    _buttonsController.forward();
+  }
+
+  @override
+  void dispose() {
+    _backgroundController.dispose();
+    _buttonsController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: AnimatedBuilder(
+        animation: _backgroundAnimation,
+        builder: (context, child) {
+          return Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color.lerp(Colors.blue.shade900, Colors.purple.shade900, _backgroundAnimation.value)!,
+                  Color.lerp(Colors.purple.shade900, Colors.indigo.shade900, _backgroundAnimation.value)!,
+                  Color.lerp(Colors.indigo.shade900, Colors.blue.shade900, _backgroundAnimation.value)!,
+                ],
+              ),
+            ),
+            child: SafeArea(
+              child: Column(
+                children: [
+                  // 🎯 TÍTULO PRINCIPAL
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 40),
+                    child: FadeTransition(
+                      opacity: _backgroundAnimation,
+                      child: const Text(
+                        '🎲 PARCHÍS REVERSE\nDOMINICANO',
+                        style: TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: 2.0,
+                          shadows: [
+                            Shadow(
+                              blurRadius: 10.0,
+                              color: Colors.black54,
+                              offset: Offset(2.0, 2.0),
+                            ),
+                          ],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                  
+                  Expanded(
+                    child: Center(
+                      child: AnimatedBuilder(
+                        animation: _buttonsAnimation,
+                        builder: (context, child) {
+                          return Transform.scale(
+                            scale: _buttonsAnimation.value,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                // 🎮 BOTÓN JUGAR
+                                _buildMenuButton(
+                                  icon: Icons.play_arrow_rounded,
+                                  title: 'JUGAR',
+                                  subtitle: 'Iniciar nueva partida',
+                                  colors: [Colors.green.shade400, Colors.green.shade600],
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => const PlayerConfigScreen(),
+                                      ),
+                                    );
+                                  },
+                                ),
+                                
+                                const SizedBox(height: 20),
+                                
+                                // ℹ️ BOTÓN ACERCA DE
+                                _buildMenuButton(
+                                  icon: Icons.info_outline_rounded,
+                                  title: 'ACERCA DE',
+                                  subtitle: 'Información y créditos',
+                                  colors: [Colors.blue.shade400, Colors.blue.shade600],
+                                  onTap: () {
+                                    _showAboutDialog();
+                                  },
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  
+                  // 👨‍💻 CRÉDITOS EN LA PARTE INFERIOR
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: FadeTransition(
+                      opacity: _backgroundAnimation,
+                      child: const Column(
+                        children: [
+                          Text(
+                            'Desarrollado por',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.white60,
+                            ),
+                          ),
+                          Text(
+                            'Ing. Hairo Díaz',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildMenuButton({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required List<Color> colors,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 40),
+      child: Material(
+        elevation: 8,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: colors,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: colors.first.withOpacity(0.3),
+                  spreadRadius: 2,
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 32,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.white.withOpacity(0.7),
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showAboutDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.info_outline, color: Colors.blue, size: 28),
+              SizedBox(width: 10),
+              Text(
+                'Acerca de',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: const SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '🎲 Parchís Reverse Dominicano',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.purple,
+                  ),
+                ),
+                SizedBox(height: 10),
+                Text(
+                  'Versión: 1.0.0',
+                  style: TextStyle(fontSize: 14, color: Colors.grey),
+                ),
+                SizedBox(height: 15),
+                Text(
+                  '📱 Características:',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text('• 2-4 jugadores (Humanos y CPU)'),
+                Text('• CPU inteligente con personalidad'),
+                Text('• Casillas especiales divertidas'),
+                Text('• Efectos visuales y sonoros'),
+                Text('• Interfaz responsive y moderna'),
+                SizedBox(height: 15),
+                Text(
+                  '👨‍💻 Desarrollador:',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Ing. Hairo Díaz',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.blue,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Ingeniero de Software especializado en desarrollo móvil con Flutter/Dart',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                SizedBox(height: 15),
+                Text(
+                  '🏆 Hecho con ❤️ en República Dominicana',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontStyle: FontStyle.italic,
+                    color: Colors.green,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.blue.shade50,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: Text(
+                  'Cerrar',
+                  style: TextStyle(
+                    color: Colors.blue,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -584,6 +968,15 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       customPlayerNames[i] = widget.playerNames[i];
     }
     
+    // 🎮 AUTO-INICIAR SI EL PRIMER JUGADOR ES CPU
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Timer(const Duration(milliseconds: 1000), () {
+        if (_isCurrentPlayerCPU() && !isMoving) {
+          _rollDice();
+        }
+      });
+    });
+    
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -628,12 +1021,18 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
 
   void _initializeGamePieces() {
     const salidaPosition = Position(9, 0);
-    gamePieces = [
-      GamePiece(id: '1', color: Colors.red, position: salidaPosition),
-      GamePiece(id: '2', color: Colors.blue, position: salidaPosition),
-      GamePiece(id: '3', color: Colors.green, position: salidaPosition),
-      GamePiece(id: '4', color: Colors.yellow, position: salidaPosition),
-    ];
+    gamePieces = [];
+    
+    // Solo crear fichas para los jugadores activos
+    for (int i = 0; i < widget.numPlayers; i++) {
+      gamePieces.add(
+        GamePiece(
+          id: '${i + 1}', 
+          color: playerColors[i], 
+          position: salidaPosition
+        )
+      );
+    }
   }
 
   void _initializeBoardPath() {
@@ -739,6 +1138,12 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   void _rollDice() {
     if (_timer != null && _timer!.isActive) return;
     if (isMoving) return; // No permitir lanzar dado mientras se mueve una ficha
+    
+    // 🤖 SISTEMA CPU INTELIGENTE - ¡ÉPICO!
+    if (_isCurrentPlayerCPU()) {
+      _executeCPUTurn();
+      return;
+    }
     
     // ¡SONIDO DEL DADO! 🎵
     _playDiceSound();
@@ -847,6 +1252,130 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     _animateStepByStep(currentPiece, currentPathIndex, steps);
   }
 
+  // 🤖 VERIFICA SI EL JUGADOR ACTUAL ES CPU
+  bool _isCurrentPlayerCPU() {
+    return !widget.isHuman[currentPlayerIndex];
+  }
+
+  // 🎭 SISTEMA CPU ÉPICO CON PERSONALIDAD
+  void _executeCPUTurn() async {
+    setState(() {
+      isMoving = true;
+    });
+
+    // 🎬 MOSTRAR MENSAJE DE "PENSANDO" DRAMÁTICO
+    String thinkingMessage = _getEpicCPUThinkingMessage();
+    setState(() {
+      lastMessage = thinkingMessage;
+    });
+
+    // ⏱️ TIEMPO DE PENSAMIENTO DRAMÁTICO (1.5-3.5 segundos)
+    int thinkingTime = 1500 + random.nextInt(2000);
+    await Future.delayed(Duration(milliseconds: thinkingTime));
+
+    // 🎲 CPU LANZA EL DADO CON ESTILO
+    setState(() {
+      lastMessage = "🎲 ¡Lanzando el dado mágico!";
+    });
+
+    _playDiceSound();
+    _animationController.reset();
+    _animationController.forward();
+    
+    // Animación del dado
+    _timer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      setState(() {
+        diceValue = random.nextInt(6) + 1;
+      });
+    });
+
+    Timer(const Duration(milliseconds: 800), () {
+      _timer?.cancel();
+      
+      // 🧠 CPU ANALIZA EL RESULTADO
+      int finalDiceValue = random.nextInt(6) + 1;
+      setState(() {
+        diceValue = finalDiceValue;
+        lastMessage = _getCPUAnalysisMessage(finalDiceValue);
+      });
+      
+      // ⏱️ PAUSA PARA ANÁLISIS
+      Timer(const Duration(milliseconds: 1200), () {
+        setState(() {
+          lastMessage = null;
+        });
+        
+        // 🚀 EJECUTAR MOVIMIENTO
+        Timer(const Duration(milliseconds: 400), () {
+          _moveCurrentPlayerPiece(finalDiceValue);
+        });
+      });
+    });
+  }
+
+  // 🎭 MENSAJES ÉPICOS DE PENSAMIENTO CPU - ¡VERSIÓN MEJORADA!
+  String _getEpicCPUThinkingMessage() {
+    List<String> epicMessages = [
+      "🧠 Calculando estrategia maestra...",
+      "🎯 Analizando todas las posibilidades...", 
+      "⚡ Procesando movimiento perfecto...",
+      "🔮 Consultando la matriz del destino...",
+      "🎪 Preparando jugada espectacular...",
+      "🏆 Diseñando victoria inevitable...",
+      "🌟 Activando modo GENIO...",
+      "🎭 Tejiendo plan magistral...",
+      "⚔️ Forjando estrategia letal...",
+      "🎨 Creando obra maestra táctica...",
+      "🤖 Iniciando secuencia de dominación...",
+      "🚀 Cargando algoritmo de victoria...",
+      "💎 Puliendo jugada diamante...",
+      "🦅 Planeando vuelo de águila...",
+      "🌪️ Generando tormenta táctica...",
+      "🎼 Componiendo sinfonía del triunfo...",
+      "🔥 Encendiendo llamas de la gloria...",
+      "⚗️ Destilando esencia de la victoria...",
+      "🎯 Apuntando al corazón del tablero...",
+      "🌊 Desatando tsunami estratégico..."
+    ];
+    return epicMessages[random.nextInt(epicMessages.length)];
+  }
+
+  // 📊 MENSAJES DE ANÁLISIS CPU - ¡DRAMÁTICOS Y ÉPICOS!
+  String _getCPUAnalysisMessage(int diceValue) {
+    List<String> analysisMessages = [
+      "🎯 ¡Perfecto! Exactamente lo que necesitaba: $diceValue",
+      "⚡ ¡Excelente! Este $diceValue encaja en mi plan",  
+      "🎪 ¡Magnífico! Un $diceValue estratégico",
+      "🔥 ¡Brillante! Este $diceValue es clave",
+      "🌟 ¡Fantástico! $diceValue puntos de pura genialidad",
+      "🎭 ¡Espectacular! Un $diceValue muy calculado",
+      "⚔️ ¡Letal! Este $diceValue será devastador",
+      "🏆 ¡Perfección! $diceValue pasos hacia la gloria",
+      "🚀 ¡Increíble! Un $diceValue cósmico",
+      "💎 ¡Diamante puro! $diceValue de elegancia",
+      "🎼 ¡Sinfonía! $diceValue notas perfectas",
+      "🌊 ¡Tsunami! $diceValue olas de poder",
+      "🦅 ¡Majestuoso! $diceValue vuelos de águila",
+      "🌪️ ¡Tormenta! $diceValue rayos de furia",
+      "🔮 ¡Profético! $diceValue del destino",
+      "⚗️ ¡Alquimia! $diceValue de oro puro"
+    ];
+    return analysisMessages[random.nextInt(analysisMessages.length)];
+  }
+
+  // 🔄 SISTEMA INTELIGENTE DE TURNOS - Solo jugadores activos
+  void _nextActivePlayer() {
+    // ✅ CICLO CORRECTO: Solo entre jugadores activos (0 hasta numPlayers-1)
+    currentPlayerIndex = (currentPlayerIndex + 1) % widget.numPlayers;
+             
+    // 🤖 AUTO-EJECUTAR TURNO SI ES CPU
+    Timer(const Duration(milliseconds: 500), () {
+      if (_isCurrentPlayerCPU() && !isMoving) {
+        _rollDice();
+      }
+    });
+  }
+
   void _animateStepByStep(GamePiece piece, int startIndex, int steps) async {
     jumpingPiece = piece; // Marcar cuál ficha está saltando
     
@@ -900,7 +1429,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     // Cambiar al siguiente jugador y desbloquear el dado después de completar el movimiento
     setState(() {
       if (shouldChangeTurn) {
-        currentPlayerIndex = (currentPlayerIndex + 1) % 4;
+        _nextActivePlayer();
       }
       isMoving = false; // Desbloquear el dado
       jumpingPiece = null; // Ya no hay ficha saltando
@@ -1159,28 +1688,39 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     return null;
   }
 
-  // Construir el indicador de jugador para las esquinas
+  // Construir el indicador de jugador para las esquinas - ¡VERSIÓN ÉPICA!
   Widget _buildPlayerIndicator(int playerIndex) {
     bool isCurrentPlayer = currentPlayerIndex == playerIndex;
+    bool isCPU = !widget.isHuman[playerIndex];
+    bool isCPUThinking = isCurrentPlayer && isCPU && isMoving;
     
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: isCurrentPlayer ? Colors.white.withOpacity(0.9) : Colors.black.withOpacity(0.6),
+        color: isCurrentPlayer 
+          ? (isCPUThinking 
+             ? Colors.purple.withOpacity(0.9)  // 🤖 COLOR ÉPICO PARA CPU PENSANDO
+             : Colors.white.withOpacity(0.9)) 
+          : Colors.black.withOpacity(0.6),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: isCurrentPlayer 
-            ? (playerColors[playerIndex] == Colors.yellow 
-               ? Colors.orange.shade700  // Borde más oscuro para amarillo
-               : playerColors[playerIndex])
+            ? (isCPUThinking
+               ? Colors.purple.shade300  // 🌟 BORDE MÁGICO
+               : (playerColors[playerIndex] == Colors.yellow 
+                  ? Colors.orange.shade700  
+                  : playerColors[playerIndex]))
             : Colors.white.withOpacity(0.5),
-          width: isCurrentPlayer ? 3 : 1,
+          width: isCurrentPlayer ? (isCPUThinking ? 4 : 3) : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            spreadRadius: 1,
-            blurRadius: 4,
+            color: isCPUThinking 
+              ? Colors.purple.withOpacity(0.8)  // ✨ SOMBRA MÁGICA
+              : Colors.black.withOpacity(0.3),
+            spreadRadius: isCPUThinking ? 3 : 1,
+            blurRadius: isCPUThinking ? 8 : 4,
             offset: const Offset(0, 2),
           ),
         ],
@@ -1207,21 +1747,139 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
             ),
           ),
           const SizedBox(width: 6),
-          // Nombre del jugador
-          Text(
-            _getPlayerName(playerIndex),
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: isCurrentPlayer ? FontWeight.bold : FontWeight.w500,
-              color: isCurrentPlayer 
-                ? (playerColors[playerIndex] == Colors.yellow 
-                   ? Colors.orange.shade700  // Amarillo más oscuro para mejor contraste
-                   : playerColors[playerIndex])
-                : Colors.white,
-            ),
+          // Nombre del jugador con efectos épicos
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _getPlayerName(playerIndex),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isCurrentPlayer ? FontWeight.bold : FontWeight.w500,
+                  color: isCurrentPlayer 
+                    ? (isCPUThinking
+                       ? Colors.white  // 🤖 TEXTO BLANCO PARA CPU PENSANDO
+                       : (playerColors[playerIndex] == Colors.yellow 
+                          ? Colors.orange.shade700  
+                          : playerColors[playerIndex]))
+                    : Colors.white,
+                ),
+              ),
+              // 🤖 ICONO ESPECIAL PARA CPU
+              if (isCPU) ...[
+                const SizedBox(width: 3),
+                Icon(
+                  isCPUThinking ? Icons.psychology : Icons.smart_toy,
+                  size: 12,
+                  color: isCurrentPlayer 
+                    ? (isCPUThinking ? Colors.yellow : Colors.grey.shade600)
+                    : Colors.grey.shade400,
+                ),
+              ],
+              // ⚡ EFECTO ESPECIAL CUANDO CPU ESTÁ PENSANDO
+              if (isCPUThinking) ...[
+                const SizedBox(width: 2),
+                const SizedBox(
+                  width: 8,
+                  height: 8,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.5,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.yellow),
+                  ),
+                ),
+              ],
+            ],
           ),
         ],
       ),
+    );
+  }
+
+  // 🤖 SISTEMA CPU INTELIGENTE
+  String _getCpuThinkingMessage() {
+    List<String> messages = [
+      '🤖 CPU está pensando...',
+      '🧠 Analizando el tablero...',
+      '⚡ Calculando jugada...',
+      '🎯 Buscando la mejor opción...',
+      '🤔 CPU evaluando estrategia...',
+      '💭 Procesando movimiento...',
+    ];
+    
+    return messages[Random().nextInt(messages.length)];
+  }
+  
+  // 🚪 DIÁLOGO DE SALIR
+  void _showExitDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              const Icon(
+                Icons.exit_to_app,
+                color: Color(0xFF5D4037),
+                size: 28,
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                '¿Salir del juego?',
+                style: TextStyle(
+                  color: Color(0xFF5D4037),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            '¿Estás seguro que quieres volver a la configuración? Se perderá el progreso actual.',
+            style: TextStyle(fontSize: 16),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Cerrar diálogo
+              },
+              child: Text(
+                'Cancelar',
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontSize: 16,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Cerrar diálogo
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(
+                    builder: (context) => const PlayerConfigScreen(),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1976D2),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text(
+                'Sí, salir',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -1229,15 +1887,52 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Parchís Reverse Dominicano',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Parchís Reverse Dominicano',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
+            // Mensaje del CPU si está activo
+            if (currentMessage.isEmpty && currentPlayerIndex < widget.numPlayers && 
+                !widget.isHuman[currentPlayerIndex] && !isMoving)
+              Text(
+                _getCpuThinkingMessage(),
+                style: const TextStyle(
+                  color: Colors.orange,
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+          ],
         ),
         backgroundColor: const Color(0xFF8B4513),
         elevation: 4,
+        actions: [
+          // Botón de configuración
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: IconButton(
+              onPressed: _showExitDialog,
+              icon: const Icon(
+                Icons.settings,
+                color: Colors.white,
+                size: 24,
+              ),
+              tooltip: 'Configuración',
+            ),
+          ),
+        ],
       ),
       body: Stack(
         children: [
@@ -1291,34 +1986,80 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
                               ),
                             ),
 
-                            // Indicadores con posición más cerca del tablero
-                            // Jugador 1 (Rojo) - Esquina superior izquierda
-                            Positioned(
-                              top: optimalPadding * 0.2, // Reducido de 0.3 a 0.2
-                              left: optimalPadding * 0.2,
-                              child: _buildPlayerIndicator(0),
-                            ),
-
-                            // Jugador 2 (Azul) - Esquina superior derecha
-                            Positioned(
-                              top: optimalPadding * 0.2,
-                              right: optimalPadding * 0.2,
-                              child: _buildPlayerIndicator(1),
-                            ),
-
-                            // Jugador 3 (Verde) - Esquina inferior izquierda
-                            Positioned(
-                              bottom: optimalPadding * 0.2,
-                              left: optimalPadding * 0.2,
-                              child: _buildPlayerIndicator(2),
-                            ),
-
-                            // Jugador 4 (Amarillo) - Esquina inferior derecha
-                            Positioned(
-                              bottom: optimalPadding * 0.2,
-                              right: optimalPadding * 0.2,
-                              child: _buildPlayerIndicator(3),
-                            ),
+                            // Indicadores dinámicos solo para jugadores activos
+                            ...List.generate(widget.numPlayers, (index) {
+                              List<Widget> positions = [];
+                              
+                              // Posiciones para diferentes cantidades de jugadores
+                              if (widget.numPlayers == 2) {
+                                // 2 jugadores: arriba-izquierda y abajo-derecha
+                                if (index == 0) {
+                                  positions.add(
+                                    Positioned(
+                                      top: optimalPadding * 0.2,
+                                      left: optimalPadding * 0.2,
+                                      child: _buildPlayerIndicator(index),
+                                    )
+                                  );
+                                } else {
+                                  positions.add(
+                                    Positioned(
+                                      bottom: optimalPadding * 0.2,
+                                      right: optimalPadding * 0.2,
+                                      child: _buildPlayerIndicator(index),
+                                    )
+                                  );
+                                }
+                              } else if (widget.numPlayers == 3) {
+                                // 3 jugadores: arriba-izquierda, arriba-derecha, abajo-centro
+                                if (index == 0) {
+                                  positions.add(
+                                    Positioned(
+                                      top: optimalPadding * 0.2,
+                                      left: optimalPadding * 0.2,
+                                      child: _buildPlayerIndicator(index),
+                                    )
+                                  );
+                                } else if (index == 1) {
+                                  positions.add(
+                                    Positioned(
+                                      top: optimalPadding * 0.2,
+                                      right: optimalPadding * 0.2,
+                                      child: _buildPlayerIndicator(index),
+                                    )
+                                  );
+                                } else {
+                                  positions.add(
+                                    Positioned(
+                                      bottom: optimalPadding * 0.2,
+                                      left: screenWidth * 0.35,
+                                      child: _buildPlayerIndicator(index),
+                                    )
+                                  );
+                                }
+                              } else {
+                                // 4 jugadores: las 4 esquinas
+                                List<Map<String, dynamic>> cornerPositions = [
+                                  {'top': optimalPadding * 0.2, 'left': optimalPadding * 0.2},
+                                  {'top': optimalPadding * 0.2, 'right': optimalPadding * 0.2},
+                                  {'bottom': optimalPadding * 0.2, 'left': optimalPadding * 0.2},
+                                  {'bottom': optimalPadding * 0.2, 'right': optimalPadding * 0.2},
+                                ];
+                                
+                                Map<String, dynamic> pos = cornerPositions[index];
+                                positions.add(
+                                  Positioned(
+                                    top: pos['top'],
+                                    bottom: pos['bottom'],
+                                    left: pos['left'],
+                                    right: pos['right'],
+                                    child: _buildPlayerIndicator(index),
+                                  )
+                                );
+                              }
+                              
+                              return positions;
+                            }).expand((x) => x),
                           ],
                         ),
                       );
@@ -1505,7 +2246,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     if (pieces.length == 1) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(10.0), // Aumentado de 9 a 10 para fichas solas un poquito más pequeñas
+          padding: const EdgeInsets.all(12.0), // ✨ Más padding = ficha más pequeña y proporcionada
           child: _buildSingleGamePiece(pieces.first),
         ),
       );
