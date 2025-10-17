@@ -1265,18 +1265,22 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
 
     // 🎬 MOSTRAR MENSAJE DE "PENSANDO" DRAMÁTICO
     String thinkingMessage = _getEpicCPUThinkingMessage();
-    setState(() {
-      lastMessage = thinkingMessage;
-    });
+    if (mounted) {
+      setState(() {
+        lastMessage = thinkingMessage;
+      });
+    }
 
-    // ⏱️ TIEMPO DE PENSAMIENTO DRAMÁTICO (1.5-3.5 segundos)
-    int thinkingTime = 1500 + random.nextInt(2000);
+    // ⏱️ TIEMPO DE PENSAMIENTO DRAMÁTICO (2-4 segundos) - AUMENTADO PARA MEJOR EXPERIENCIA
+    int thinkingTime = 2000 + random.nextInt(2000);
     await Future.delayed(Duration(milliseconds: thinkingTime));
 
     // 🎲 CPU LANZA EL DADO CON ESTILO
-    setState(() {
-      lastMessage = "🎲 ¡Lanzando el dado mágico!";
-    });
+    if (mounted) {
+      setState(() {
+        lastMessage = "🎲 ¡Lanzando el dado mágico!";
+      });
+    }
 
     _playDiceSound();
     _animationController.reset();
@@ -1294,20 +1298,26 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       
       // 🧠 CPU ANALIZA EL RESULTADO
       int finalDiceValue = random.nextInt(6) + 1;
-      setState(() {
-        diceValue = finalDiceValue;
-        lastMessage = _getCPUAnalysisMessage(finalDiceValue);
-      });
-      
-      // ⏱️ PAUSA PARA ANÁLISIS
-      Timer(const Duration(milliseconds: 1200), () {
+      if (mounted) {
         setState(() {
-          lastMessage = null;
+          diceValue = finalDiceValue;
+          lastMessage = _getCPUAnalysisMessage(finalDiceValue);
         });
+      }
+      
+      // ⏱️ PAUSA PARA ANÁLISIS - TIEMPO AUMENTADO PARA LEER BIEN
+      Timer(const Duration(milliseconds: 2500), () {
+        if (mounted) {
+          setState(() {
+            lastMessage = null;
+          });
+        }
         
         // 🚀 EJECUTAR MOVIMIENTO
-        Timer(const Duration(milliseconds: 400), () {
-          _moveCurrentPlayerPiece(finalDiceValue);
+        Timer(const Duration(milliseconds: 600), () {
+          if (mounted) {
+            _moveCurrentPlayerPiece(finalDiceValue);
+          }
         });
       });
     });
