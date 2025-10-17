@@ -46,13 +46,501 @@ class MainApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: const ParchisBoard(),
+      home: const SplashScreen(), // Comenzar con la pantalla de carga
+      debugShowCheckedModeBanner: false,
+    );
+  }
+}
+
+// 🎬 PANTALLA DE CARGA (SPLASH SCREEN)
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMixin {
+  late AnimationController _logoController;
+  late AnimationController _textController;
+  late Animation<double> _logoScale;
+  late Animation<double> _textFade;
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // Animación del logo
+    _logoController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+    
+    _logoScale = Tween<double>(
+      begin: 0.5,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _logoController,
+      curve: Curves.elasticOut,
+    ));
+    
+    // Animación del texto
+    _textController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+    
+    _textFade = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _textController,
+      curve: Curves.easeIn,
+    ));
+    
+    _startAnimations();
+  }
+  
+  void _startAnimations() async {
+    // Animar logo
+    _logoController.forward();
+    
+    // Esperar un poco y animar texto
+    await Future.delayed(const Duration(milliseconds: 500));
+    _textController.forward();
+    
+    // Esperar y navegar a configuración
+    await Future.delayed(const Duration(milliseconds: 2500));
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const PlayerConfigScreen()),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _logoController.dispose();
+    _textController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF1976D2), // Azul dominicano
+              Color(0xFF0D47A1), // Azul más oscuro
+            ],
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Logo animado
+              AnimatedBuilder(
+                animation: _logoScale,
+                builder: (context, child) {
+                  return Transform.scale(
+                    scale: _logoScale.value,
+                    child: Container(
+                      width: 150,
+                      height: 150,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            spreadRadius: 5,
+                            blurRadius: 15,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.sports_esports,
+                        size: 80,
+                        color: Color(0xFF1976D2),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              
+              const SizedBox(height: 30),
+              
+              // Título animado
+              AnimatedBuilder(
+                animation: _textFade,
+                builder: (context, child) {
+                  return Opacity(
+                    opacity: _textFade.value,
+                    child: Column(
+                      children: [
+                        const Text(
+                          '🎲 PARCHÍS REVERSE',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            letterSpacing: 2,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'DOMINICANO 🇩🇴',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white70,
+                            letterSpacing: 1.5,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 40),
+                        // Indicador de carga
+                        const CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                        const SizedBox(height: 20),
+                        const Text(
+                          'Cargando...',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ⚙️ PANTALLA DE CONFIGURACIÓN DE JUGADORES
+class PlayerConfigScreen extends StatefulWidget {
+  const PlayerConfigScreen({super.key});
+
+  @override
+  State<PlayerConfigScreen> createState() => _PlayerConfigScreenState();
+}
+
+class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
+  int numPlayers = 4;
+  List<String> playerNames = ['Jugador 1', 'Jugador 2', 'Jugador 3', 'Jugador 4'];
+  List<bool> isHuman = [true, true, true, true]; // true = humano, false = CPU
+  List<Color> playerColors = [Colors.red, Colors.blue, Colors.green, Colors.yellow];
+  List<String> colorNames = ['Rojo', 'Azul', 'Verde', 'Amarillo'];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFFF5F5DC), // Beige claro
+              Color(0xFFD2B48C), // Tan
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              children: [
+                // Título
+                const Text(
+                  '⚙️ CONFIGURACIÓN',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF5D4037),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Configura tu partida',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Color(0xFF8D6E63),
+                  ),
+                ),
+                const SizedBox(height: 30),
+                
+                // Selector de cantidad de jugadores
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(15),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        spreadRadius: 2,
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      const Text(
+                        '👥 Cantidad de Jugadores',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF5D4037),
+                        ),
+                      ),
+                      const SizedBox(height: 15),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [2, 3, 4].map((count) {
+                          return GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                numPlayers = count;
+                              });
+                            },
+                            child: Container(
+                              width: 60,
+                              height: 60,
+                              decoration: BoxDecoration(
+                                color: numPlayers == count 
+                                    ? const Color(0xFF1976D2)
+                                    : Colors.grey[300],
+                                borderRadius: BorderRadius.circular(15),
+                                border: Border.all(
+                                  color: numPlayers == count 
+                                      ? const Color(0xFF0D47A1)
+                                      : Colors.grey[400]!,
+                                  width: 2,
+                                ),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  '$count',
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: numPlayers == count 
+                                        ? Colors.white
+                                        : Colors.grey[700],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                const SizedBox(height: 20),
+                
+                // Lista de jugadores
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: numPlayers,
+                    itemBuilder: (context, index) {
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 15),
+                        padding: const EdgeInsets.all(15),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(15),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              spreadRadius: 2,
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            // Color del jugador
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: playerColors[index],
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 3),
+                              ),
+                            ),
+                            const SizedBox(width: 15),
+                            
+                            // Nombre del jugador
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    colorNames[index],
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                  TextField(
+                                    decoration: InputDecoration(
+                                      hintText: 'Nombre del jugador',
+                                      border: InputBorder.none,
+                                      contentPadding: EdgeInsets.zero,
+                                    ),
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    onChanged: (value) {
+                                      setState(() {
+                                        playerNames[index] = value.isEmpty 
+                                            ? 'Jugador ${index + 1}' 
+                                            : value;
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                            
+                            // Selector CPU/Humano
+                            GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  isHuman[index] = !isHuman[index];
+                                  if (!isHuman[index]) {
+                                    playerNames[index] = 'CPU ${index + 1}';
+                                  }
+                                });
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 15, 
+                                  vertical: 8
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isHuman[index] 
+                                      ? Colors.green[100]
+                                      : Colors.orange[100],
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: isHuman[index] 
+                                        ? Colors.green
+                                        : Colors.orange,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      isHuman[index] 
+                                          ? Icons.person 
+                                          : Icons.smart_toy,
+                                      size: 20,
+                                      color: isHuman[index] 
+                                          ? Colors.green[700]
+                                          : Colors.orange[700],
+                                    ),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      isHuman[index] ? 'HUMANO' : 'CPU',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: isHuman[index] 
+                                            ? Colors.green[700]
+                                            : Colors.orange[700],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                
+                // Botón Jugar
+                Container(
+                  width: double.infinity,
+                  height: 60,
+                  margin: const EdgeInsets.only(top: 20),
+                  child: ElevatedButton(
+                    onPressed: () {
+                      // Navegar al juego con la configuración
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(
+                          builder: (context) => ParchisBoard(
+                            numPlayers: numPlayers,
+                            playerNames: playerNames.take(numPlayers).toList(),
+                            isHuman: isHuman.take(numPlayers).toList(),
+                          ),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1976D2),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      elevation: 8,
+                    ),
+                    child: const Text(
+                      '🎮 ¡JUGAR!',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
 
 class ParchisBoard extends StatefulWidget {
-  const ParchisBoard({super.key});
+  final int numPlayers;
+  final List<String> playerNames;
+  final List<bool> isHuman;
+  
+  const ParchisBoard({
+    super.key,
+    this.numPlayers = 4,
+    this.playerNames = const ['Rojo', 'Azul', 'Verde', 'Amarillo'],
+    this.isHuman = const [true, true, true, true],
+  });
 
   @override
   State<ParchisBoard> createState() => _ParchisBoardState();
@@ -90,6 +578,12 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   @override
   void initState() {
     super.initState();
+    
+    // Configurar jugadores según la pantalla de configuración
+    for (int i = 0; i < widget.numPlayers; i++) {
+      customPlayerNames[i] = widget.playerNames[i];
+    }
+    
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
