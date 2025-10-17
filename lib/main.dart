@@ -1390,6 +1390,50 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     });
   }
 
+  // 🎲 LÓGICA DE SEISES CONSECUTIVOS - REGLA CLÁSICA DEL PARCHÍS
+  void _handleDiceResult(int diceResult) {
+    setState(() {
+      if (diceResult == 6) {
+        consecutiveSixes++;
+        hasExtraTurn = true;
+        
+        // 🚨 PENALIZACIÓN: 3 seises consecutivos
+        if (consecutiveSixes >= 3) {
+          lastMessage = "¡3 seises consecutivos! ¡Pierdes el turno! 😱";
+          consecutiveSixes = 0;
+          hasExtraTurn = false;
+          
+          // Cambiar turno después de mostrar el mensaje
+          Timer(const Duration(milliseconds: 2000), () {
+            setState(() {
+              lastMessage = null;
+              _nextActivePlayer();
+            });
+          });
+          return;
+        } else {
+          // ✅ TURNO EXTRA POR SACAR 6
+          String extraTurnMessage = consecutiveSixes == 1 
+              ? "¡Sacaste 6! ¡Turno extra! 🎲✨"
+              : "¡Segundo 6! ¡Cuidado con el tercero! ⚠️🎲";
+          lastMessage = extraTurnMessage;
+          
+          // Quitar mensaje después de un tiempo
+          Timer(const Duration(milliseconds: 1500), () {
+            setState(() {
+              lastMessage = null;
+            });
+          });
+        }
+      } else {
+        // 🔄 NO ES 6: Resetear contador y cambiar turno
+        consecutiveSixes = 0;
+        hasExtraTurn = false;
+        _nextActivePlayer();
+      }
+    });
+  }
+
   void _animateStepByStep(GamePiece piece, int startIndex, int steps) async {
     jumpingPiece = piece; // Marcar cuál ficha está saltando
     
@@ -1440,14 +1484,16 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     // ¡NUEVA FUNCIONALIDAD! Verificar casillas especiales
     bool shouldChangeTurn = await _checkSpecialCell(piece);
 
-    // Cambiar al siguiente jugador y desbloquear el dado después de completar el movimiento
+    // 🎲 LÓGICA DE SEISES CONSECUTIVOS: Manejar el resultado después del movimiento
     setState(() {
-      if (shouldChangeTurn) {
-        _nextActivePlayer();
-      }
       isMoving = false; // Desbloquear el dado
       jumpingPiece = null; // Ya no hay ficha saltando
     });
+
+    // Aplicar lógica de seises consecutivos (si debe cambiar turno)
+    if (shouldChangeTurn) {
+      _handleDiceResult(diceValue);
+    }
   }
 
   // Verificar si hay una víctima en la posición de destino (SIN enviarla a SALIDA aún)
