@@ -1960,169 +1960,200 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
             ),
             child: Column(
               children: [
-                // Área del tablero optimizada para móviles
+                // Panel de jugador en la parte superior - MÓVIL OPTIMIZADO
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  margin: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF81C784), Color(0xFF66BB6A)],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white, width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        spreadRadius: 2,
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      // Turno actual
+                      Expanded(
+                        flex: 2,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'Turno:',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            Text(
+                              currentPlayerIndex == 0 ? 'HUMANO' : 'CPU $currentPlayerIndex',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Estado del dado
+                      if (hasExtraTurn)
+                        Expanded(
+                          flex: 2,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.orange,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              '¡Turno Extra!',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                      // Contador de 6s consecutivos
+                      if (consecutiveSixes > 0)
+                        Expanded(
+                          flex: 1,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: consecutiveSixes >= 2 ? Colors.red : Colors.blue,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '6s: $consecutiveSixes',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+
+                // Tablero compacto para móvil - CENTRADO
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
                       // Calcular padding basado en el tamaño de pantalla
                       double screenWidth = constraints.maxWidth;
-                      double optimalPadding = screenWidth * 0.03; // 3% del ancho de pantalla
+                      double optimalPadding = screenWidth * 0.02; // Reducido para más espacio
                       
                       return Padding(
                         padding: EdgeInsets.all(optimalPadding),
-                        child: Stack(
-                          children: [
-                            // El tablero con proporciones fijas para móviles
-                            Center(
+                        child: Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(screenWidth * 0.01),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF5E6D3),
+                                borderRadius: BorderRadius.circular(15),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.3),
+                                    spreadRadius: 3,
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 5),
+                                  ),
+                                ],
+                              ),
                               child: Padding(
-                                padding: EdgeInsets.all(screenWidth * 0.02), // 2% del ancho
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF5E6D3),
-                                    borderRadius: BorderRadius.circular(15),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.3),
-                                        spreadRadius: 3,
-                                        blurRadius: 10,
-                                        offset: const Offset(0, 5),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Padding(
-                                    padding: EdgeInsets.all(screenWidth * 0.015), // 1.5% del ancho
-                                    child: AspectRatio(
-                                      aspectRatio: 1.0,
-                                      child: _buildBoard(),
-                                    ),
-                                  ),
+                                padding: EdgeInsets.all(screenWidth * 0.015),
+                                child: AspectRatio(
+                                  aspectRatio: 1.0,
+                                  child: _buildBoard(),
                                 ),
                               ),
                             ),
-
-                            // Indicadores dinámicos solo para jugadores activos
-                            ...List.generate(widget.numPlayers, (index) {
-                              List<Widget> positions = [];
-                              
-                              // Posiciones para diferentes cantidades de jugadores
-                              if (widget.numPlayers == 2) {
-                                // 2 jugadores: arriba-izquierda y abajo-derecha
-                                if (index == 0) {
-                                  positions.add(
-                                    Positioned(
-                                      top: optimalPadding * 0.2,
-                                      left: optimalPadding * 0.2,
-                                      child: _buildPlayerIndicator(index),
-                                    )
-                                  );
-                                } else {
-                                  positions.add(
-                                    Positioned(
-                                      bottom: optimalPadding * 0.2,
-                                      right: optimalPadding * 0.2,
-                                      child: _buildPlayerIndicator(index),
-                                    )
-                                  );
-                                }
-                              } else if (widget.numPlayers == 3) {
-                                // 3 jugadores: arriba-izquierda, arriba-derecha, abajo-centro
-                                if (index == 0) {
-                                  positions.add(
-                                    Positioned(
-                                      top: optimalPadding * 0.2,
-                                      left: optimalPadding * 0.2,
-                                      child: _buildPlayerIndicator(index),
-                                    )
-                                  );
-                                } else if (index == 1) {
-                                  positions.add(
-                                    Positioned(
-                                      top: optimalPadding * 0.2,
-                                      right: optimalPadding * 0.2,
-                                      child: _buildPlayerIndicator(index),
-                                    )
-                                  );
-                                } else {
-                                  positions.add(
-                                    Positioned(
-                                      bottom: optimalPadding * 0.2,
-                                      left: screenWidth * 0.35,
-                                      child: _buildPlayerIndicator(index),
-                                    )
-                                  );
-                                }
-                              } else {
-                                // 4 jugadores: las 4 esquinas
-                                List<Map<String, dynamic>> cornerPositions = [
-                                  {'top': optimalPadding * 0.2, 'left': optimalPadding * 0.2},
-                                  {'top': optimalPadding * 0.2, 'right': optimalPadding * 0.2},
-                                  {'bottom': optimalPadding * 0.2, 'left': optimalPadding * 0.2},
-                                  {'bottom': optimalPadding * 0.2, 'right': optimalPadding * 0.2},
-                                ];
-                                
-                                Map<String, dynamic> pos = cornerPositions[index];
-                                positions.add(
-                                  Positioned(
-                                    top: pos['top'],
-                                    bottom: pos['bottom'],
-                                    left: pos['left'],
-                                    right: pos['right'],
-                                    child: _buildPlayerIndicator(index),
-                                  )
-                                );
-                              }
-                              
-                              return positions;
-                            }).expand((x) => x),
-                          ],
+                          ),
                         ),
                       );
                     },
                   ),
                 ),
 
-                // Sección del dado - proporción móvil
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    double screenWidth = MediaQuery.of(context).size.width;
-                    return Container(
-                      margin: EdgeInsets.all(screenWidth * 0.02), // Reducido de 0.03 a 0.02 para subir el dado
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                // Dado y controles en la parte inferior - MÓVIL OPTIMIZADO
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  margin: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF8D6E63), Color(0xFF6D4C41)],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white, width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        spreadRadius: 2,
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Dado centrado
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Column(
-                            children: [
-                              const Text(
-                                'Lanzar Dado',
-                                style: TextStyle(
-                                  fontSize: 24, // Aumentado de 18 a 24
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF5D4037),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              GestureDetector(
-                                onTap: _rollDice,
-                                child: AnimatedBuilder(
-                                  animation: _animationController,
-                                  builder: (context, child) {
-                                    return Transform.rotate(
-                                      angle: _rotationAnimation.value,
-                                      child: Transform.scale(
-                                        scale: _scaleAnimation.value,
-                                        child: _buildDice(diceValue),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                            ],
+                          const Text(
+                            'Lanzar Dado',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          GestureDetector(
+                            onTap: _rollDice,
+                            child: AnimatedBuilder(
+                              animation: _animationController,
+                              builder: (context, child) {
+                                return Transform.rotate(
+                                  angle: _rotationAnimation.value,
+                                  child: Transform.scale(
+                                    scale: _scaleAnimation.value,
+                                    child: _buildDice(diceValue),
+                                  ),
+                                );
+                              },
+                            ),
                           ),
                         ],
                       ),
-                    );
-                  },
+                    ],
+                  ),
                 ),
               ],
             ),
