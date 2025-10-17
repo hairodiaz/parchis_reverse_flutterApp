@@ -948,6 +948,10 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   List<Color> playerColors = [Colors.red, Colors.blue, Colors.green, Colors.yellow];
   List<String> playerNames = ['Rojo', 'Azul', 'Verde', 'Amarillo'];
   List<String?> customPlayerNames = [null, null, null, null]; // Nombres personalizados (null = usar color)
+  
+  // 🎲 REGLAS CLÁSICAS DEL PARCHÍS
+  int consecutiveSixes = 0; // Contador de seises consecutivos
+  bool hasExtraTurn = false; // Indica si el jugador tiene turno extra por sacar 6
   bool isMoving = false; // Para bloquear el dado mientras se mueve una ficha
   GamePiece? jumpingPiece; // Para saber qué ficha está saltando
   
