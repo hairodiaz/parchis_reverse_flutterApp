@@ -21,12 +21,18 @@ class OnlineGameRoom {
   });
 
   factory OnlineGameRoom.fromMap(Map<String, dynamic> map, String roomId) {
+    // Convierte el mapa de jugadores a Map<String, Map> de forma robusta
+    final playersRaw = map['players'];
+    final playersMap = (playersRaw is Map)
+        ? playersRaw.map((key, value) => MapEntry(key.toString(), value as Map))
+        : <String, Map>{};
+
     return OnlineGameRoom(
       roomId: roomId,
       hostPlayer: map['hostPlayer'] ?? '',
-      players: (map['players'] as Map<String, dynamic>?)?.entries
-          .map((e) => OnlinePlayer.fromMap(e.value, e.key))
-          .toList() ?? [],
+      players: playersMap.entries
+          .map((e) => OnlinePlayer.fromMap(Map<String, dynamic>.from(e.value), e.key))
+          .toList(),
       gameState: map['gameState'] ?? {},
       status: map['status'] ?? 'waiting',
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? 0),
@@ -175,24 +181,30 @@ class FirebaseService {
     if (!isAvailable) return false;
 
     try {
-      final roomRef = _database!.ref('gameRooms/$roomCode');
+      // Normaliza el código de sala (mayúsculas y sin espacios)
+      final normalizedCode = roomCode.trim().toUpperCase();
+      final roomRef = _database!.ref('gameRooms/$normalizedCode');
       final snapshot = await roomRef.get();
 
       if (!snapshot.exists) {
-        print('❌ Sala no encontrada: $roomCode');
+        print('❌ Sala no encontrada: $normalizedCode');
         return false;
       }
 
-      final roomData = snapshot.value as Map<String, dynamic>;
-      final room = OnlineGameRoom.fromMap(roomData, roomCode);
+    // Convierte el snapshot a Map<String, dynamic> de forma robusta
+    final rawData = snapshot.value;
+    final roomData = (rawData is Map)
+      ? rawData.map((key, value) => MapEntry(key.toString(), value))
+      : <String, dynamic>{};
+    final room = OnlineGameRoom.fromMap(roomData, normalizedCode);
 
       if (room.players.length >= 4) {
-        print('❌ Sala llena: $roomCode');
+        print('❌ Sala llena: $normalizedCode');
         return false;
       }
 
       if (room.status != 'waiting') {
-        print('❌ Partida ya iniciada: $roomCode');
+        print('❌ Partida ya iniciada: $normalizedCode');
         return false;
       }
 
@@ -201,10 +213,10 @@ class FirebaseService {
         player.copyWith(playerId: playerId).toMap()
       );
 
-      _currentRoomId = roomCode;
+      _currentRoomId = normalizedCode;
       _currentPlayerId = playerId;
 
-      print('✅ Unido a sala: $roomCode');
+      print('✅ Unido a sala: $normalizedCode');
       return true;
     } catch (e) {
       print('❌ Error uniéndose a sala: $e');
