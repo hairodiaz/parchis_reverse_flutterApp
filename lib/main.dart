@@ -968,7 +968,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   bool isDecisionTime = false; // ¿Está el jugador decidiendo si cambiar?
   int currentDiceResult = 0; // Resultado actual del dado
   Timer? _decisionTimer; // Timer para auto-continuar
-  int decisionCountdown = 5; // Countdown de 5 segundos
+  int decisionCountdown = 3; // Countdown de 3 segundos
 
   // �👤 SISTEMA DE PERFILES DE JUGADORES
   
@@ -1095,7 +1095,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     setState(() {
       isDecisionTime = true;
       currentDiceResult = diceResult;
-      decisionCountdown = 5; // Cambiado de 3 a 5 segundos
+      decisionCountdown = 3; // Cambiado de 5 a 3 segundos
     });
 
     // Si es CPU, tomar decisión automática
@@ -2495,90 +2495,80 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
                                 const SizedBox(height: 8),
                                 GestureDetector(
                                   onTap: _rollDice,
-                                  child: AnimatedBuilder(
-                                    animation: _animationController,
-                                    builder: (context, child) {
-                                      return Transform.rotate(
-                                        angle: _rotationAnimation.value,
-                                        child: Transform.scale(
-                                          scale: _scaleAnimation.value,
-                                          child: _buildDice(isDecisionTime ? currentDiceResult : diceValue),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      // El dado
+                                      AnimatedBuilder(
+                                        animation: _animationController,
+                                        builder: (context, child) {
+                                          return Transform.rotate(
+                                            angle: _rotationAnimation.value,
+                                            child: Transform.scale(
+                                              scale: _scaleAnimation.value,
+                                              child: _buildDice(isDecisionTime ? currentDiceResult : diceValue),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                      
+                                      // Ícono de refresh (solo visible durante decisión para humanos)
+                                      if (isDecisionTime && widget.isHuman[currentPlayerIndex])
+                                        Container(
+                                          margin: const EdgeInsets.only(left: 12),
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              GestureDetector(
+                                                onTap: remainingChanges[currentPlayerIndex] > 0 
+                                                    ? _playerChooseChange 
+                                                    : null,
+                                                child: Container(
+                                                  padding: const EdgeInsets.all(6),
+                                                  decoration: BoxDecoration(
+                                                    color: remainingChanges[currentPlayerIndex] > 0 
+                                                        ? Colors.orange.withOpacity(0.8)
+                                                        : Colors.grey.withOpacity(0.5),
+                                                    shape: BoxShape.circle,
+                                                    border: Border.all(
+                                                      color: Colors.white,
+                                                      width: 2,
+                                                    ),
+                                                  ),
+                                                  child: const Icon(
+                                                    Icons.refresh,
+                                                    color: Colors.white,
+                                                    size: 20,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              // Contador de cambios disponibles
+                                              Text(
+                                                '${remainingChanges[currentPlayerIndex]}',
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                              // Countdown visual sutil
+                                              Text(
+                                                '$decisionCountdown',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  color: Colors.orange.shade200,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
-                                      );
-                                    },
+                                    ],
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                          
-                          // Panel de decisión (solo visible durante período de decisión)
-                          if (isDecisionTime && widget.isHuman[currentPlayerIndex])
-                            Container(
-                              margin: const EdgeInsets.only(left: 16),
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.orange.withOpacity(0.9),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.white, width: 2),
-                              ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    '⏱️ $decisionCountdown',
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Cambios: ${remainingChanges[currentPlayerIndex]}',
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  ElevatedButton(
-                                    onPressed: remainingChanges[currentPlayerIndex] > 0 
-                                        ? _playerChooseChange 
-                                        : null,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.red,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      minimumSize: const Size(60, 30),
-                                    ),
-                                    child: const Text(
-                                      'CAMBIAR',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  ElevatedButton(
-                                    onPressed: _continueWithCurrentResult,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.green,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      minimumSize: const Size(60, 30),
-                                    ),
-                                    child: const Text(
-                                      'CONTINUAR',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
                         ],
                       ),
                     ],
