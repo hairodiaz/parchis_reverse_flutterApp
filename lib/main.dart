@@ -1170,6 +1170,9 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       lastMessage = "🔄 ¡Cambiando jugada! (${remainingChanges[currentPlayerIndex]} cambios restantes)";
     });
 
+    // 🎯 GENERAR NUEVO RESULTADO ANTES de la animación
+    int newFinalResult = Random().nextInt(6) + 1;
+
     // Nuevo lanzamiento de dado
     _playDiceSound();
     _animationController.reset();
@@ -1177,7 +1180,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     
     Timer? newDiceTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
       setState(() {
-        currentDiceResult = Random().nextInt(6) + 1;
+        currentDiceResult = Random().nextInt(6) + 1; // Animación aleatoria
       });
     });
 
@@ -1185,15 +1188,15 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       newDiceTimer?.cancel();
       
       setState(() {
-        currentDiceResult = Random().nextInt(6) + 1;
-        lastMessage = "🎲 Nuevo resultado: $currentDiceResult";
+        currentDiceResult = newFinalResult; // Asignar resultado final SIN cambio brusco
+        lastMessage = "🎲 Nuevo resultado: $newFinalResult";
       });
 
       Timer(const Duration(milliseconds: 1000), () {
         setState(() {
           lastMessage = null;
         });
-        _continueWithDiceResult(currentDiceResult);
+        _continueWithDiceResult(newFinalResult); // Usar el resultado final correcto
       });
     });
   }
@@ -1427,24 +1430,27 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     // ¡SONIDO DEL DADO! 🎵
     _playDiceSound();
     
+    // 🎯 GENERAR RESULTADO FINAL ANTES de la animación
+    int finalDiceResult = random.nextInt(6) + 1;
+    
     _animationController.reset();
     _animationController.forward();
     
     _timer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
       setState(() {
-        diceValue = random.nextInt(6) + 1;
+        diceValue = random.nextInt(6) + 1; // Animación aleatoria
       });
     });
 
     Timer(const Duration(milliseconds: 800), () {
       _timer?.cancel();
       setState(() {
-        diceValue = random.nextInt(6) + 1;
+        diceValue = finalDiceResult; // Asignar el resultado final SIN cambio brusco
         isMoving = true; // Bloquear el dado
       });
       
       // 🔄 NUEVO: Iniciar período de decisión para cambio de jugada
-      _startDecisionPeriod(diceValue);
+      _startDecisionPeriod(finalDiceResult);
     });
   }
 
