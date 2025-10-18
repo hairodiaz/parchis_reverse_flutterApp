@@ -1847,7 +1847,13 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   // Ruta de movimiento en el tablero (secuencia de posiciones)
   List<Position> boardPath = [];
 
-  // � SISTEMA DE CAMBIO DE JUGADAS
+  // 🌐 MODO ONLINE
+  FirebaseService? _firebaseService;
+  StreamSubscription<OnlineGameState?>? _gameStateSubscription;
+  bool _isLocalPlayer = true; // Indica si es el turno del jugador local
+  int _localPlayerIndex = 0; // Índice del jugador local en la sala
+
+  // 🎮 SISTEMA DE CAMBIO DE JUGADAS
   List<int> remainingChanges = [3, 3, 3, 3]; // Cambios disponibles por jugador
   bool isDecisionTime = false; // ¿Está el jugador decidiendo si cambiar?
   int currentDiceResult = 0; // Resultado actual del dado
@@ -2142,11 +2148,16 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     if (UserManager.currentUser != null && widget.isHuman[0]) {
       customPlayerNames[0] = UserManager.currentUser!.name;
     }
+
+    // 🌐 INICIALIZAR MODO ONLINE
+    if (widget.isOnlineMode && widget.roomCode != null) {
+      _initializeOnlineMode();
+    }
     
     // 🎮 AUTO-INICIAR SI EL PRIMER JUGADOR ES CPU
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Timer(const Duration(milliseconds: 1000), () {
-        if (_isCurrentPlayerCPU() && !isMoving) {
+        if (_isCurrentPlayerCPU() && !isMoving && !widget.isOnlineMode) {
           _rollDice();
         }
       });
@@ -2192,6 +2203,117 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     
     // Crear la ruta del tablero
     _initializeBoardPath();
+  }
+
+  // 🌐 MÉTODOS PARA MODO ONLINE
+  void _initializeOnlineMode() async {
+    _firebaseService = FirebaseService();
+    
+    if (widget.roomCode != null) {
+      // Obtener información de la sala
+      final roomInfo = await _firebaseService!.getRoomInfo(widget.roomCode!);
+      if (roomInfo != null) {
+        // Determinar índice del jugador local
+        final currentPlayerId = _firebaseService!.currentPlayerId;
+        _localPlayerIndex = roomInfo.players.indexWhere(
+          (player) => player.playerId == currentPlayerId
+        );
+        
+        // Inicializar estado del juego basado en Firebase
+        _syncLocalStateWithFirebase(roomInfo.gameState);
+        
+        // Escuchar cambios en tiempo real
+        _gameStateSubscription = _firebaseService!.watchGameState(widget.roomCode!)
+            .listen(_onGameStateChanged);
+      }
+    }
+  }
+
+  void _onGameStateChanged(OnlineGameState? gameState) {
+    if (gameState != null && mounted) {
+      setState(() {
+        _syncLocalStateWithFirebase(gameState);
+      });
+    }
+  }
+
+  void _syncLocalStateWithFirebase(OnlineGameState gameState) {
+    // Sincronizar estado local con Firebase
+    currentPlayerIndex = gameState.currentPlayerIndex;
+    diceValue = gameState.diceValue;
+    isMoving = gameState.isMoving;
+    
+    // Actualizar posiciones de las fichas
+    for (final piece in gameState.pieces) {
+      // Buscar la ficha local correspondiente por índice
+      if (piece.playerIndex < gamePieces.length) {
+        final localPiece = gamePieces[piece.playerIndex];
+        localPiece.position = Position(piece.row, piece.col);
+      }
+    }
+    
+    // Actualizar mensaje si existe
+    if (gameState.lastMessage != null) {
+      currentMessage = gameState.lastMessage!;
+    }
+    
+    // Determinar si es el turno del jugador local
+    _isLocalPlayer = currentPlayerIndex == _localPlayerIndex;
+  }
+
+  Future<void> _syncToFirebase() async {
+    if (!widget.isOnlineMode || widget.roomCode == null || _firebaseService == null) {
+      return;
+    }
+
+    // Crear estado del juego para Firebase
+    final pieces = <OnlineGamePiece>[];
+    for (int i = 0; i < gamePieces.length; i++) {
+      final piece = gamePieces[i];
+      pieces.add(OnlineGamePiece(
+        id: (i + 1).toString(),
+        playerIndex: i,
+        color: _getPlayerColorName(i),
+        row: piece.position.row,
+        col: piece.position.col,
+      ));
+    }
+
+    final gameState = OnlineGameState(
+      currentPlayerIndex: currentPlayerIndex,
+      diceValue: diceValue,
+      pieces: pieces,
+      lastMessage: currentMessage.isNotEmpty ? currentMessage : null,
+      isMoving: isMoving,
+      lastUpdate: DateTime.now(),
+    );
+
+    await _firebaseService!.updateGameState(widget.roomCode!, gameState.toMap());
+  }
+
+  String _getPlayerColorName(int playerIndex) {
+    switch (playerIndex) {
+      case 0: return 'red';
+      case 1: return 'blue';
+      case 2: return 'green';
+      case 3: return 'yellow';
+      default: return 'red';
+    }
+  }
+
+  void _showMessage(String message) {
+    setState(() {
+      currentMessage = message;
+    });
+    
+    // Limpiar mensaje después de 3 segundos
+    Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() {
+          currentMessage = '';
+        });
+      }
+    });
   }
 
   void _initializeGamePieces() {
@@ -2307,12 +2429,23 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     _messageTimer?.cancel();
     _animationController.dispose();
     _jumpController.dispose();
+    
+    // 🌐 LIMPIAR RECURSOS DE FIREBASE
+    _gameStateSubscription?.cancel();
+    
     super.dispose();
   }
 
   void _rollDice() {
     if (_timer != null && _timer!.isActive) return;
     if (isMoving) return; // No permitir lanzar dado mientras se mueve una ficha
+    
+    // 🌐 VERIFICAR TURNO EN MODO ONLINE
+    if (widget.isOnlineMode && !_isLocalPlayer) {
+      currentMessage = '¡No es tu turno!';
+      _showMessage(currentMessage);
+      return;
+    }
     
     // 🤖 SISTEMA CPU INTELIGENTE - ¡ÉPICO!
     if (_isCurrentPlayerCPU()) {
@@ -2341,6 +2474,11 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
         diceValue = finalDiceResult; // Asignar el resultado final SIN cambio brusco
         isMoving = true; // Bloquear el dado
       });
+      
+      // 🌐 SINCRONIZAR CON FIREBASE
+      if (widget.isOnlineMode) {
+        _firebaseService?.rollDice(widget.roomCode!, finalDiceResult);
+      }
       
       // 🔄 NUEVO: Iniciar período de decisión para cambio de jugada
       _startDecisionPeriod(finalDiceResult);
@@ -2533,13 +2671,20 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   void _nextActivePlayer() {
     // ✅ CICLO CORRECTO: Solo entre jugadores activos (0 hasta numPlayers-1)
     currentPlayerIndex = (currentPlayerIndex + 1) % widget.numPlayers;
+    
+    // 🌐 SINCRONIZAR CAMBIO DE TURNO CON FIREBASE
+    if (widget.isOnlineMode && widget.roomCode != null) {
+      _firebaseService?.nextTurn(widget.roomCode!, currentPlayerIndex);
+    }
              
-    // 🤖 AUTO-EJECUTAR TURNO SI ES CPU
-    Timer(const Duration(milliseconds: 500), () {
-      if (_isCurrentPlayerCPU() && !isMoving) {
-        _rollDice();
-      }
-    });
+    // 🤖 AUTO-EJECUTAR TURNO SI ES CPU (no en modo online)
+    if (!widget.isOnlineMode) {
+      Timer(const Duration(milliseconds: 500), () {
+        if (_isCurrentPlayerCPU() && !isMoving) {
+          _rollDice();
+        }
+      });
+    }
   }
 
   // 🎲 LÓGICA DE SEISES CONSECUTIVOS - REGLA CLÁSICA DEL PARCHÍS
@@ -2631,6 +2776,17 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       setState(() {
         piece.position = boardPath[newIndex];
       });
+      
+      // 🌐 SINCRONIZAR MOVIMIENTO CON FIREBASE
+      if (widget.isOnlineMode && widget.roomCode != null) {
+        _firebaseService?.movePiece(widget.roomCode!, OnlineGamePiece(
+          id: (currentPlayerIndex + 1).toString(),
+          playerIndex: currentPlayerIndex,
+          color: _getPlayerColorName(currentPlayerIndex),
+          row: piece.position.row,
+          col: piece.position.col,
+        ));
+      }
       
       // Completar el salto (bajar)
       await _jumpController.reverse();

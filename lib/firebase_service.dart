@@ -2,12 +2,146 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'dart:math';
 
+// Modelo de estado del juego online
+class OnlineGameState {
+  final int currentPlayerIndex;
+  final int diceValue;
+  final List<OnlineGamePiece> pieces;
+  final String? lastMessage;
+  final bool isMoving;
+  final DateTime lastUpdate;
+
+  OnlineGameState({
+    required this.currentPlayerIndex,
+    required this.diceValue,
+    required this.pieces,
+    this.lastMessage,
+    this.isMoving = false,
+    required this.lastUpdate,
+  });
+
+  factory OnlineGameState.fromMap(Map<String, dynamic> map) {
+    try {
+      final piecesRaw = map['pieces'] as List<dynamic>? ?? [];
+      final pieces = piecesRaw
+          .map((p) {
+            if (p is Map) {
+              return OnlineGamePiece.fromMap(Map<String, dynamic>.from(p));
+            }
+            throw Exception('Invalid piece data: $p');
+          })
+          .toList();
+
+      return OnlineGameState(
+        currentPlayerIndex: map['currentPlayerIndex'] ?? 0,
+        diceValue: map['diceValue'] ?? 1,
+        pieces: pieces,
+        lastMessage: map['lastMessage'],
+        isMoving: map['isMoving'] ?? false,
+        lastUpdate: DateTime.fromMillisecondsSinceEpoch(map['lastUpdate'] ?? 0),
+      );
+    } catch (e) {
+      print('❌ Error en OnlineGameState.fromMap: $e');
+      rethrow;
+    }
+  }
+
+  static OnlineGameState createDefaultGameState(int numPlayers) {
+    // Crear fichas iniciales en posición de salida (9,0)
+    final pieces = <OnlineGamePiece>[];
+    final colors = ['red', 'blue', 'green', 'yellow'];
+    
+    for (int i = 0; i < numPlayers; i++) {
+      pieces.add(OnlineGamePiece(
+        id: '${i + 1}',
+        playerIndex: i,
+        color: colors[i],
+        row: 9,
+        col: 0,
+      ));
+    }
+
+    return OnlineGameState(
+      currentPlayerIndex: 0,
+      diceValue: 1,
+      pieces: pieces,
+      lastUpdate: DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'currentPlayerIndex': currentPlayerIndex,
+      'diceValue': diceValue,
+      'pieces': pieces.map((p) => p.toMap()).toList(),
+      'lastMessage': lastMessage,
+      'isMoving': isMoving,
+      'lastUpdate': lastUpdate.millisecondsSinceEpoch,
+    };
+  }
+
+  OnlineGameState copyWith({
+    int? currentPlayerIndex,
+    int? diceValue,
+    List<OnlineGamePiece>? pieces,
+    String? lastMessage,
+    bool? isMoving,
+    DateTime? lastUpdate,
+  }) {
+    return OnlineGameState(
+      currentPlayerIndex: currentPlayerIndex ?? this.currentPlayerIndex,
+      diceValue: diceValue ?? this.diceValue,
+      pieces: pieces ?? this.pieces,
+      lastMessage: lastMessage ?? this.lastMessage,
+      isMoving: isMoving ?? this.isMoving,
+      lastUpdate: lastUpdate ?? this.lastUpdate,
+    );
+  }
+}
+
+// Modelo de ficha online
+class OnlineGamePiece {
+  final String id;
+  final int playerIndex;
+  final String color;
+  final int row;
+  final int col;
+
+  OnlineGamePiece({
+    required this.id,
+    required this.playerIndex,
+    required this.color,
+    required this.row,
+    required this.col,
+  });
+
+  factory OnlineGamePiece.fromMap(Map<String, dynamic> map) {
+    return OnlineGamePiece(
+      id: map['id'] ?? '',
+      playerIndex: map['playerIndex'] ?? 0,
+      color: map['color'] ?? 'red',
+      row: map['row'] ?? 0,
+      col: map['col'] ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'playerIndex': playerIndex,
+      'color': color,
+      'row': row,
+      'col': col,
+    };
+  }
+}
+
 // Modelo de datos para sala de juego online
 class OnlineGameRoom {
   final String roomId;
   final String hostPlayer;
   final List<OnlinePlayer> players;
-  final Map<String, dynamic> gameState;
+  final OnlineGameState gameState;
   final String status; // 'waiting', 'playing', 'finished'
   final DateTime createdAt;
 
@@ -34,11 +168,22 @@ class OnlineGameRoom {
           .map((e) => OnlinePlayer.fromMap(Map<String, dynamic>.from(e.value), e.key))
           .toList();
 
+      // Parsear gameState de forma robusta
+      final gameStateRaw = map['gameState'];
+      late OnlineGameState gameState;
+      
+      if (gameStateRaw != null && gameStateRaw is Map) {
+        final gameStateMap = Map<String, dynamic>.from(gameStateRaw);
+        gameState = OnlineGameState.fromMap(gameStateMap);
+      } else {
+        gameState = OnlineGameState.createDefaultGameState(players.length);
+      }
+
       return OnlineGameRoom(
         roomId: roomId,
         hostPlayer: map['hostPlayer'] ?? '',
         players: players,
-        gameState: map['gameState'] ?? {},
+        gameState: gameState,
         status: map['status'] ?? 'waiting',
         createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? 0),
       );
@@ -55,7 +200,7 @@ class OnlineGameRoom {
       'players': {
         for (var player in players) player.playerId: player.toMap()
       },
-      'gameState': gameState,
+      'gameState': gameState.toMap(),
       'status': status,
       'createdAt': createdAt.millisecondsSinceEpoch,
     };
@@ -164,11 +309,14 @@ class FirebaseService {
       final roomCode = _generateRoomCode();
       final playerId = 'player_${DateTime.now().millisecondsSinceEpoch}';
       
+      // Crear estado inicial del juego
+      final initialGameState = OnlineGameState.createDefaultGameState(1);
+      
       final room = OnlineGameRoom(
         roomId: roomCode,
         hostPlayer: playerId,
         players: [hostPlayer.copyWith(playerId: playerId, isHost: true)],
-        gameState: {},
+        gameState: initialGameState,
         status: 'waiting',
         createdAt: DateTime.now(),
       );
@@ -260,12 +408,17 @@ class FirebaseService {
     });
   }
 
-  // Actualizar estado del juego
+  // Actualizar estado del juego (método mejorado)
   Future<void> updateGameState(String roomCode, Map<String, dynamic> gameState) async {
     if (!isAvailable) return;
 
     try {
-      await _database!.ref('gameRooms/$roomCode/gameState').update(gameState);
+      // Si recibe un mapa simple, actualizamos con timestamp
+      final updateData = Map<String, dynamic>.from(gameState);
+      updateData['lastUpdate'] = DateTime.now().millisecondsSinceEpoch;
+      
+      await _database!.ref('gameRooms/$roomCode/gameState').update(updateData);
+      print('✅ Estado del juego actualizado: $roomCode');
     } catch (e) {
       print('❌ Error actualizando estado: $e');
     }
@@ -296,6 +449,137 @@ class FirebaseService {
       print('✅ Saliste de la sala');
     } catch (e) {
       print('❌ Error saliendo de sala: $e');
+    }
+  }
+
+  // Escuchar cambios en el estado del juego en tiempo real
+  Stream<OnlineGameState?> watchGameState(String roomCode) {
+    if (!isAvailable || roomCode.isEmpty) {
+      return Stream.value(null);
+    }
+
+    return _database!.ref('gameRooms/$roomCode/gameState')
+        .onValue
+        .map((event) {
+      try {
+        if (event.snapshot.exists && event.snapshot.value != null) {
+          final rawData = event.snapshot.value;
+          if (rawData is Map) {
+            final data = Map<String, dynamic>.from(rawData);
+            return OnlineGameState.fromMap(data);
+          }
+        }
+        return null;
+      } catch (e) {
+        print('❌ Error en stream de estado del juego: $e');
+        return null;
+      }
+    });
+  }
+
+  // Métodos específicos para acciones del juego
+  Future<bool> rollDice(String roomCode, int diceValue) async {
+    if (!isAvailable || roomCode.isEmpty) return false;
+
+    try {
+      await _database!.ref('gameRooms/$roomCode/gameState').update({
+        'diceValue': diceValue,
+        'lastUpdate': DateTime.now().millisecondsSinceEpoch,
+        'lastMessage': 'Dado lanzado: $diceValue',
+      });
+      print('✅ Dado lanzado: $diceValue en sala $roomCode');
+      return true;
+    } catch (e) {
+      print('❌ Error lanzando dado: $e');
+      return false;
+    }
+  }
+
+  Future<bool> movePiece(String roomCode, OnlineGamePiece piece) async {
+    if (!isAvailable || roomCode.isEmpty) return false;
+
+    try {
+      // Obtener estado actual
+      final snapshot = await _database!.ref('gameRooms/$roomCode/gameState').get();
+      if (!snapshot.exists || snapshot.value == null) return false;
+
+      final rawData = snapshot.value;
+      if (!(rawData is Map)) return false;
+      
+      final currentState = OnlineGameState.fromMap(
+        Map<String, dynamic>.from(rawData)
+      );
+
+      // Actualizar la pieza en el array
+      final updatedPieces = currentState.pieces.map((p) {
+        return p.id == piece.id ? piece : p;
+      }).toList();
+
+      await _database!.ref('gameRooms/$roomCode/gameState').update({
+        'pieces': updatedPieces.map((p) => p.toMap()).toList(),
+        'lastUpdate': DateTime.now().millisecondsSinceEpoch,
+        'lastMessage': 'Ficha movida a (${piece.row}, ${piece.col})',
+        'isMoving': false,
+      });
+
+      print('✅ Pieza movida en sala $roomCode');
+      return true;
+    } catch (e) {
+      print('❌ Error moviendo pieza: $e');
+      return false;
+    }
+  }
+
+  Future<bool> nextTurn(String roomCode, int nextPlayerIndex) async {
+    if (!isAvailable || roomCode.isEmpty) return false;
+
+    try {
+      await _database!.ref('gameRooms/$roomCode/gameState').update({
+        'currentPlayerIndex': nextPlayerIndex,
+        'lastUpdate': DateTime.now().millisecondsSinceEpoch,
+        'lastMessage': 'Turno del jugador ${nextPlayerIndex + 1}',
+        'isMoving': false,
+      });
+      print('✅ Turno cambiado al jugador $nextPlayerIndex en sala $roomCode');
+      return true;
+    } catch (e) {
+      print('❌ Error cambiando turno: $e');
+      return false;
+    }
+  }
+
+  Future<bool> setMovingState(String roomCode, bool isMoving) async {
+    if (!isAvailable || roomCode.isEmpty) return false;
+
+    try {
+      await _database!.ref('gameRooms/$roomCode/gameState').update({
+        'isMoving': isMoving,
+        'lastUpdate': DateTime.now().millisecondsSinceEpoch,
+      });
+      return true;
+    } catch (e) {
+      print('❌ Error actualizando estado de movimiento: $e');
+      return false;
+    }
+  }
+
+  // Obtener información de la sala
+  Future<OnlineGameRoom?> getRoomInfo(String roomCode) async {
+    if (!isAvailable || roomCode.isEmpty) return null;
+
+    try {
+      final snapshot = await _database!.ref('gameRooms/$roomCode').get();
+      if (snapshot.exists && snapshot.value != null) {
+        final rawData = snapshot.value;
+        if (rawData is Map) {
+          final data = Map<String, dynamic>.from(rawData);
+          return OnlineGameRoom.fromMap(data, roomCode);
+        }
+      }
+      return null;
+    } catch (e) {
+      print('❌ Error obteniendo información de la sala: $e');
+      return null;
     }
   }
 
