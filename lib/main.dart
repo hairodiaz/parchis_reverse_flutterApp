@@ -963,7 +963,14 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   // Ruta de movimiento en el tablero (secuencia de posiciones)
   List<Position> boardPath = [];
 
-  // 👤 SISTEMA DE PERFILES DE JUGADORES
+  // � SISTEMA DE CAMBIO DE JUGADAS
+  List<int> remainingChanges = [3, 3, 3, 3]; // Cambios disponibles por jugador
+  bool isDecisionTime = false; // ¿Está el jugador decidiendo si cambiar?
+  int currentDiceResult = 0; // Resultado actual del dado
+  Timer? _decisionTimer; // Timer para auto-continuar
+  int decisionCountdown = 3; // Countdown de 3 segundos
+
+  // �👤 SISTEMA DE PERFILES DE JUGADORES
   
   // Obtener nombre del jugador con formato correcto
   String _getPlayerDisplayName(int playerIndex) {
@@ -1073,6 +1080,158 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
         ],
       ),
     );
+  }
+
+  // 🔄 SISTEMA DE CAMBIO DE JUGADAS
+  
+  // Iniciar período de decisión después del lanzamiento
+  void _startDecisionPeriod(int diceResult) {
+    if (remainingChanges[currentPlayerIndex] <= 0) {
+      // No tiene cambios disponibles, continuar normalmente
+      _continueWithDiceResult(diceResult);
+      return;
+    }
+
+    setState(() {
+      isDecisionTime = true;
+      currentDiceResult = diceResult;
+      decisionCountdown = 3;
+    });
+
+    // Si es CPU, tomar decisión automática
+    if (!widget.isHuman[currentPlayerIndex]) {
+      _cpuMakeChangeDecision();
+      return;
+    }
+
+    // Para humanos: countdown de 3 segundos
+    _startDecisionCountdown();
+  }
+
+  // Countdown para decisión del humano
+  void _startDecisionCountdown() {
+    _decisionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        decisionCountdown--;
+      });
+
+      if (decisionCountdown <= 0) {
+        timer.cancel();
+        _continueWithCurrentResult(); // Auto-continuar si no decide
+      }
+    });
+  }
+
+  // CPU decide inteligentemente si cambiar
+  void _cpuMakeChangeDecision() {
+    Timer(const Duration(milliseconds: 1500), () {
+      bool shouldChange = _cpuShouldChange(currentDiceResult);
+      
+      if (shouldChange && remainingChanges[currentPlayerIndex] > 0) {
+        _changeCurrentDiceResult();
+      } else {
+        _continueWithCurrentResult();
+      }
+    });
+  }
+
+  // Lógica inteligente del CPU para decidir si cambiar
+  bool _cpuShouldChange(int diceResult) {
+    // CPU es más probable que cambie números bajos (1-2)
+    if (diceResult <= 2 && remainingChanges[currentPlayerIndex] > 1) return true;
+    
+    // Si tiene pocos cambios, ser más selectivo
+    if (remainingChanges[currentPlayerIndex] == 1) {
+      return diceResult == 1; // Solo cambiar si sale 1
+    }
+    
+    // Cambiar si el resultado no es favorable (20% probabilidad para 3-5)
+    if (diceResult >= 3 && diceResult <= 5) {
+      return Random().nextBool() && Random().nextBool(); // 25% chance
+    }
+    
+    return false; // Nunca cambiar 6
+  }
+
+  // Jugador humano decide cambiar
+  void _playerChooseChange() {
+    if (remainingChanges[currentPlayerIndex] > 0) {
+      _changeCurrentDiceResult();
+    }
+  }
+
+  // Ejecutar cambio de dado
+  void _changeCurrentDiceResult() {
+    _decisionTimer?.cancel();
+    
+    setState(() {
+      remainingChanges[currentPlayerIndex]--;
+      isDecisionTime = false;
+      lastMessage = "🔄 ¡Cambiando jugada! (${remainingChanges[currentPlayerIndex]} cambios restantes)";
+    });
+
+    // Nuevo lanzamiento de dado
+    _playDiceSound();
+    _animationController.reset();
+    _animationController.forward();
+    
+    Timer? newDiceTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      setState(() {
+        currentDiceResult = Random().nextInt(6) + 1;
+      });
+    });
+
+    Timer(const Duration(milliseconds: 800), () {
+      newDiceTimer?.cancel();
+      
+      setState(() {
+        currentDiceResult = Random().nextInt(6) + 1;
+        lastMessage = "🎲 Nuevo resultado: $currentDiceResult";
+      });
+
+      Timer(const Duration(milliseconds: 1000), () {
+        setState(() {
+          lastMessage = null;
+        });
+        _continueWithDiceResult(currentDiceResult);
+      });
+    });
+  }
+
+  // Continuar con resultado actual (sin cambio)
+  void _continueWithCurrentResult() {
+    _decisionTimer?.cancel();
+    setState(() {
+      isDecisionTime = false;
+    });
+    _continueWithDiceResult(currentDiceResult);
+  }
+
+  // Continuar el juego con el resultado final
+  void _continueWithDiceResult(int finalResult) {
+    setState(() {
+      diceValue = finalResult;
+    });
+    
+    Timer(const Duration(milliseconds: 200), () {
+      bool hasThreats = _checkAndShowThreatMessage(finalResult);
+      
+      if (hasThreats) {
+        Timer(const Duration(milliseconds: 1500), () {
+          setState(() {
+            lastMessage = null;
+          });
+          
+          Timer(const Duration(milliseconds: 300), () {
+            _moveCurrentPlayerPiece(finalResult);
+          });
+        });
+      } else {
+        Timer(const Duration(milliseconds: 400), () {
+          _moveCurrentPlayerPiece(finalResult);
+        });
+      }
+    });
   }
 
   @override
@@ -1280,30 +1439,8 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
         isMoving = true; // Bloquear el dado
       });
       
-      // Verificar amenaza DESPUÉS de la animación del dado, ANTES del movimiento
-      Timer(const Duration(milliseconds: 200), () {
-        bool hasThreats = _checkAndShowThreatMessage(diceValue);
-        
-        if (hasThreats) {
-          // Si hay amenaza: esperar MÁS TIEMPO para el mensaje, luego QUITARLO antes del movimiento
-          Timer(const Duration(milliseconds: 1500), () {
-            // Quitar el mensaje de amenaza antes del movimiento
-            setState(() {
-              lastMessage = null;
-            });
-            
-            // Pequeña pausa después de quitar el mensaje, luego mover
-            Timer(const Duration(milliseconds: 300), () {
-              _moveCurrentPlayerPiece(diceValue);
-            });
-          });
-        } else {
-          // Si NO hay amenaza: mover rápidamente
-          Timer(const Duration(milliseconds: 400), () {
-            _moveCurrentPlayerPiece(diceValue);
-          });
-        }
-      });
+      // 🔄 NUEVO: Iniciar período de decisión para cambio de jugada
+      _startDecisionPeriod(diceValue);
     });
   }
 
@@ -2326,37 +2463,143 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
                       ),
                     ],
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  child: Column(
                     children: [
-                      // Dado centrado
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text(
-                            'Lanzar Dado',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          GestureDetector(
-                            onTap: _rollDice,
-                            child: AnimatedBuilder(
-                              animation: _animationController,
-                              builder: (context, child) {
-                                return Transform.rotate(
-                                  angle: _rotationAnimation.value,
-                                  child: Transform.scale(
-                                    scale: _scaleAnimation.value,
-                                    child: _buildDice(diceValue),
+                      // Fila de cambios disponibles para todos los jugadores
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        margin: const EdgeInsets.only(bottom: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: List.generate(widget.numPlayers, (index) {
+                            return Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 12,
+                                  height: 12,
+                                  decoration: BoxDecoration(
+                                    color: _getPlayerColor(index),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white, width: 1),
                                   ),
-                                );
-                              },
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${remainingChanges[index]}/3',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            );
+                          }),
+                        ),
+                      ),
+                      
+                      // Área principal del dado
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // Dado centrado
+                          Expanded(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text(
+                                  'Lanzar Dado',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                GestureDetector(
+                                  onTap: _rollDice,
+                                  child: AnimatedBuilder(
+                                    animation: _animationController,
+                                    builder: (context, child) {
+                                      return Transform.rotate(
+                                        angle: _rotationAnimation.value,
+                                        child: Transform.scale(
+                                          scale: _scaleAnimation.value,
+                                          child: _buildDice(isDecisionTime ? currentDiceResult : diceValue),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
+                          
+                          // Panel de decisión (solo visible durante período de decisión)
+                          if (isDecisionTime && widget.isHuman[currentPlayerIndex])
+                            Container(
+                              margin: const EdgeInsets.only(left: 16),
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.withOpacity(0.9),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.white, width: 2),
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    '⏱️ $decisionCountdown',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  ElevatedButton(
+                                    onPressed: remainingChanges[currentPlayerIndex] > 0 
+                                        ? _playerChooseChange 
+                                        : null,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.red,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      minimumSize: const Size(60, 30),
+                                    ),
+                                    child: const Text(
+                                      'CAMBIAR',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  ElevatedButton(
+                                    onPressed: _continueWithCurrentResult,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.green,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      minimumSize: const Size(60, 30),
+                                    ),
+                                    child: const Text(
+                                      'CONTINUAR',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                         ],
                       ),
                     ],
