@@ -963,6 +963,118 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   // Ruta de movimiento en el tablero (secuencia de posiciones)
   List<Position> boardPath = [];
 
+  // 👤 SISTEMA DE PERFILES DE JUGADORES
+  
+  // Obtener nombre del jugador con formato correcto
+  String _getPlayerDisplayName(int playerIndex) {
+    if (playerIndex == 0 && widget.isHuman[0]) {
+      return customPlayerNames[0] ?? 'HUMANO';
+    } else {
+      return customPlayerNames[playerIndex] ?? 'CPU $playerIndex';
+    }
+  }
+  
+  // Obtener color del jugador
+  Color _getPlayerColor(int playerIndex) {
+    return playerColors[playerIndex];
+  }
+  
+  // Obtener ícono del estado del jugador
+  String _getPlayerStatusIcon(int playerIndex) {
+    if (playerIndex == currentPlayerIndex) {
+      if (hasExtraTurn) return '🎲'; // Turno extra
+      return '⭐'; // Turno actual
+    }
+    return '💤'; // Esperando
+  }
+  
+  // Mostrar modal de detalles del jugador
+  void _showPlayerProfile(int playerIndex) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: _getPlayerColor(playerIndex),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                _getPlayerDisplayName(playerIndex),
+                style: TextStyle(
+                  color: _getPlayerColor(playerIndex),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildProfileRow('🎨 Color:', _getColorName(_getPlayerColor(playerIndex))),
+              _buildProfileRow('🤖 Tipo:', widget.isHuman[playerIndex] ? 'Humano' : 'CPU'),
+              _buildProfileRow('🎯 Estado:', playerIndex == currentPlayerIndex ? 'En turno' : 'Esperando'),
+              if (playerIndex == currentPlayerIndex && hasExtraTurn)
+                _buildProfileRow('✨ Extra:', 'Turno extra activo'),
+              if (playerIndex == currentPlayerIndex && consecutiveSixes > 0)
+                _buildProfileRow('🎲 Seises:', '$consecutiveSixes consecutivos'),
+              const SizedBox(height: 10),
+              const Text(
+                '📊 Futuras estadísticas se mostrarán aquí',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: Colors.grey,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text(
+                'Cerrar',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+  
+  // Widget auxiliar para filas del perfil
+  Widget _buildProfileRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          Expanded(
+            child: Text(value),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -2020,10 +2132,10 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
             ),
             child: Column(
               children: [
-                // Panel de jugador en la parte superior - MÓVIL OPTIMIZADO
+                // Panel de jugadores horizontal - MÓVIL OPTIMIZADO
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                   margin: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
@@ -2042,76 +2154,111 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
                       ),
                     ],
                   ),
-                  child: Row(
+                  child: Column(
                     children: [
-                      // Turno actual
-                      Expanded(
-                        flex: 2,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text(
-                              'Turno:',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                      // Fila de jugadores horizontal
+                      Row(
+                        children: List.generate(widget.numPlayers, (index) {
+                          bool isCurrentPlayer = index == currentPlayerIndex;
+                          return Expanded(
+                            child: GestureDetector(
+                              onTap: () => _showPlayerProfile(index),
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 2),
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: isCurrentPlayer 
+                                      ? Colors.white.withOpacity(0.9)
+                                      : Colors.white.withOpacity(0.3),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: isCurrentPlayer 
+                                      ? Border.all(color: _getPlayerColor(index), width: 2)
+                                      : null,
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    // Color + Ícono de estado
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Container(
+                                          width: 12,
+                                          height: 12,
+                                          decoration: BoxDecoration(
+                                            color: _getPlayerColor(index),
+                                            shape: BoxShape.circle,
+                                            border: Border.all(color: Colors.white, width: 1),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          _getPlayerStatusIcon(index),
+                                          style: const TextStyle(fontSize: 12),
+                                        ),
+                                      ],
+                                    ),
+                                    // Nombre del jugador
+                                    Text(
+                                      _getPlayerDisplayName(index),
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: isCurrentPlayer ? FontWeight.bold : FontWeight.normal,
+                                        color: isCurrentPlayer ? Colors.black87 : Colors.white,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
-                            Text(
-                              currentPlayerIndex == 0 ? 'HUMANO' : 'CPU $currentPlayerIndex',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
+                          );
+                        }),
                       ),
-                      // Estado del dado
-                      if (hasExtraTurn)
-                        Expanded(
-                          flex: 2,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.orange,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Text(
-                              '¡Turno Extra!',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                      
+                      // Fila de estado (turno extra y contador de 6s)
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (hasExtraTurn)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.orange,
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-                      // Contador de 6s consecutivos
-                      if (consecutiveSixes > 0)
-                        Expanded(
-                          flex: 1,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: consecutiveSixes >= 2 ? Colors.red : Colors.blue,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              '6s: $consecutiveSixes',
-                              style: const TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                              child: const Text(
+                                '¡Turno Extra!',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
                               ),
-                              textAlign: TextAlign.center,
                             ),
-                          ),
-                        ),
+                          if (hasExtraTurn && consecutiveSixes > 0)
+                            const SizedBox(width: 8),
+                          if (consecutiveSixes > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: consecutiveSixes >= 2 ? Colors.red : Colors.blue,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                '6s: $consecutiveSixes',
+                                style: const TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
