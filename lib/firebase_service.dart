@@ -705,6 +705,60 @@ class FirebaseService {
     }
   }
 
+  // 💥 NUEVA FUNCIÓN: Sincronizar captura de fichas
+  Future<bool> capturePiece(String roomCode, OnlineGamePiece attacker, OnlineGamePiece victim, String message) async {
+    if (!isAvailable || roomCode.isEmpty) return false;
+
+    try {
+      print('💥 Sincronizando captura: ${attacker.color} captura a ${victim.color}');
+      
+      // Obtener estado actual
+      final snapshot = await _database!.ref('gameRooms/$roomCode/gameState').get();
+      if (!snapshot.exists || snapshot.value == null) {
+        print('❌ No existe estado de juego en Firebase');
+        return false;
+      }
+
+      final rawData = snapshot.value;
+      if (!(rawData is Map)) return false;
+      
+      final currentState = OnlineGameState.fromMap(
+        Map<String, dynamic>.from(rawData)
+      );
+
+      // Actualizar fichas: atacante mantiene posición, víctima va a SALIDA (9,0)
+      final updatedPieces = currentState.pieces.map((p) {
+        if (p.id == victim.id && p.playerIndex == victim.playerIndex) {
+          print('🏠 Enviando ${victim.color} a SALIDA');
+          return OnlineGamePiece(
+            id: victim.id,
+            playerIndex: victim.playerIndex,
+            color: victim.color,
+            row: 9, // SALIDA
+            col: 0, // SALIDA
+          );
+        } else if (p.id == attacker.id && p.playerIndex == attacker.playerIndex) {
+          print('👑 ${attacker.color} permanece en posición (${attacker.row},${attacker.col})');
+          return attacker; // Mantener la posición del atacante
+        }
+        return p;
+      }).toList();
+
+      await _database!.ref('gameRooms/$roomCode/gameState').update({
+        'pieces': updatedPieces.map((p) => p.toMap()).toList(),
+        'lastUpdate': DateTime.now().millisecondsSinceEpoch,
+        'lastMessage': message,
+        'isMoving': false,
+      });
+
+      print('✅ Captura sincronizada exitosamente en sala $roomCode');
+      return true;
+    } catch (e) {
+      print('❌ Error sincronizando captura: $e');
+      return false;
+    }
+  }
+
   Future<bool> nextTurn(String roomCode, int nextPlayerIndex) async {
     if (!isAvailable || roomCode.isEmpty) return false;
 

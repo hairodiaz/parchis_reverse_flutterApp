@@ -2489,7 +2489,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       });
     }
     
-    // Actualizar posiciones de las fichas
+    // 🎯 ACTUALIZAR POSICIONES CON ANIMACIÓN PARA DISPOSITIVO REMOTO
     for (final onlinePiece in gameState.pieces) {
       // Buscar la ficha local correspondiente por jugador
       final playerIndex = onlinePiece.playerIndex;
@@ -2504,12 +2504,15 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
             localPiece.position.col != newPosition.col) {
           print('🔄 Sincronizando ficha J${playerIndex + 1}: (${localPiece.position.row},${localPiece.position.col}) → (${newPosition.row},${newPosition.col})');
           
-          // Actualizar posición inmediatamente
-          localPiece.position = newPosition;
-          
-          // Forzar rebuild para mostrar el cambio
-          if (mounted) {
-            setState(() {});
+          // 🎬 MOSTRAR ANIMACIÓN DE MOVIMIENTO REMOTO
+          if (!_isLocalPlayer && mounted) {
+            _animateRemotePieceMovement(localPiece, newPosition);
+          } else {
+            // Actualizar posición inmediatamente para el jugador local
+            localPiece.position = newPosition;
+            if (mounted) {
+              setState(() {});
+            }
           }
         }
       }
@@ -2524,6 +2527,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     _isLocalPlayer = currentPlayerIndex == _localPlayerIndex;
   }
 
+  /* TODO: Función por implementar para sincronización completa
   Future<void> _syncToFirebase() async {
     if (!widget.isOnlineMode || widget.roomCode == null || _firebaseService == null) {
       return;
@@ -2553,6 +2557,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
 
     await _firebaseService!.updateGameState(widget.roomCode!, gameState.toMap());
   }
+  */
 
   String _getPlayerColorName(int playerIndex) {
     switch (playerIndex) {
@@ -3008,6 +3013,33 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     });
   }
 
+  // 🎬 NUEVA FUNCIÓN: Animar movimiento de ficha recibido desde Firebase
+  Future<void> _animateRemotePieceMovement(GamePiece piece, Position newPosition) async {
+    // Marcar la ficha como saltando para aplicar animación
+    jumpingPiece = piece;
+    
+    // Animar el salto
+    await _jumpController.forward();
+    
+    // Pequeña pausa en el aire
+    await Future.delayed(const Duration(milliseconds: 300));
+    
+    // Actualizar la posición mientras está en el aire
+    setState(() {
+      piece.position = newPosition;
+    });
+    
+    // Completar el salto (bajar)
+    await _jumpController.reverse();
+    
+    // Ya no hay ficha saltando
+    setState(() {
+      jumpingPiece = null;
+    });
+    
+    print('✅ Animación remota completada para ficha en (${newPosition.row},${newPosition.col})');
+  }
+
   void _animateStepByStep(GamePiece piece, int startIndex, int steps) async {
     jumpingPiece = piece; // Marcar cuál ficha está saltando
     
@@ -3153,6 +3185,29 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       victim.position = const Position(9, 0); // SALIDA
       lastMessage = selectedMessage;
     });
+    
+    // 🌐 SINCRONIZAR CAPTURA CON FIREBASE
+    if (widget.isOnlineMode && widget.roomCode != null && _isLocalPlayer) {
+      // Crear objetos para Firebase
+      final attackerFirebase = OnlineGamePiece(
+        id: (currentPlayerIndex + 1).toString(),
+        playerIndex: currentPlayerIndex,
+        color: _getPlayerColorName(currentPlayerIndex),
+        row: attacker.position.row,
+        col: attacker.position.col,
+      );
+      
+      final victimFirebase = OnlineGamePiece(
+        id: (gamePieces.indexOf(victim) + 1).toString(),
+        playerIndex: gamePieces.indexOf(victim),
+        color: _getPlayerColorName(gamePieces.indexOf(victim)),
+        row: 9, // SALIDA
+        col: 0, // SALIDA
+      );
+      
+      // Enviar captura a Firebase
+      _firebaseService?.capturePiece(widget.roomCode!, attackerFirebase, victimFirebase, selectedMessage);
+    }
     
     // Mostrar mensaje por 3 segundos
     _messageTimer?.cancel();
@@ -3336,6 +3391,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   }
 
   // Construir el indicador de jugador para las esquinas - ¡VERSIÓN ÉPICA!
+  /* TODO: Función de UI por implementar
   Widget _buildPlayerIndicator(int playerIndex) {
     bool isCurrentPlayer = currentPlayerIndex == playerIndex;
     bool isCPU = !widget.isHuman[playerIndex];
@@ -3441,6 +3497,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       ),
     );
   }
+  */
 
   // 🤖 SISTEMA CPU INTELIGENTE
   String _getCpuThinkingMessage() {
