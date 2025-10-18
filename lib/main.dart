@@ -650,6 +650,21 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
                                     _showAboutDialog();
                                   },
                                 ),
+                                
+                                const SizedBox(height: 20),
+                                
+                                // 🚪 BOTÓN CERRAR SESIÓN
+                                _buildMenuButton(
+                                  icon: Icons.logout_rounded,
+                                  title: 'CERRAR SESIÓN',
+                                  subtitle: UserManager.currentUser != null 
+                                      ? 'Salir como ${UserManager.currentUser!.name}'
+                                      : 'Volver al login',
+                                  colors: [Colors.red.shade400, Colors.red.shade600],
+                                  onTap: () {
+                                    _showLogoutDialog();
+                                  },
+                                ),
                               ],
                             ),
                           );
@@ -888,6 +903,143 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
       },
     );
   }
+
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              const Icon(
+                Icons.logout_rounded,
+                color: Colors.red,
+                size: 28,
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                '¿Cerrar sesión?',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF5D4037),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (UserManager.currentUser != null) ...[
+                Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: UserManager.currentUser!.avatarColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                      child: Center(
+                        child: Text(
+                          UserManager.currentUser!.name[0].toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            UserManager.currentUser!.name,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            'Nivel: ${UserManager.currentUser!.level}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+              ],
+              Text(
+                '¿Estás seguro de que quieres cerrar sesión y volver al login?',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[700],
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.grey[600],
+              ),
+              child: const Text(
+                'Cancelar',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Cerrar diálogo
+                UserManager.currentUser = null; // Limpiar usuario
+                
+                // Navegar al login y limpiar toda la pila de navegación
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(
+                    builder: (context) => const LoginScreen(),
+                  ),
+                  (route) => false,
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text(
+                'Cerrar sesión',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
 
 // ⚙️ PANTALLA DE CONFIGURACIÓN DE JUGADORES
@@ -906,8 +1058,62 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
   List<String> colorNames = ['Rojo', 'Azul', 'Verde', 'Amarillo'];
 
   @override
+  void initState() {
+    super.initState();
+    
+    // Si hay usuario logueado, configurar su nombre en Jugador 1
+    if (UserManager.currentUser != null) {
+      playerNames[0] = UserManager.currentUser!.name;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: Row(
+          children: [
+            if (UserManager.currentUser != null)
+              Container(
+                width: 32,
+                height: 32,
+                margin: const EdgeInsets.only(right: 12),
+                decoration: BoxDecoration(
+                  color: UserManager.currentUser!.avatarColor,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+                child: Center(
+                  child: Text(
+                    UserManager.currentUser!.name[0].toUpperCase(),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            const Text(
+              'Configuración de Partida',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF8B4513),
+        elevation: 4,
+        leading: IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: const Icon(
+            Icons.arrow_back,
+            color: Colors.white,
+          ),
+        ),
+      ),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -1062,21 +1268,40 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                                     ),
                                   ),
                                   TextField(
+                                    enabled: !(index == 0 && UserManager.currentUser != null), // Deshabilitar para Jugador 1 si hay usuario logueado
                                     decoration: InputDecoration(
-                                      hintText: 'Nombre del jugador',
+                                      hintText: index == 0 && UserManager.currentUser != null 
+                                          ? '👤 Usuario logueado' 
+                                          : 'Nombre del jugador',
                                       border: InputBorder.none,
                                       contentPadding: EdgeInsets.zero,
+                                      suffixIcon: index == 0 && UserManager.currentUser != null 
+                                          ? Icon(
+                                              Icons.lock_outline,
+                                              color: Colors.grey[400],
+                                              size: 16,
+                                            )
+                                          : null,
                                     ),
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w600,
+                                      color: index == 0 && UserManager.currentUser != null 
+                                          ? Colors.grey[600] 
+                                          : Colors.black,
+                                    ),
+                                    controller: TextEditingController(
+                                      text: playerNames[index],
                                     ),
                                     onChanged: (value) {
-                                      setState(() {
-                                        playerNames[index] = value.isEmpty 
-                                            ? 'Jugador ${index + 1}' 
-                                            : value;
-                                      });
+                                      // Solo permitir cambios si no es el usuario logueado
+                                      if (!(index == 0 && UserManager.currentUser != null)) {
+                                        setState(() {
+                                          playerNames[index] = value.isEmpty 
+                                              ? 'Jugador ${index + 1}' 
+                                              : value;
+                                        });
+                                      }
                                     },
                                   ),
                                 ],
@@ -2500,90 +2725,6 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     );
   }
 
-  // 🔐 FUNCIÓN DE LOGOUT
-  void _logout() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Row(
-            children: [
-              const Icon(
-                Icons.logout,
-                color: Colors.red,
-                size: 28,
-              ),
-              const SizedBox(width: 10),
-              const Text(
-                '¿Cerrar sesión?',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF5D4037),
-                ),
-              ),
-            ],
-          ),
-          content: Text(
-            '¿Estás seguro de que quieres cerrar sesión y volver al login?',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[700],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.grey[600],
-              ),
-              child: const Text(
-                'Cancelar',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop(); // Cerrar diálogo
-                UserManager.currentUser = null; // Limpiar usuario
-                
-                // Navegar al login y limpiar toda la pila de navegación
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(
-                    builder: (context) => const LoginScreen(),
-                  ),
-                  (route) => false,
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: const Text(
-                'Cerrar sesión',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -2657,24 +2798,8 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
         ),
         backgroundColor: const Color(0xFF8B4513),
         elevation: 4,
+        automaticallyImplyLeading: false, // Quitar botón atrás de la pantalla de juego
         actions: [
-          // Botón de logout
-          Container(
-            margin: const EdgeInsets.only(right: 4),
-            decoration: BoxDecoration(
-              color: Colors.red.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: IconButton(
-              onPressed: _logout,
-              icon: const Icon(
-                Icons.logout,
-                color: Colors.white,
-                size: 20,
-              ),
-              tooltip: 'Cerrar Sesión',
-            ),
-          ),
           // Botón de configuración
           Container(
             margin: const EdgeInsets.only(right: 8),
