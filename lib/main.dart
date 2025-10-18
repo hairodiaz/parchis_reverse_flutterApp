@@ -612,6 +612,16 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
                     ),
                   ),
                   
+                  // 👤 TARJETA DE PERFIL DEL USUARIO
+                  if (UserManager.currentUser != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      child: FadeTransition(
+                        opacity: _backgroundAnimation,
+                        child: _buildUserProfileCard(),
+                      ),
+                    ),
+                  
                   Expanded(
                     child: Center(
                       child: AnimatedBuilder(
@@ -789,6 +799,343 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
         ),
       ),
     );
+  }
+
+  Widget _buildUserProfileCard() {
+    final user = UserManager.currentUser!;
+    
+    return GestureDetector(
+      onTap: () => _showUserProfileDetails(),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.white.withOpacity(0.15),
+              Colors.white.withOpacity(0.05),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.3),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Avatar del usuario
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: user.avatarColor,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                    color: user.avatarColor.withOpacity(0.4),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Text(
+                  user.name[0].toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+            
+            const SizedBox(width: 16),
+            
+            // Información del usuario
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        '¡Hola, ${user.name}!',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: user.avatarColor.withOpacity(0.8),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          user.level,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.emoji_events,
+                        size: 16,
+                        color: Colors.orange[300],
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${user.gamesWon}/${user.gamesPlayed} ganadas',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.8),
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        'Toca para ver detalles',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white.withOpacity(0.6),
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            
+            // Icono de flecha
+            Icon(
+              Icons.arrow_forward_ios,
+              color: Colors.white.withOpacity(0.7),
+              size: 16,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showUserProfileDetails() {
+    final user = UserManager.currentUser!;
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: user.avatarColor,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+                child: Center(
+                  child: Text(
+                    user.name[0].toUpperCase(),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user.name,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: user.avatarColor.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        user.level,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: user.avatarColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  '📊 Estadísticas de Juego',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                
+                // Estadísticas principales
+                _buildStatRow('🎮 Partidas jugadas:', '${user.gamesPlayed}'),
+                _buildStatRow('🏆 Partidas ganadas:', '${user.gamesWon}'),
+                _buildStatRow('📉 Partidas perdidas:', '${user.gamesPlayed - user.gamesWon}'),
+                
+                const SizedBox(height: 16),
+                
+                // Porcentaje de victorias
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        user.avatarColor.withOpacity(0.1),
+                        user.avatarColor.withOpacity(0.05),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: user.avatarColor.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        '🎯 Porcentaje de victoria:',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: user.winRate >= 50 ? Colors.green : Colors.orange,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '${user.winRate.toStringAsFixed(1)}%',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // Información adicional
+                const Text(
+                  '🎲 Información Adicional',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                
+                _buildStatRow('🎨 Color favorito:', _getColorName(user.avatarColor)),
+                _buildStatRow('⭐ Nivel de jugador:', user.level),
+                _buildStatRow('🆔 ID de usuario:', user.id),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: TextButton.styleFrom(
+                backgroundColor: user.avatarColor.withOpacity(0.1),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: Text(
+                  'Cerrar',
+                  style: TextStyle(
+                    color: user.avatarColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildStatRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontSize: 14),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getColorName(Color color) {
+    if (color == Colors.blue) return 'Azul';
+    if (color == Colors.pink) return 'Rosa';
+    if (color == Colors.green) return 'Verde';
+    if (color == Colors.orange) return 'Naranja';
+    return 'Personalizado';
   }
 
   void _showAboutDialog() {
@@ -1682,13 +2029,13 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     _animationController.reset();
     _animationController.forward();
     
-    Timer? newDiceTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+    Timer? newDiceTimer = Timer.periodic(const Duration(milliseconds: 80), (timer) {
       setState(() {
         currentDiceResult = Random().nextInt(6) + 1; // Animación aleatoria
       });
     });
 
-    Timer(const Duration(milliseconds: 800), () {
+    Timer(const Duration(milliseconds: 500), () { // Reducido de 800ms a 500ms
       newDiceTimer?.cancel();
       
       setState(() {
@@ -1696,7 +2043,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
         lastMessage = "🎲 Nuevo resultado: $newFinalResult";
       });
 
-      Timer(const Duration(milliseconds: 1000), () {
+      Timer(const Duration(milliseconds: 600), () { // Reducido de 1000ms a 600ms
         setState(() {
           lastMessage = null;
         });
@@ -1721,8 +2068,8 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       isMoving = true; // Asegurar que el dado esté bloqueado
     });
     
-    // Pausa de 2 segundos antes de empezar el movimiento para evitar sensación de "cargado"
-    Timer(const Duration(milliseconds: 2000), () {
+    // Pausa reducida antes de empezar el movimiento para evitar sensación de "cargado"
+    Timer(const Duration(milliseconds: 1000), () { // Reducido de 2000ms a 1000ms
       Timer(const Duration(milliseconds: 200), () {
         bool hasThreats = _checkAndShowThreatMessage(finalResult);
         
@@ -1945,13 +2292,13 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     _animationController.reset();
     _animationController.forward();
     
-    _timer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+    _timer = Timer.periodic(const Duration(milliseconds: 80), (timer) {
       setState(() {
         diceValue = random.nextInt(6) + 1; // Animación aleatoria
       });
     });
 
-    Timer(const Duration(milliseconds: 800), () {
+    Timer(const Duration(milliseconds: 500), () { // Reducido de 800ms a 500ms
       _timer?.cancel();
       setState(() {
         diceValue = finalDiceResult; // Asignar el resultado final SIN cambio brusco
