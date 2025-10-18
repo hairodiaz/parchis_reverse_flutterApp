@@ -1409,6 +1409,13 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
               lastMessage = null;
               _nextActivePlayer();
             });
+            
+            // 🤖 SI EL NUEVO JUGADOR ES CPU: Continuar automáticamente
+            Timer(const Duration(milliseconds: 500), () {
+              if (_isCurrentPlayerCPU() && !isMoving) {
+                _rollDice();
+              }
+            });
           });
           return;
         } else {
@@ -1423,6 +1430,13 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
             setState(() {
               lastMessage = null;
             });
+            
+            // 🤖 SI ES CPU: Continuar automáticamente con el turno extra
+            if (_isCurrentPlayerCPU() && !isMoving) {
+              Timer(const Duration(milliseconds: 500), () {
+                _rollDice();
+              });
+            }
           });
         }
       } else {
