@@ -3,6 +3,67 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/services.dart';
 
+// Modelo de datos de usuario
+class User {
+  final String id;
+  final String name;
+  final Color avatarColor;
+  final String level;
+  final int gamesPlayed;
+  final int gamesWon;
+  
+  const User({
+    required this.id,
+    required this.name,
+    required this.avatarColor,
+    required this.level,
+    this.gamesPlayed = 0,
+    this.gamesWon = 0,
+  });
+  
+  double get winRate => gamesPlayed > 0 ? (gamesWon / gamesPlayed) * 100 : 0;
+}
+
+// Gestor de usuarios predeterminados
+class UserManager {
+  static final List<User> predefinedUsers = [
+    User(
+      id: 'hairo',
+      name: 'Hairo',
+      avatarColor: Colors.blue,
+      level: 'Pro',
+      gamesPlayed: 45,
+      gamesWon: 32,
+    ),
+    User(
+      id: 'maria',
+      name: 'María',
+      avatarColor: Colors.pink,
+      level: 'Intermedio',
+      gamesPlayed: 23,
+      gamesWon: 12,
+    ),
+    User(
+      id: 'carlos',
+      name: 'Carlos',
+      avatarColor: Colors.green,
+      level: 'Experto',
+      gamesPlayed: 67,
+      gamesWon: 51,
+    ),
+    User(
+      id: 'ana',
+      name: 'Ana',
+      avatarColor: Colors.orange,
+      level: 'Principiante',
+      gamesPlayed: 8,
+      gamesWon: 3,
+    ),
+  ];
+  
+  static User? currentUser;
+}
+
 // Clase para representar la posición en el tablero
 class Position {
   final int row;
@@ -46,8 +107,222 @@ class MainApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: const SplashScreen(), // Comenzar con la pantalla de carga
+      home: const LoginScreen(), // Comenzar con la pantalla de login
       debugShowCheckedModeBanner: false,
+    );
+  }
+}
+
+// 🔐 PANTALLA DE LOGIN
+class LoginScreen extends StatelessWidget {
+  const LoginScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF1E3A8A), // Azul oscuro
+              Color(0xFF3B82F6), // Azul medio
+              Color(0xFF60A5FA), // Azul claro
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              children: [
+                const SizedBox(height: 40),
+                
+                // Logo y título
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white.withOpacity(0.3)),
+                  ),
+                  child: const Column(
+                    children: [
+                      Icon(
+                        Icons.games,
+                        size: 80,
+                        color: Colors.white,
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        'Parchís Reverse',
+                        style: TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        'Dominicano',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                const SizedBox(height: 40),
+                
+                // Título de selección
+                const Text(
+                  'Selecciona tu perfil',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                
+                const SizedBox(height: 20),
+                
+                // Lista de usuarios
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: UserManager.predefinedUsers.length,
+                    itemBuilder: (context, index) {
+                      final user = UserManager.predefinedUsers[index];
+                      return _buildUserCard(context, user);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUserCard(BuildContext context, User user) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Card(
+        elevation: 8,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => _loginUser(context, user),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                // Avatar
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: user.avatarColor,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 3),
+                    boxShadow: [
+                      BoxShadow(
+                        color: user.avatarColor.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Text(
+                      user.name[0].toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                
+                const SizedBox(width: 16),
+                
+                // Información del usuario
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        user.name,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        'Nivel: ${user.level}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.emoji_events,
+                            size: 16,
+                            color: Colors.orange[400],
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${user.gamesWon}/${user.gamesPlayed} ganadas',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${user.winRate.toStringAsFixed(0)}%',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: user.winRate >= 50 ? Colors.green : Colors.orange,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                
+                // Icono de entrada
+                Icon(
+                  Icons.arrow_forward_ios,
+                  color: user.avatarColor,
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _loginUser(BuildContext context, User user) {
+    UserManager.currentUser = user;
+    
+    // Navegar al juego
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (context) => const SplashScreen(),
+      ),
     );
   }
 }
@@ -975,6 +1250,10 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   // Obtener nombre del jugador con formato correcto
   String _getPlayerDisplayName(int playerIndex) {
     if (playerIndex == 0 && widget.isHuman[0]) {
+      // Si es el jugador humano y hay usuario logueado, usar su nombre
+      if (UserManager.currentUser != null) {
+        return UserManager.currentUser!.name;
+      }
       return customPlayerNames[0] ?? 'HUMANO';
     } else {
       return customPlayerNames[playerIndex] ?? 'CPU $playerIndex';
@@ -1248,6 +1527,11 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     // Configurar jugadores según la pantalla de configuración
     for (int i = 0; i < widget.numPlayers; i++) {
       customPlayerNames[i] = widget.playerNames[i];
+    }
+    
+    // Si hay usuario logueado y es el jugador 1, usar su nombre
+    if (UserManager.currentUser != null && widget.isHuman[0]) {
+      customPlayerNames[0] = UserManager.currentUser!.name;
     }
     
     // 🎮 AUTO-INICIAR SI EL PRIMER JUGADOR ES CPU
@@ -2216,38 +2500,181 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     );
   }
 
+  // 🔐 FUNCIÓN DE LOGOUT
+  void _logout() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              const Icon(
+                Icons.logout,
+                color: Colors.red,
+                size: 28,
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                '¿Cerrar sesión?',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF5D4037),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            '¿Estás seguro de que quieres cerrar sesión y volver al login?',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[700],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.grey[600],
+              ),
+              child: const Text(
+                'Cancelar',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Cerrar diálogo
+                UserManager.currentUser = null; // Limpiar usuario
+                
+                // Navegar al login y limpiar toda la pila de navegación
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(
+                    builder: (context) => const LoginScreen(),
+                  ),
+                  (route) => false,
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text(
+                'Cerrar sesión',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+        title: Row(
           children: [
-            const Text(
-              'Parchís Reverse Dominicano',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
-            ),
-            // Mensaje del CPU si está activo
-            if (currentMessage.isEmpty && currentPlayerIndex < widget.numPlayers && 
-                !widget.isHuman[currentPlayerIndex] && !isMoving)
-              Text(
-                _getCpuThinkingMessage(),
-                style: const TextStyle(
-                  color: Colors.orange,
-                  fontSize: 12,
-                  fontStyle: FontStyle.italic,
+            // Avatar del usuario actual
+            if (UserManager.currentUser != null)
+              Container(
+                width: 32,
+                height: 32,
+                margin: const EdgeInsets.only(right: 12),
+                decoration: BoxDecoration(
+                  color: UserManager.currentUser!.avatarColor,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+                child: Center(
+                  child: Text(
+                    UserManager.currentUser!.name[0].toUpperCase(),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
               ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      const Text(
+                        'Parchís Reverse',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      if (UserManager.currentUser != null) ...[
+                        const SizedBox(width: 8),
+                        Text(
+                          '- ${UserManager.currentUser!.name}',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  // Mensaje del CPU si está activo
+                  if (currentMessage.isEmpty && currentPlayerIndex < widget.numPlayers && 
+                      !widget.isHuman[currentPlayerIndex] && !isMoving)
+                    Text(
+                      _getCpuThinkingMessage(),
+                      style: const TextStyle(
+                        color: Colors.orange,
+                        fontSize: 12,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ],
         ),
         backgroundColor: const Color(0xFF8B4513),
         elevation: 4,
         actions: [
+          // Botón de logout
+          Container(
+            margin: const EdgeInsets.only(right: 4),
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: IconButton(
+              onPressed: _logout,
+              icon: const Icon(
+                Icons.logout,
+                color: Colors.white,
+                size: 20,
+              ),
+              tooltip: 'Cerrar Sesión',
+            ),
+          ),
           // Botón de configuración
           Container(
             margin: const EdgeInsets.only(right: 8),
