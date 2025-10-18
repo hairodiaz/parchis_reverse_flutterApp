@@ -1,6 +1,7 @@
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'dart:math';
+import 'dart:async';
 
 // Modelo de estado del juego online
 class OnlineGameState {
@@ -10,6 +11,9 @@ class OnlineGameState {
   final String? lastMessage;
   final bool isMoving;
   final DateTime lastUpdate;
+  final bool gameEnded;
+  final String? winner;
+  final String? winReason;
 
   OnlineGameState({
     required this.currentPlayerIndex,
@@ -18,6 +22,9 @@ class OnlineGameState {
     this.lastMessage,
     this.isMoving = false,
     required this.lastUpdate,
+    this.gameEnded = false,
+    this.winner,
+    this.winReason,
   });
 
   factory OnlineGameState.fromMap(Map<String, dynamic> map) {
@@ -39,6 +46,9 @@ class OnlineGameState {
         lastMessage: map['lastMessage'],
         isMoving: map['isMoving'] ?? false,
         lastUpdate: DateTime.fromMillisecondsSinceEpoch(map['lastUpdate'] ?? 0),
+        gameEnded: map['gameEnded'] ?? false,
+        winner: map['winner'],
+        winReason: map['winReason'],
       );
     } catch (e) {
       print('❌ Error en OnlineGameState.fromMap: $e');
@@ -66,6 +76,9 @@ class OnlineGameState {
       diceValue: 1,
       pieces: pieces,
       lastUpdate: DateTime.now(),
+      gameEnded: false,
+      winner: null,
+      winReason: null,
     );
   }
 
@@ -77,6 +90,9 @@ class OnlineGameState {
       'lastMessage': lastMessage,
       'isMoving': isMoving,
       'lastUpdate': lastUpdate.millisecondsSinceEpoch,
+      'gameEnded': gameEnded,
+      'winner': winner,
+      'winReason': winReason,
     };
   }
 
@@ -87,6 +103,9 @@ class OnlineGameState {
     String? lastMessage,
     bool? isMoving,
     DateTime? lastUpdate,
+    bool? gameEnded,
+    String? winner,
+    String? winReason,
   }) {
     return OnlineGameState(
       currentPlayerIndex: currentPlayerIndex ?? this.currentPlayerIndex,
@@ -95,6 +114,9 @@ class OnlineGameState {
       lastMessage: lastMessage ?? this.lastMessage,
       isMoving: isMoving ?? this.isMoving,
       lastUpdate: lastUpdate ?? this.lastUpdate,
+      gameEnded: gameEnded ?? this.gameEnded,
+      winner: winner ?? this.winner,
+      winReason: winReason ?? this.winReason,
     );
   }
 }
@@ -143,6 +165,7 @@ class OnlineGameRoom {
   final List<OnlinePlayer> players;
   final OnlineGameState gameState;
   final String status; // 'waiting', 'playing', 'finished'
+  final bool isPublic; // true = pública (aparece en lista), false = privada (solo con código)
   final DateTime createdAt;
 
   OnlineGameRoom({
@@ -151,6 +174,7 @@ class OnlineGameRoom {
     required this.players,
     required this.gameState,
     required this.status,
+    required this.isPublic,
     required this.createdAt,
   });
 
@@ -185,6 +209,7 @@ class OnlineGameRoom {
         players: players,
         gameState: gameState,
         status: map['status'] ?? 'waiting',
+        isPublic: map['isPublic'] ?? false,
         createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? 0),
       );
     } catch (e) {
@@ -202,6 +227,7 @@ class OnlineGameRoom {
       },
       'gameState': gameState.toMap(),
       'status': status,
+      'isPublic': isPublic,
       'createdAt': createdAt.millisecondsSinceEpoch,
     };
   }
@@ -257,6 +283,8 @@ class FirebaseService {
   FirebaseDatabase? _database;
   String? _currentRoomId;
   String? _currentPlayerId;
+  Timer? _heartbeatTimer;
+  Timer? _abandonmentCheckTimer;
 
   // Inicializar Firebase
   static Future<void> initialize() async {
@@ -302,7 +330,7 @@ class FirebaseService {
   }
 
   // Crear nueva sala de juego
-  Future<String?> createGameRoom(OnlinePlayer hostPlayer) async {
+  Future<String?> createGameRoom(OnlinePlayer hostPlayer, {bool isPublic = false}) async {
     if (!isAvailable) return null;
 
     try {
@@ -318,13 +346,29 @@ class FirebaseService {
         players: [hostPlayer.copyWith(playerId: playerId, isHost: true)],
         gameState: initialGameState,
         status: 'waiting',
+        isPublic: isPublic,
         createdAt: DateTime.now(),
       );
 
       await _database!.ref('gameRooms/$roomCode').set(room.toMap());
       
+      // Si es sala pública, añadirla también a la lista de salas públicas para consulta rápida
+      if (isPublic) {
+        await _database!.ref('publicRooms/$roomCode').set({
+          'roomId': roomCode,
+          'hostName': hostPlayer.name,
+          'playerCount': 1,
+          'maxPlayers': 4,
+          'status': 'waiting',
+          'createdAt': DateTime.now().millisecondsSinceEpoch,
+        });
+      }
+      
       _currentRoomId = roomCode;
       _currentPlayerId = playerId;
+      
+      // Iniciar heartbeat para detección de abandono
+      _startHeartbeat();
       
       print('✅ Sala creada: $roomCode');
       return roomCode;
@@ -371,8 +415,18 @@ class FirebaseService {
         player.copyWith(playerId: playerId).toMap()
       );
 
+      // Actualizar contador en sala pública si es pública
+      if (room.isPublic) {
+        await _database!.ref('publicRooms/$normalizedCode').update({
+          'playerCount': room.players.length + 1,
+        });
+      }
+
       _currentRoomId = normalizedCode;
       _currentPlayerId = playerId;
+
+      // Iniciar heartbeat para detección de abandono
+      _startHeartbeat();
 
       print('✅ Unido a sala: $normalizedCode');
       return true;
@@ -436,19 +490,29 @@ class FirebaseService {
     }
   }
 
-  // Salir de la sala
+  // Salir de la sala con detección de abandono
   Future<void> leaveRoom() async {
     if (!isAvailable || _currentRoomId == null || _currentPlayerId == null) return;
 
     try {
-      await _database!.ref('gameRooms/$_currentRoomId/players/$_currentPlayerId').remove();
+      // Marcar como desconectado en lugar de eliminar
+      await _database!.ref('gameRooms/$_currentRoomId/players/$_currentPlayerId').update({
+        'isConnected': false,
+      });
       
+      // Verificar auto-victoria
+      await _checkAutoVictory();
+      
+      // Detener heartbeat
+      _stopHeartbeat();
+      
+      // Limpiar referencias
       _currentRoomId = null;
       _currentPlayerId = null;
       
-      print('✅ Saliste de la sala');
+      print('✅ Sala abandonada correctamente');
     } catch (e) {
-      print('❌ Error saliendo de sala: $e');
+      print('❌ Error abandonando sala: $e');
     }
   }
 
@@ -518,7 +582,7 @@ class FirebaseService {
       await _database!.ref('gameRooms/$roomCode/gameState').update({
         'pieces': updatedPieces.map((p) => p.toMap()).toList(),
         'lastUpdate': DateTime.now().millisecondsSinceEpoch,
-        'lastMessage': 'Ficha movida a (${piece.row}, ${piece.col})',
+        'lastMessage': null, // No mostrar mensaje de movimiento
         'isMoving': false,
       });
 
@@ -582,6 +646,162 @@ class FirebaseService {
       return null;
     }
   }
+
+  // Obtener lista de salas públicas disponibles
+  Future<List<OnlineGameRoom>> getPublicRooms() async {
+    if (!isAvailable) return [];
+
+    try {
+      // Obtener todas las salas y filtrar localmente
+      final snapshot = await _database!.ref('gameRooms').get();
+          
+      if (!snapshot.exists) return [];
+
+      final rooms = <OnlineGameRoom>[];
+      final data = snapshot.value as Map<dynamic, dynamic>;
+      
+      for (final entry in data.entries) {
+        try {
+          final roomData = Map<String, dynamic>.from(entry.value as Map);
+          final room = OnlineGameRoom.fromMap(roomData, entry.key.toString());
+          
+          // Filtrar: solo salas públicas, en estado 'waiting' con espacio disponible
+          if (room.isPublic && room.status == 'waiting' && room.players.length < 4) {
+            rooms.add(room);
+          }
+        } catch (e) {
+          print('❌ Error parseando sala pública: $e');
+        }
+      }
+      
+      // Ordenar por fecha de creación (más recientes primero)
+      rooms.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      
+      return rooms;
+    } catch (e) {
+      print('❌ Error obteniendo salas públicas: $e');
+      return [];
+    }
+  }
+
+  // Sistema de detección de abandono
+  void _startHeartbeat() {
+    if (_currentRoomId == null || _currentPlayerId == null) return;
+    
+    _heartbeatTimer?.cancel();
+    _abandonmentCheckTimer?.cancel();
+    
+    // Heartbeat cada 10 segundos
+    _heartbeatTimer = Timer.periodic(Duration(seconds: 10), (timer) async {
+      try {
+        await _database!.ref('gameRooms/$_currentRoomId/players/$_currentPlayerId').update({
+          'lastHeartbeat': DateTime.now().millisecondsSinceEpoch,
+          'isConnected': true,
+        });
+      } catch (e) {
+        print('❌ Error en heartbeat: $e');
+      }
+    });
+    
+    // Verificar abandono cada 15 segundos
+    _abandonmentCheckTimer = Timer.periodic(Duration(seconds: 15), (timer) async {
+      await checkPlayerAbandonment();
+    });
+  }
+
+  void _stopHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _abandonmentCheckTimer?.cancel();
+    _heartbeatTimer = null;
+    _abandonmentCheckTimer = null;
+  }
+
+  // Verificar abandono de jugadores
+  Future<void> checkPlayerAbandonment() async {
+    if (_currentRoomId == null) return;
+    
+    try {
+      final roomRef = _database!.ref('gameRooms/$_currentRoomId');
+      final snapshot = await roomRef.get();
+      
+      if (!snapshot.exists) return;
+      
+      final data = Map<String, dynamic>.from(snapshot.value as Map);
+      final playersData = data['players'] as Map<String, dynamic>?;
+      
+      if (playersData == null) return;
+      
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final timeoutMs = 30000; // 30 segundos timeout
+      
+      for (final entry in playersData.entries) {
+        final playerData = Map<String, dynamic>.from(entry.value as Map);
+        final lastHeartbeat = playerData['lastHeartbeat'] as int? ?? 0;
+        final isConnected = playerData['isConnected'] as bool? ?? true;
+        
+        // Si el jugador no ha enviado heartbeat en 30 segundos, marcarlo como desconectado
+        if (isConnected && (now - lastHeartbeat) > timeoutMs) {
+          await roomRef.child('players/${entry.key}').update({
+            'isConnected': false,
+          });
+          
+          print('⚠️ Jugador ${entry.key} marcado como desconectado por inactividad');
+          
+          // Si solo queda un jugador conectado, declarar victoria automática
+          await _checkAutoVictory();
+        }
+      }
+    } catch (e) {
+      print('❌ Error verificando abandono: $e');
+    }
+  }
+
+  Future<void> _checkAutoVictory() async {
+    if (_currentRoomId == null) return;
+    
+    try {
+      final roomRef = _database!.ref('gameRooms/$_currentRoomId');
+      final snapshot = await roomRef.get();
+      
+      if (!snapshot.exists) return;
+      
+      final data = Map<String, dynamic>.from(snapshot.value as Map);
+      final playersData = data['players'] as Map<String, dynamic>?;
+      
+      if (playersData == null) return;
+      
+      // Contar jugadores conectados
+      int connectedPlayers = 0;
+      String? lastConnectedPlayerId;
+      
+      for (final entry in playersData.entries) {
+        final playerData = Map<String, dynamic>.from(entry.value as Map);
+        final isConnected = playerData['isConnected'] as bool? ?? true;
+        
+        if (isConnected) {
+          connectedPlayers++;
+          lastConnectedPlayerId = entry.key;
+        }
+      }
+      
+      // Si solo queda un jugador conectado, declarar victoria automática
+      if (connectedPlayers == 1 && lastConnectedPlayerId != null) {
+        await roomRef.child('gameState').update({
+          'gameEnded': true,
+          'winner': lastConnectedPlayerId,
+          'winReason': 'abandonment',
+          'lastMessage': 'Victoria por abandono del oponente',
+          'lastUpdate': DateTime.now().millisecondsSinceEpoch,
+        });
+        
+        print('🏆 Victoria automática asignada a $lastConnectedPlayerId por abandono');
+      }
+    } catch (e) {
+      print('❌ Error verificando auto-victoria: $e');
+    }
+  }
+
+
 
   // Getters
   String? get currentRoomId => _currentRoomId;

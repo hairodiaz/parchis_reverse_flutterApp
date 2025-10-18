@@ -96,6 +96,211 @@ class GamePiece {
   });
 }
 
+// Pantalla de partidas públicas disponibles
+class PublicRoomsScreen extends StatefulWidget {
+  const PublicRoomsScreen({super.key});
+
+  @override
+  State<PublicRoomsScreen> createState() => _PublicRoomsScreenState();
+}
+
+class _PublicRoomsScreenState extends State<PublicRoomsScreen> {
+  final FirebaseService _firebaseService = FirebaseService();
+  List<OnlineGameRoom> _publicRooms = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPublicRooms();
+  }
+
+  Future<void> _loadPublicRooms() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final rooms = await _firebaseService.getPublicRooms();
+      if (mounted) {
+        setState(() {
+          _publicRooms = rooms;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Error cargando partidas: $e';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _joinRoom(OnlineGameRoom room) async {
+    try {
+      final player = OnlinePlayer(
+        playerId: '',
+        name: UserManager.currentUser!.name,
+        avatarColor: _getColorName(UserManager.currentUser!.avatarColor),
+        level: UserManager.currentUser!.level,
+        isHost: false,
+      );
+
+      final success = await _firebaseService.joinGameRoom(room.roomId, player);
+
+      if (success && mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => OnlineWaitingRoomScreen(roomCode: room.roomId),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error al unirse a la partida')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
+  }
+
+  String _getColorName(Color color) {
+    if (color == Colors.red) return 'red';
+    if (color == Colors.blue) return 'blue';
+    if (color == Colors.green) return 'green';
+    if (color == Colors.orange) return 'orange';
+    return 'blue';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Partidas Disponibles',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: Colors.purple.shade600,
+        iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadPublicRooms,
+          ),
+        ],
+      ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Colors.purple.shade50, Colors.white],
+          ),
+        ),
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _errorMessage != null
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error, size: 64, color: Colors.red),
+                        const SizedBox(height: 16),
+                        Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: _loadPublicRooms,
+                          child: const Text('Reintentar'),
+                        ),
+                      ],
+                    ),
+                  )
+                : _publicRooms.isEmpty
+                    ? const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.inbox, size: 64, color: Colors.grey),
+                            SizedBox(height: 16),
+                            Text(
+                              'No hay partidas públicas disponibles',
+                              style: TextStyle(fontSize: 18, color: Colors.grey),
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              'Sé el primero en crear una partida pública',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _publicRooms.length,
+                        itemBuilder: (context, index) {
+                          final room = _publicRooms[index];
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.all(16),
+                              leading: CircleAvatar(
+                                backgroundColor: Colors.purple.shade100,
+                                child: Text(
+                                  '${room.players.length}',
+                                  style: TextStyle(
+                                    color: Colors.purple.shade700,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              title: Text(
+                                room.players.isNotEmpty 
+                                    ? 'Sala de ${room.players.first.name}'
+                                    : 'Sala ${room.roomId}',
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Jugadores: ${room.players.length}/4'),
+                                  Text('Código: ${room.roomId}'),
+                                ],
+                              ),
+                              trailing: ElevatedButton(
+                                onPressed: () => _joinRoom(room),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.purple.shade600,
+                                  foregroundColor: Colors.white,
+                                ),
+                                child: const Text('Unirse'),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+      ),
+    );
+  }
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
@@ -1852,6 +2057,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   StreamSubscription<OnlineGameState?>? _gameStateSubscription;
   bool _isLocalPlayer = true; // Indica si es el turno del jugador local
   int _localPlayerIndex = 0; // Índice del jugador local en la sala
+  List<String> _onlinePlayerNames = []; // Nombres reales de los jugadores online
 
   // 🎮 SISTEMA DE CAMBIO DE JUGADAS
   List<int> remainingChanges = [3, 3, 3, 3]; // Cambios disponibles por jugador
@@ -1864,6 +2070,12 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   
   // Obtener nombre del jugador con formato correcto
   String _getPlayerDisplayName(int playerIndex) {
+    // 🌐 EN MODO ONLINE: usar nombres reales de Firebase
+    if (widget.isOnlineMode && _onlinePlayerNames.isNotEmpty && playerIndex < _onlinePlayerNames.length) {
+      return _onlinePlayerNames[playerIndex];
+    }
+    
+    // MODO LOCAL: lógica original
     if (playerIndex == 0 && widget.isHuman[0]) {
       // Si es el jugador humano y hay usuario logueado, usar su nombre
       if (UserManager.currentUser != null) {
@@ -2079,7 +2291,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     });
 
     Timer(const Duration(milliseconds: 500), () { // Reducido de 800ms a 500ms
-      newDiceTimer?.cancel();
+      newDiceTimer.cancel();
       
       setState(() {
         currentDiceResult = newFinalResult; // Asignar resultado final SIN cambio brusco
@@ -2219,6 +2431,16 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
           (player) => player.playerId == currentPlayerId
         );
         
+        // 👥 OBTENER NOMBRES REALES DE LOS JUGADORES
+        _onlinePlayerNames = [];
+        for (int i = 0; i < widget.numPlayers; i++) {
+          if (i < roomInfo.players.length) {
+            _onlinePlayerNames.add(roomInfo.players[i].name);
+          } else {
+            _onlinePlayerNames.add('Jugador ${i + 1}');
+          }
+        }
+        
         // Inicializar estado del juego basado en Firebase
         _syncLocalStateWithFirebase(roomInfo.gameState);
         
@@ -2234,14 +2456,36 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       setState(() {
         _syncLocalStateWithFirebase(gameState);
       });
+      
+      // Verificar si el juego ha terminado por abandono
+      if (gameState.gameEnded && gameState.winReason == 'abandonment') {
+        _showVictoryByAbandonmentDialog(gameState.winner!, gameState.lastMessage);
+      }
     }
   }
 
   void _syncLocalStateWithFirebase(OnlineGameState gameState) {
     // Sincronizar estado local con Firebase
+    final oldDiceValue = diceValue;
     currentPlayerIndex = gameState.currentPlayerIndex;
     diceValue = gameState.diceValue;
     isMoving = gameState.isMoving;
+    
+    // 🎲 MOSTRAR ANIMACIÓN CUANDO OTRO JUGADOR LANZA DADO
+    if (!_isLocalPlayer && oldDiceValue != diceValue && diceValue > 0) {
+      _animationController.reset();
+      _animationController.forward();
+      
+      // Mostrar mensaje temporal
+      currentMessage = '${_getPlayerDisplayName(currentPlayerIndex)} lanzó: $diceValue';
+      Timer(const Duration(seconds: 2), () {
+        if (mounted) {
+          setState(() {
+            currentMessage = '';
+          });
+        }
+      });
+    }
     
     // Actualizar posiciones de las fichas
     for (final piece in gameState.pieces) {
@@ -2777,16 +3021,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
         piece.position = boardPath[newIndex];
       });
       
-      // 🌐 SINCRONIZAR MOVIMIENTO CON FIREBASE
-      if (widget.isOnlineMode && widget.roomCode != null) {
-        _firebaseService?.movePiece(widget.roomCode!, OnlineGamePiece(
-          id: (currentPlayerIndex + 1).toString(),
-          playerIndex: currentPlayerIndex,
-          color: _getPlayerColorName(currentPlayerIndex),
-          row: piece.position.row,
-          col: piece.position.col,
-        ));
-      }
+      // Remover sincronización de aquí (se hace al final del movimiento)
       
       // Completar el salto (bajar)
       await _jumpController.reverse();
@@ -2811,6 +3046,17 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       isMoving = false; // Desbloquear el dado
       jumpingPiece = null; // Ya no hay ficha saltando
     });
+
+    // 🌐 SINCRONIZAR POSICIÓN FINAL CON FIREBASE
+    if (widget.isOnlineMode && widget.roomCode != null && _isLocalPlayer) {
+      _firebaseService?.movePiece(widget.roomCode!, OnlineGamePiece(
+        id: (currentPlayerIndex + 1).toString(),
+        playerIndex: currentPlayerIndex,
+        color: _getPlayerColorName(currentPlayerIndex),
+        row: piece.position.row,
+        col: piece.position.col,
+      ));
+    }
 
     // Aplicar lógica de seises consecutivos (si debe cambiar turno)
     if (shouldChangeTurn) {
@@ -3238,9 +3484,102 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
             ElevatedButton(
               onPressed: () {
                 Navigator.of(context).pop(); // Cerrar diálogo
+                
+                // 🌐 NAVEGACIÓN CORRECTA SEGÚN EL MODO
+                if (widget.isOnlineMode) {
+                  // Modo online: ir a configuración online
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(
+                      builder: (context) => const OnlineRoomScreen(),
+                    ),
+                  );
+                } else {
+                  // Modo local: ir a configuración local
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(
+                      builder: (context) => const PlayerConfigScreen(),
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1976D2),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text(
+                'Sí, salir',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // 🏆 DIÁLOGO DE VICTORIA POR ABANDONO
+  void _showVictoryByAbandonmentDialog(String winnerId, String? message) {
+    String resultMessage = message ?? 'Victoria por abandono del oponente';
+    String title = winnerId == _firebaseService?.currentPlayerId ? '¡VICTORIA!' : 'Derrota';
+    Color titleColor = winnerId == _firebaseService?.currentPlayerId ? Colors.green : Colors.red;
+    IconData icon = winnerId == _firebaseService?.currentPlayerId ? Icons.emoji_events : Icons.sentiment_dissatisfied;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Icon(
+                icon,
+                color: titleColor,
+                size: 32,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                title,
+                style: TextStyle(
+                  color: titleColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 24,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                resultMessage,
+                style: const TextStyle(fontSize: 18),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              if (winnerId == _firebaseService?.currentPlayerId)
+                const Icon(
+                  Icons.star,
+                  color: Colors.amber,
+                  size: 48,
+                ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Cerrar diálogo
                 Navigator.of(context).pushReplacement(
                   MaterialPageRoute(
-                    builder: (context) => const PlayerConfigScreen(),
+                    builder: (context) => const OnlineRoomScreen(),
                   ),
                 );
               },
@@ -3252,7 +3591,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
                 ),
               ),
               child: const Text(
-                'Sí, salir',
+                'Volver al menú',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -4085,6 +4424,7 @@ class _OnlineRoomScreenState extends State<OnlineRoomScreen> {
   final TextEditingController _roomCodeController = TextEditingController();
   bool _isCreatingRoom = false;
   bool _isJoiningRoom = false;
+  bool _isPublicRoom = false; // Checkbox para partida pública
   String? _errorMessage;
 
   @override
@@ -4240,16 +4580,73 @@ class _OnlineRoomScreenState extends State<OnlineRoomScreen> {
                         onTap: _firebaseService.isAvailable ? _createRoom : null,
                       ),
 
+                      // Checkbox para partida pública
+                      Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 40, vertical: 10),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: Row(
+                          children: [
+                            Checkbox(
+                              value: _isPublicRoom,
+                              onChanged: (value) {
+                                setState(() {
+                                  _isPublicRoom = value ?? false;
+                                });
+                              },
+                              activeColor: Colors.green,
+                            ),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Partida Pública',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Aparecerá en la lista de partidas disponibles',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
                       const SizedBox(height: 20),
 
-                      // Unirse a sala existente
+                      // Unirse con código
                       _buildOnlineButton(
                         icon: Icons.login_rounded,
-                        title: 'UNIRSE A SALA',
+                        title: 'UNIRSE CON CÓDIGO',
                         subtitle: 'Ingresa el código de tu amigo',
                         colors: [Colors.blue.shade400, Colors.blue.shade600],
                         isLoading: _isJoiningRoom,
                         onTap: _firebaseService.isAvailable ? _showJoinRoomDialog : null,
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // Ver partidas disponibles
+                      _buildOnlineButton(
+                        icon: Icons.list_rounded,
+                        title: 'PARTIDAS DISPONIBLES',
+                        subtitle: 'Únete a una partida pública',
+                        colors: [Colors.purple.shade400, Colors.purple.shade600],
+                        isLoading: false,
+                        onTap: _firebaseService.isAvailable ? _showPublicRooms : null,
                       ),
 
                       if (_errorMessage != null) ...[
@@ -4310,6 +4707,16 @@ class _OnlineRoomScreenState extends State<OnlineRoomScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  // Mostrar lista de partidas públicas disponibles
+  Future<void> _showPublicRooms() async {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const PublicRoomsScreen(),
       ),
     );
   }
@@ -4414,7 +4821,7 @@ class _OnlineRoomScreenState extends State<OnlineRoomScreen> {
         isHost: true,
       );
 
-      final roomCode = await _firebaseService.createGameRoom(player);
+      final roomCode = await _firebaseService.createGameRoom(player, isPublic: _isPublicRoom);
 
       if (roomCode != null) {
         if (mounted) {
