@@ -2141,7 +2141,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
                     gradient: const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [Color(0xFF81C784), Color(0xFF66BB6A)],
+                      colors: [Color(0xFF8D6E63), Color(0xFF6D4C41)], // Mismo color del dado
                     ),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.white, width: 2),
