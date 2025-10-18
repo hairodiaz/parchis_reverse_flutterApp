@@ -968,7 +968,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   bool isDecisionTime = false; // ¿Está el jugador decidiendo si cambiar?
   int currentDiceResult = 0; // Resultado actual del dado
   Timer? _decisionTimer; // Timer para auto-continuar
-  int decisionCountdown = 3; // Countdown de 3 segundos
+  int decisionCountdown = 5; // Countdown de 5 segundos
 
   // �👤 SISTEMA DE PERFILES DE JUGADORES
   
@@ -1095,7 +1095,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     setState(() {
       isDecisionTime = true;
       currentDiceResult = diceResult;
-      decisionCountdown = 3;
+      decisionCountdown = 5; // Cambiado de 3 a 5 segundos
     });
 
     // Si es CPU, tomar decisión automática
@@ -1211,26 +1211,30 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   void _continueWithDiceResult(int finalResult) {
     setState(() {
       diceValue = finalResult;
+      isMoving = true; // Asegurar que el dado esté bloqueado
     });
     
-    Timer(const Duration(milliseconds: 200), () {
-      bool hasThreats = _checkAndShowThreatMessage(finalResult);
-      
-      if (hasThreats) {
-        Timer(const Duration(milliseconds: 1500), () {
-          setState(() {
-            lastMessage = null;
+    // Pausa de 2 segundos antes de empezar el movimiento para evitar sensación de "cargado"
+    Timer(const Duration(milliseconds: 2000), () {
+      Timer(const Duration(milliseconds: 200), () {
+        bool hasThreats = _checkAndShowThreatMessage(finalResult);
+        
+        if (hasThreats) {
+          Timer(const Duration(milliseconds: 1500), () {
+            setState(() {
+              lastMessage = null;
+            });
+            
+            Timer(const Duration(milliseconds: 300), () {
+              _moveCurrentPlayerPiece(finalResult);
+            });
           });
-          
-          Timer(const Duration(milliseconds: 300), () {
+        } else {
+          Timer(const Duration(milliseconds: 400), () {
             _moveCurrentPlayerPiece(finalResult);
           });
-        });
-      } else {
-        Timer(const Duration(milliseconds: 400), () {
-          _moveCurrentPlayerPiece(finalResult);
-        });
-      }
+        }
+      });
     });
   }
 
@@ -2465,45 +2469,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
                   ),
                   child: Column(
                     children: [
-                      // Fila de cambios disponibles para todos los jugadores
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        margin: const EdgeInsets.only(bottom: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: List.generate(widget.numPlayers, (index) {
-                            return Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 12,
-                                  height: 12,
-                                  decoration: BoxDecoration(
-                                    color: _getPlayerColor(index),
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white, width: 1),
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  '${remainingChanges[index]}/3',
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ],
-                            );
-                          }),
-                        ),
-                      ),
-                      
-                      // Área principal del dado
+                      // Área principal del dado (sin barra de cambios)
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -2558,6 +2524,13 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
                                     style: const TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Cambios: ${remainingChanges[currentPlayerIndex]}',
+                                    style: const TextStyle(
+                                      fontSize: 10,
                                       color: Colors.white,
                                     ),
                                   ),
