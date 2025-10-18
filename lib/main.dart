@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/services.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_service.dart';
+import 'firebase_options.dart';
 
 // Modelo de datos de usuario
 class User {
@@ -93,7 +96,19 @@ class GamePiece {
   });
 }
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    await FirebaseService.initialize();
+  } catch (e) {
+    print('Error inicializando Firebase: $e');
+    // La app puede funcionar sin Firebase en modo offline
+  }
+  
   runApp(const MainApp());
 }
 
@@ -643,6 +658,24 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
                                       context,
                                       MaterialPageRoute(
                                         builder: (context) => const PlayerConfigScreen(),
+                                      ),
+                                    );
+                                  },
+                                ),
+                                
+                                const SizedBox(height: 20),
+                                
+                                // 🌐 BOTÓN JUGAR ONLINE
+                                _buildMenuButton(
+                                  icon: Icons.wifi_rounded,
+                                  title: 'JUGAR ONLINE',
+                                  subtitle: 'Jugar con amigos en línea',
+                                  colors: [Colors.purple.shade400, Colors.purple.shade600],
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => const OnlineRoomScreen(),
                                       ),
                                     );
                                   },
@@ -3876,5 +3909,797 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     
     String key = '$row,$col';
     return boardNumbers[key] ?? 0;
+  }
+}
+
+// 🌐 PANTALLA DE SALAS ONLINE
+class OnlineRoomScreen extends StatefulWidget {
+  const OnlineRoomScreen({super.key});
+
+  @override
+  State<OnlineRoomScreen> createState() => _OnlineRoomScreenState();
+}
+
+class _OnlineRoomScreenState extends State<OnlineRoomScreen> {
+  final FirebaseService _firebaseService = FirebaseService();
+  final TextEditingController _roomCodeController = TextEditingController();
+  bool _isCreatingRoom = false;
+  bool _isJoiningRoom = false;
+  String? _errorMessage;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Row(
+          children: [
+            if (UserManager.currentUser != null)
+              Container(
+                width: 32,
+                height: 32,
+                margin: const EdgeInsets.only(right: 12),
+                decoration: BoxDecoration(
+                  color: UserManager.currentUser!.avatarColor,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+                child: Center(
+                  child: Text(
+                    UserManager.currentUser!.name[0].toUpperCase(),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            const Text(
+              'Jugar Online',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF8B4513),
+        elevation: 4,
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF1E3A8A), // Azul oscuro
+              Color(0xFF3B82F6), // Azul medio
+              Color(0xFF60A5FA), // Azul claro
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              children: [
+                if (!_firebaseService.isAvailable)
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    margin: const EdgeInsets.only(bottom: 20),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.orange),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.warning, color: Colors.orange),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Modo offline: Firebase no disponible. Configura Firebase para jugar online.',
+                            style: TextStyle(color: Colors.orange),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                // Información del usuario
+                if (UserManager.currentUser != null)
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    margin: const EdgeInsets.only(bottom: 20),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            color: UserManager.currentUser!.avatarColor,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 3),
+                          ),
+                          child: Center(
+                            child: Text(
+                              UserManager.currentUser!.name[0].toUpperCase(),
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Jugando como: ${UserManager.currentUser!.name}',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              Text(
+                                'Nivel: ${UserManager.currentUser!.level}',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.white.withOpacity(0.8),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                // Opciones de juego online
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Crear nueva sala
+                      _buildOnlineButton(
+                        icon: Icons.add_circle_outline,
+                        title: 'CREAR SALA',
+                        subtitle: 'Invita amigos con un código',
+                        colors: [Colors.green.shade400, Colors.green.shade600],
+                        isLoading: _isCreatingRoom,
+                        onTap: _firebaseService.isAvailable ? _createRoom : null,
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // Unirse a sala existente
+                      _buildOnlineButton(
+                        icon: Icons.login_rounded,
+                        title: 'UNIRSE A SALA',
+                        subtitle: 'Ingresa el código de tu amigo',
+                        colors: [Colors.blue.shade400, Colors.blue.shade600],
+                        isLoading: _isJoiningRoom,
+                        onTap: _firebaseService.isAvailable ? _showJoinRoomDialog : null,
+                      ),
+
+                      if (_errorMessage != null) ...[
+                        const SizedBox(height: 20),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.red),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.error, color: Colors.red),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _errorMessage!,
+                                  style: const TextStyle(color: Colors.red),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+
+                // Nota informativa
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white.withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(
+                        Icons.info_outline,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'El modo online utiliza tu perfil actual para jugar con otros usuarios en tiempo real.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.8),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOnlineButton({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required List<Color> colors,
+    required VoidCallback? onTap,
+    bool isLoading = false,
+  }) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      child: Material(
+        elevation: 8,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: isLoading ? null : onTap,
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: onTap != null ? colors : [Colors.grey, Colors.grey.shade600],
+              ),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: isLoading
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : Icon(
+                          icon,
+                          size: 24,
+                          color: Colors.white,
+                        ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.white.withOpacity(0.7),
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _createRoom() async {
+    if (UserManager.currentUser == null) return;
+
+    setState(() {
+      _isCreatingRoom = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final player = OnlinePlayer(
+        playerId: '',
+        name: UserManager.currentUser!.name,
+        avatarColor: _getColorName(UserManager.currentUser!.avatarColor),
+        level: UserManager.currentUser!.level,
+        isHost: true,
+      );
+
+      final roomCode = await _firebaseService.createGameRoom(player);
+
+      if (roomCode != null) {
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => OnlineWaitingRoomScreen(roomCode: roomCode),
+            ),
+          );
+        }
+      } else {
+        setState(() {
+          _errorMessage = 'Error al crear la sala. Inténtalo de nuevo.';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Error: $e';
+      });
+    } finally {
+      setState(() {
+        _isCreatingRoom = false;
+      });
+    }
+  }
+
+  void _showJoinRoomDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.login, color: Colors.blue),
+              SizedBox(width: 10),
+              Text('Unirse a Sala'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Ingresa el código de la sala:'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _roomCodeController,
+                decoration: const InputDecoration(
+                  hintText: 'Ej: ABC123',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.key),
+                ),
+                textCapitalization: TextCapitalization.characters,
+                maxLength: 6,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: _joinRoom,
+              child: _isJoiningRoom
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Unirse'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _joinRoom() async {
+    if (UserManager.currentUser == null || _roomCodeController.text.isEmpty) return;
+
+    setState(() {
+      _isJoiningRoom = true;
+    });
+
+    try {
+      final player = OnlinePlayer(
+        playerId: '',
+        name: UserManager.currentUser!.name,
+        avatarColor: _getColorName(UserManager.currentUser!.avatarColor),
+        level: UserManager.currentUser!.level,
+      );
+
+      final success = await _firebaseService.joinGameRoom(
+        _roomCodeController.text.toUpperCase(),
+        player,
+      );
+
+      if (success) {
+        if (mounted) {
+          Navigator.pop(context); // Cerrar diálogo
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => OnlineWaitingRoomScreen(
+                roomCode: _roomCodeController.text.toUpperCase(),
+              ),
+            ),
+          );
+        }
+      } else {
+        setState(() {
+          _errorMessage = 'No se pudo unir a la sala. Verifica el código.';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Error: $e';
+      });
+    } finally {
+      setState(() {
+        _isJoiningRoom = false;
+      });
+      if (mounted) Navigator.pop(context);
+    }
+  }
+
+  String _getColorName(Color color) {
+    if (color == Colors.blue) return 'blue';
+    if (color == Colors.pink) return 'pink';
+    if (color == Colors.green) return 'green';
+    if (color == Colors.orange) return 'orange';
+    return 'blue';
+  }
+
+  @override
+  void dispose() {
+    _roomCodeController.dispose();
+    super.dispose();
+  }
+}
+
+// 🏠 PANTALLA DE SALA DE ESPERA
+class OnlineWaitingRoomScreen extends StatefulWidget {
+  final String roomCode;
+
+  const OnlineWaitingRoomScreen({
+    super.key,
+    required this.roomCode,
+  });
+
+  @override
+  State<OnlineWaitingRoomScreen> createState() => _OnlineWaitingRoomScreenState();
+}
+
+class _OnlineWaitingRoomScreenState extends State<OnlineWaitingRoomScreen> {
+  final FirebaseService _firebaseService = FirebaseService();
+  OnlineGameRoom? _currentRoom;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Sala: ${widget.roomCode}'),
+        backgroundColor: const Color(0xFF8B4513),
+        actions: [
+          IconButton(
+            onPressed: _leaveRoom,
+            icon: const Icon(Icons.exit_to_app),
+          ),
+        ],
+      ),
+      body: StreamBuilder<OnlineGameRoom?>(
+        stream: _firebaseService.watchGameRoom(widget.roomCode),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (!snapshot.hasData) {
+            return const Center(child: Text('Sala no encontrada'));
+          }
+
+          _currentRoom = snapshot.data!;
+
+          return Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xFF1E3A8A),
+                  Color(0xFF3B82F6),
+                  Color(0xFF60A5FA),
+                ],
+              ),
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  children: [
+                    // Código de sala
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.white.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Código de la sala:',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.white,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.orange,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              widget.roomCode,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                letterSpacing: 2,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Lista de jugadores
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Jugadores (${_currentRoom!.players.length}/4):',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Expanded(
+                            child: ListView.builder(
+                              itemCount: _currentRoom!.players.length,
+                              itemBuilder: (context, index) {
+                                final player = _currentRoom!.players[index];
+                                return _buildPlayerCard(player);
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Botón para iniciar partida (solo para el host)
+                    if (_isHost() && _currentRoom!.players.length >= 2)
+                      Container(
+                        width: double.infinity,
+                        height: 50,
+                        margin: const EdgeInsets.only(top: 20),
+                        child: ElevatedButton(
+                          onPressed: _startGame,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'INICIAR PARTIDA',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                    if (!_isHost())
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        margin: const EdgeInsets.only(top: 20),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text(
+                          'Esperando a que el anfitrión inicie la partida...',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.white,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildPlayerCard(OnlinePlayer player) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: player.isHost ? Colors.orange : Colors.white.withOpacity(0.3),
+          width: player.isHost ? 2 : 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: _getColorFromName(player.avatarColor),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+            ),
+            child: Center(
+              child: Text(
+                player.name[0].toUpperCase(),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      player.name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    if (player.isHost) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.orange,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'ANFITRIÓN',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                Text(
+                  player.level,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white.withOpacity(0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            player.isConnected ? Icons.wifi : Icons.wifi_off,
+            color: player.isConnected ? Colors.green : Colors.red,
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool _isHost() {
+    if (_currentRoom == null) return false;
+    return _currentRoom!.players.any((p) => 
+      p.playerId == _firebaseService.currentPlayerId && p.isHost
+    );
+  }
+
+  void _startGame() {
+    // TODO: Implementar navegación al juego online
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('¡Próximamente!'),
+        content: const Text('La funcionalidad de juego online estará disponible pronto.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _leaveRoom() {
+    _firebaseService.leaveRoom();
+    Navigator.pop(context);
+  }
+
+  Color _getColorFromName(String colorName) {
+    switch (colorName.toLowerCase()) {
+      case 'blue': return Colors.blue;
+      case 'pink': return Colors.pink;
+      case 'green': return Colors.green;
+      case 'orange': return Colors.orange;
+      default: return Colors.blue;
+    }
   }
 }
