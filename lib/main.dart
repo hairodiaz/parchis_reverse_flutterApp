@@ -2453,6 +2453,8 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
 
   void _onGameStateChanged(OnlineGameState? gameState) {
     if (gameState != null && mounted) {
+      print('📡 Estado del juego recibido: ${gameState.pieces.length} fichas, turno: ${gameState.currentPlayerIndex}');
+      
       setState(() {
         _syncLocalStateWithFirebase(gameState);
       });
@@ -2488,11 +2490,28 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     }
     
     // Actualizar posiciones de las fichas
-    for (final piece in gameState.pieces) {
-      // Buscar la ficha local correspondiente por índice
-      if (piece.playerIndex < gamePieces.length) {
-        final localPiece = gamePieces[piece.playerIndex];
-        localPiece.position = Position(piece.row, piece.col);
+    for (final onlinePiece in gameState.pieces) {
+      // Buscar la ficha local correspondiente por jugador
+      final playerIndex = onlinePiece.playerIndex;
+      
+      // Verificar que el playerIndex sea válido
+      if (playerIndex >= 0 && playerIndex < gamePieces.length) {
+        final localPiece = gamePieces[playerIndex];
+        final newPosition = Position(onlinePiece.row, onlinePiece.col);
+        
+        // Solo actualizar si la posición cambió
+        if (localPiece.position.row != newPosition.row || 
+            localPiece.position.col != newPosition.col) {
+          print('🔄 Sincronizando ficha J${playerIndex + 1}: (${localPiece.position.row},${localPiece.position.col}) → (${newPosition.row},${newPosition.col})');
+          
+          // Actualizar posición inmediatamente
+          localPiece.position = newPosition;
+          
+          // Forzar rebuild para mostrar el cambio
+          if (mounted) {
+            setState(() {});
+          }
+        }
       }
     }
     
@@ -3482,12 +3501,15 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
               ),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.of(context).pop(); // Cerrar diálogo
                 
-                // 🌐 NAVEGACIÓN CORRECTA SEGÚN EL MODO
-                if (widget.isOnlineMode) {
-                  // Modo online: ir a configuración online
+                // 🌐 MANEJO DE SALIDA SEGÚN EL MODO
+                if (widget.isOnlineMode && _firebaseService != null) {
+                  // Usar salida pre-partida (mejorar detección después)
+                  await _firebaseService!.leaveRoomPreGame();
+                  
+                  // Ir a configuración online
                   Navigator.of(context).pushReplacement(
                     MaterialPageRoute(
                       builder: (context) => const OnlineRoomScreen(),

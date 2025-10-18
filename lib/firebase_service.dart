@@ -285,6 +285,7 @@ class FirebaseService {
   String? _currentPlayerId;
   Timer? _heartbeatTimer;
   Timer? _abandonmentCheckTimer;
+  Timer? _cleanupTimer;
 
   // Inicializar Firebase
   static Future<void> initialize() async {
@@ -490,7 +491,72 @@ class FirebaseService {
     }
   }
 
-  // Salir de la sala con detección de abandono
+  // Salir de la sala antes de que inicie la partida
+  Future<void> leaveRoomPreGame() async {
+    if (!isAvailable || _currentRoomId == null || _currentPlayerId == null) return;
+
+    try {
+      final roomRef = _database!.ref('gameRooms/$_currentRoomId');
+      final snapshot = await roomRef.get();
+      
+      if (!snapshot.exists) return;
+      
+      final data = Map<String, dynamic>.from(snapshot.value as Map);
+      final playersData = data['players'] as Map<String, dynamic>?;
+      final isHost = playersData?[_currentPlayerId]?['isHost'] as bool? ?? false;
+      
+      if (isHost) {
+        // Si es el host, notificar eliminación y luego eliminar sala
+        await roomRef.child('status').set('deleted');
+        await roomRef.child('deleteReason').set('Host left room');
+        
+        // Eliminar de salas públicas si es pública
+        final isPublic = data['isPublic'] as bool? ?? false;
+        if (isPublic) {
+          await _database!.ref('publicRooms/$_currentRoomId').remove();
+        }
+        
+        // Eliminar sala después de un pequeño delay para que otros puedan leer la notificación
+        await Future.delayed(Duration(seconds: 2));
+        await roomRef.remove();
+        
+        print('🏠 Host eliminó la sala');
+      } else {
+        // Si es un jugador regular, solo removerlo
+        await roomRef.child('players/$_currentPlayerId').remove();
+        
+        // Actualizar contador en sala pública si es pública
+        final isPublic = data['isPublic'] as bool? ?? false;
+        if (isPublic) {
+          final playersCount = (playersData?.length ?? 0) - 1;
+          await _database!.ref('publicRooms/$_currentRoomId').update({
+            'playerCount': playersCount.clamp(0, 4),
+          });
+        }
+        
+        // Notificar que un jugador se fue
+        await roomRef.child('lastPlayerLeft').set({
+          'playerId': _currentPlayerId,
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+        });
+        
+        print('👤 Jugador abandonó la sala');
+      }
+      
+      // Verificar si la sala quedó vacía
+      await _checkEmptyRoom(_currentRoomId!);
+      
+      // Detener heartbeat y limpiar referencias
+      _stopHeartbeat();
+      _currentRoomId = null;
+      _currentPlayerId = null;
+      
+    } catch (e) {
+      print('❌ Error saliendo de sala pre-partida: $e');
+    }
+  }
+
+  // Salir de la sala durante la partida (con detección de abandono)
   Future<void> leaveRoom() async {
     if (!isAvailable || _currentRoomId == null || _currentPlayerId == null) return;
 
@@ -541,6 +607,30 @@ class FirebaseService {
     });
   }
 
+  // Escuchar cambios en la sala (jugadores, estado, etc.)
+  Stream<Map<String, dynamic>?> watchRoomChanges(String roomCode) {
+    if (!isAvailable || roomCode.isEmpty) {
+      return Stream.value(null);
+    }
+
+    return _database!.ref('gameRooms/$roomCode')
+        .onValue
+        .map((event) {
+      try {
+        if (event.snapshot.exists && event.snapshot.value != null) {
+          final rawData = event.snapshot.value;
+          if (rawData is Map) {
+            return Map<String, dynamic>.from(rawData);
+          }
+        }
+        return null;
+      } catch (e) {
+        print('❌ Error en stream de cambios de sala: $e');
+        return null;
+      }
+    });
+  }
+
   // Métodos específicos para acciones del juego
   Future<bool> rollDice(String roomCode, int diceValue) async {
     if (!isAvailable || roomCode.isEmpty) return false;
@@ -563,9 +653,14 @@ class FirebaseService {
     if (!isAvailable || roomCode.isEmpty) return false;
 
     try {
+      print('🔄 Moviendo ficha ${piece.id} del jugador ${piece.playerIndex} a (${piece.row},${piece.col})');
+      
       // Obtener estado actual
       final snapshot = await _database!.ref('gameRooms/$roomCode/gameState').get();
-      if (!snapshot.exists || snapshot.value == null) return false;
+      if (!snapshot.exists || snapshot.value == null) {
+        print('❌ No existe estado de juego en Firebase');
+        return false;
+      }
 
       final rawData = snapshot.value;
       if (!(rawData is Map)) return false;
@@ -574,9 +669,15 @@ class FirebaseService {
         Map<String, dynamic>.from(rawData)
       );
 
+      print('📊 Estado actual: ${currentState.pieces.length} fichas');
+
       // Actualizar la pieza en el array
       final updatedPieces = currentState.pieces.map((p) {
-        return p.id == piece.id ? piece : p;
+        if (p.id == piece.id && p.playerIndex == piece.playerIndex) {
+          print('🎯 Actualizando ficha ${p.id}: (${p.row},${p.col}) → (${piece.row},${piece.col})');
+          return piece;
+        }
+        return p;
       }).toList();
 
       await _database!.ref('gameRooms/$roomCode/gameState').update({
@@ -586,7 +687,7 @@ class FirebaseService {
         'isMoving': false,
       });
 
-      print('✅ Pieza movida en sala $roomCode');
+      print('✅ Ficha ${piece.id} movida exitosamente en sala $roomCode');
       return true;
     } catch (e) {
       print('❌ Error moviendo pieza: $e');
@@ -707,13 +808,21 @@ class FirebaseService {
     _abandonmentCheckTimer = Timer.periodic(Duration(seconds: 15), (timer) async {
       await checkPlayerAbandonment();
     });
+    
+    // Limpieza de salas cada 2 minutos (solo una instancia)
+    _cleanupTimer?.cancel();
+    _cleanupTimer = Timer.periodic(Duration(minutes: 2), (timer) async {
+      await cleanupAbandonedRooms();
+    });
   }
 
   void _stopHeartbeat() {
     _heartbeatTimer?.cancel();
     _abandonmentCheckTimer?.cancel();
+    _cleanupTimer?.cancel();
     _heartbeatTimer = null;
     _abandonmentCheckTimer = null;
+    _cleanupTimer = null;
   }
 
   // Verificar abandono de jugadores
@@ -735,6 +844,8 @@ class FirebaseService {
       final timeoutMs = 30000; // 30 segundos timeout
       
       for (final entry in playersData.entries) {
+        if (entry.value is! Map) continue;
+        
         final playerData = Map<String, dynamic>.from(entry.value as Map);
         final lastHeartbeat = playerData['lastHeartbeat'] as int? ?? 0;
         final isConnected = playerData['isConnected'] as bool? ?? true;
@@ -775,6 +886,8 @@ class FirebaseService {
       String? lastConnectedPlayerId;
       
       for (final entry in playersData.entries) {
+        if (entry.value is! Map) continue;
+        
         final playerData = Map<String, dynamic>.from(entry.value as Map);
         final isConnected = playerData['isConnected'] as bool? ?? true;
         
@@ -802,6 +915,94 @@ class FirebaseService {
   }
 
 
+
+  // Verificar y limpiar sala vacía
+  Future<void> _checkEmptyRoom(String roomCode) async {
+    try {
+      final roomRef = _database!.ref('gameRooms/$roomCode');
+      final snapshot = await roomRef.get();
+      
+      if (!snapshot.exists) return;
+      
+      final data = Map<String, dynamic>.from(snapshot.value as Map);
+      final playersData = data['players'] as Map<String, dynamic>?;
+      
+      // Verificar si hay jugadores conectados
+      bool hasConnectedPlayers = false;
+      if (playersData != null) {
+        for (final playerData in playersData.values) {
+          final player = Map<String, dynamic>.from(playerData as Map);
+          final isConnected = player['isConnected'] as bool? ?? true;
+          if (isConnected) {
+            hasConnectedPlayers = true;
+            break;
+          }
+        }
+      }
+      
+      // Si no hay jugadores conectados, eliminar sala
+      if (!hasConnectedPlayers) {
+        final isPublic = data['isPublic'] as bool? ?? false;
+        
+        // Eliminar de salas públicas si es pública
+        if (isPublic) {
+          await _database!.ref('publicRooms/$roomCode').remove();
+        }
+        
+        // Eliminar sala
+        await roomRef.remove();
+        print('🧹 Sala vacía eliminada: $roomCode');
+      }
+    } catch (e) {
+      print('❌ Error verificando sala vacía: $e');
+    }
+  }
+
+  // Limpiar salas abandonadas periódicamente
+  Future<void> cleanupAbandonedRooms() async {
+    if (!isAvailable) return;
+    
+    try {
+      final roomsSnapshot = await _database!.ref('gameRooms').get();
+      if (!roomsSnapshot.exists) return;
+      
+      final rooms = Map<String, dynamic>.from(roomsSnapshot.value as Map);
+      final now = DateTime.now().millisecondsSinceEpoch;
+      
+      for (final entry in rooms.entries) {
+        final roomCode = entry.key;
+        final roomData = Map<String, dynamic>.from(entry.value as Map);
+        final playersData = roomData['players'] as Map<String, dynamic>?;
+        
+        if (playersData == null || playersData.isEmpty) {
+          await _checkEmptyRoom(roomCode);
+          continue;
+        }
+        
+        // Verificar si todos los jugadores han estado inactivos por mucho tiempo
+        bool allInactive = true;
+        for (final playerData in playersData.values) {
+          final player = Map<String, dynamic>.from(playerData as Map);
+          final lastHeartbeat = player['lastHeartbeat'] as int? ?? 0;
+          final timeSinceLastHeartbeat = now - lastHeartbeat;
+          
+          // Si algún jugador ha estado activo en los últimos 5 minutos, mantener sala
+          if (timeSinceLastHeartbeat < 300000) { // 5 minutos
+            allInactive = false;
+            break;
+          }
+        }
+        
+        if (allInactive) {
+          await _checkEmptyRoom(roomCode);
+        }
+      }
+      
+      print('🧹 Limpieza de salas completada');
+    } catch (e) {
+      print('❌ Error en limpieza de salas: $e');
+    }
+  }
 
   // Getters
   String? get currentRoomId => _currentRoomId;
