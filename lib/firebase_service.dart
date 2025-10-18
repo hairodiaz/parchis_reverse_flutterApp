@@ -21,22 +21,32 @@ class OnlineGameRoom {
   });
 
   factory OnlineGameRoom.fromMap(Map<String, dynamic> map, String roomId) {
-    // Convierte el mapa de jugadores a Map<String, Map> de forma robusta
-    final playersRaw = map['players'];
-    final playersMap = (playersRaw is Map)
-        ? playersRaw.map((key, value) => MapEntry(key.toString(), value as Map))
-        : <String, Map>{};
+    try {
+      // Convierte el mapa de jugadores a Map<String, Map> de forma robusta
+      final playersRaw = map['players'];
+      final playersMap = (playersRaw is Map)
+          ? playersRaw.map((key, value) => MapEntry(key.toString(), value as Map))
+          : <String, Map>{};
 
-    return OnlineGameRoom(
-      roomId: roomId,
-      hostPlayer: map['hostPlayer'] ?? '',
-      players: playersMap.entries
+      print('✅ Parseando sala $roomId con ${playersMap.length} jugadores');
+
+      final players = playersMap.entries
           .map((e) => OnlinePlayer.fromMap(Map<String, dynamic>.from(e.value), e.key))
-          .toList(),
-      gameState: map['gameState'] ?? {},
-      status: map['status'] ?? 'waiting',
-      createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? 0),
-    );
+          .toList();
+
+      return OnlineGameRoom(
+        roomId: roomId,
+        hostPlayer: map['hostPlayer'] ?? '',
+        players: players,
+        gameState: map['gameState'] ?? {},
+        status: map['status'] ?? 'waiting',
+        createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? 0),
+      );
+    } catch (e) {
+      print('❌ Error en OnlineGameRoom.fromMap: $e');
+      print('❌ Datos recibidos: $map');
+      rethrow;
+    }
   }
 
   Map<String, dynamic> toMap() {
@@ -229,10 +239,24 @@ class FirebaseService {
     if (!isAvailable) return Stream.value(null);
 
     return _database!.ref('gameRooms/$roomCode').onValue.map((event) {
-      if (!event.snapshot.exists) return null;
+      if (!event.snapshot.exists) {
+        print('❌ Sala no encontrada en watchGameRoom: $roomCode');
+        return null;
+      }
       
-      final data = event.snapshot.value as Map<String, dynamic>;
-      return OnlineGameRoom.fromMap(data, roomCode);
+      try {
+        // Convierte el snapshot a Map<String, dynamic> de forma robusta
+        final rawData = event.snapshot.value;
+        final roomData = (rawData is Map)
+          ? rawData.map((key, value) => MapEntry(key.toString(), value))
+          : <String, dynamic>{};
+        
+        print('✅ Datos de sala recibidos: ${roomData.keys}');
+        return OnlineGameRoom.fromMap(roomData, roomCode);
+      } catch (e) {
+        print('❌ Error parseando datos de sala: $e');
+        return null;
+      }
     });
   }
 
@@ -244,6 +268,18 @@ class FirebaseService {
       await _database!.ref('gameRooms/$roomCode/gameState').update(gameState);
     } catch (e) {
       print('❌ Error actualizando estado: $e');
+    }
+  }
+
+  // Actualizar estado de la sala (waiting, playing, finished)
+  Future<void> updateRoomStatus(String roomCode, String status) async {
+    if (!isAvailable) return;
+
+    try {
+      await _database!.ref('gameRooms/$roomCode/status').set(status);
+      print('✅ Estado de sala actualizado: $status');
+    } catch (e) {
+      print('❌ Error actualizando estado de sala: $e');
     }
   }
 

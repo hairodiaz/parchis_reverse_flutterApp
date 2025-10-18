@@ -1798,12 +1798,16 @@ class ParchisBoard extends StatefulWidget {
   final int numPlayers;
   final List<String> playerNames;
   final List<bool> isHuman;
+  final bool isOnlineMode;
+  final String? roomCode;
   
   const ParchisBoard({
     super.key,
     this.numPlayers = 4,
     this.playerNames = const ['Rojo', 'Azul', 'Verde', 'Amarillo'],
     this.isHuman = const [true, true, true, true],
+    this.isOnlineMode = false,
+    this.roomCode,
   });
 
   @override
@@ -4356,12 +4360,19 @@ class _OnlineRoomScreenState extends State<OnlineRoomScreen> {
 
       if (success) {
         if (mounted) {
+          final roomCode = _roomCodeController.text.toUpperCase();
           Navigator.pop(context); // Cerrar diálogo
+          
+          // Limpiar el controlador después de obtener el código
+          _roomCodeController.clear();
+          
+          print('🎮 Navegando a OnlineWaitingRoomScreen con código: $roomCode');
+          
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => OnlineWaitingRoomScreen(
-                roomCode: _roomCodeController.text.toUpperCase(),
+                roomCode: roomCode,
               ),
             ),
           );
@@ -4370,16 +4381,17 @@ class _OnlineRoomScreenState extends State<OnlineRoomScreen> {
         setState(() {
           _errorMessage = 'No se pudo unir a la sala. Verifica el código.';
         });
+        if (mounted) Navigator.pop(context);
       }
     } catch (e) {
       setState(() {
         _errorMessage = 'Error: $e';
       });
+      if (mounted) Navigator.pop(context);
     } finally {
       setState(() {
         _isJoiningRoom = false;
       });
-      if (mounted) Navigator.pop(context);
     }
   }
 
@@ -4416,6 +4428,44 @@ class _OnlineWaitingRoomScreenState extends State<OnlineWaitingRoomScreen> {
   OnlineGameRoom? _currentRoom;
 
   @override
+  void initState() {
+    super.initState();
+    
+    print('🎮 OnlineWaitingRoomScreen iniciada para sala: ${widget.roomCode}');
+    
+    // Escuchar cambios en el estado de la sala
+    _firebaseService.watchGameRoom(widget.roomCode).listen((room) {
+      print('🔄 Listener - Sala actualizada: ${room?.roomId}');
+      print('🔄 Listener - Estado: ${room?.status}');
+      print('🔄 Listener - Jugadores: ${room?.players.length}');
+      
+      if (room != null && room.status == 'playing' && mounted) {
+        print('🚀 Navegando al juego online...');
+        // Navegar automáticamente al juego online cuando el estado cambie a 'playing'
+        _navigateToOnlineGame(room);
+      }
+    }, onError: (error) {
+      print('❌ Error en listener: $error');
+    });
+  }
+
+  void _navigateToOnlineGame(OnlineGameRoom room) {
+    // Navegar al juego online con la información de la sala
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ParchisBoard(
+          numPlayers: room.players.length,
+          playerNames: room.players.map((p) => p.name).toList(),
+          isHuman: List.filled(room.players.length, true), // Todos son humanos en online
+          isOnlineMode: true,
+          roomCode: widget.roomCode,
+        ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -4431,15 +4481,99 @@ class _OnlineWaitingRoomScreenState extends State<OnlineWaitingRoomScreen> {
       body: StreamBuilder<OnlineGameRoom?>(
         stream: _firebaseService.watchGameRoom(widget.roomCode),
         builder: (context, snapshot) {
+          print('🔄 StreamBuilder - ConnectionState: ${snapshot.connectionState}');
+          print('🔄 StreamBuilder - HasData: ${snapshot.hasData}');
+          print('🔄 StreamBuilder - Error: ${snapshot.error}');
+          
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Conectando a la sala...'),
+                ],
+              ),
+            );
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error, size: 64, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text('Error: ${snapshot.error}'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Volver'),
+                  ),
+                ],
+              ),
+            );
           }
 
           if (!snapshot.hasData) {
-            return const Center(child: Text('Sala no encontrada'));
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.search_off, size: 64, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Text('Sala no encontrada'),
+                ],
+              ),
+            );
           }
 
           _currentRoom = snapshot.data!;
+
+          // Si el estado cambió a 'playing', mostrar pantalla de carga
+          if (_currentRoom!.status == 'playing') {
+            return Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFF1E3A8A),
+                    Color(0xFF3B82F6),
+                    Color(0xFF60A5FA),
+                  ],
+                ),
+              ),
+              child: const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                    SizedBox(height: 20),
+                    Text(
+                      '🎮 Iniciando partida...',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    SizedBox(height: 10),
+                    Text(
+                      'Preparando el tablero online',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
 
           return Container(
             decoration: const BoxDecoration(
@@ -4671,21 +4805,33 @@ class _OnlineWaitingRoomScreenState extends State<OnlineWaitingRoomScreen> {
     );
   }
 
-  void _startGame() {
-    // TODO: Implementar navegación al juego online
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('¡Próximamente!'),
-        content: const Text('La funcionalidad de juego online estará disponible pronto.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
+  void _startGame() async {
+    if (_currentRoom == null) return;
+    
+    try {
+      // Cambiar el estado de la sala a 'playing'
+      await _firebaseService.updateRoomStatus(widget.roomCode, 'playing');
+      
+      // Mostrar mensaje de confirmación
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('¡Partida iniciada! Preparando juego...'),
+            backgroundColor: Colors.green,
           ),
-        ],
-      ),
-    );
+        );
+      }
+    } catch (e) {
+      // Mostrar error si algo sale mal
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al iniciar partida: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _leaveRoom() {
