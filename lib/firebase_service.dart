@@ -501,9 +501,19 @@ class FirebaseService {
       
       if (!snapshot.exists) return;
       
-      final data = Map<String, dynamic>.from(snapshot.value as Map);
-      final playersData = data['players'] as Map<String, dynamic>?;
-      final isHost = playersData?[_currentPlayerId]?['isHost'] as bool? ?? false;
+      final rawData = snapshot.value;
+      if (rawData == null || rawData is! Map) return;
+      
+      final data = Map<String, dynamic>.from(rawData);
+      final playersData = data['players'];
+      
+      // Verificar si playersData es un Map válido
+      Map<String, dynamic>? playersMap;
+      if (playersData is Map) {
+        playersMap = Map<String, dynamic>.from(playersData);
+      }
+      
+      final isHost = playersMap?[_currentPlayerId]?['isHost'] as bool? ?? false;
       
       if (isHost) {
         // Si es el host, notificar eliminación y luego eliminar sala
@@ -528,7 +538,7 @@ class FirebaseService {
         // Actualizar contador en sala pública si es pública
         final isPublic = data['isPublic'] as bool? ?? false;
         if (isPublic) {
-          final playersCount = (playersData?.length ?? 0) - 1;
+          final playersCount = (playersMap?.length ?? 0) - 1;
           await _database!.ref('publicRooms/$_currentRoomId').update({
             'playerCount': playersCount.clamp(0, 4),
           });
@@ -835,8 +845,17 @@ class FirebaseService {
       
       if (!snapshot.exists) return;
       
-      final data = Map<String, dynamic>.from(snapshot.value as Map);
-      final playersData = data['players'] as Map<String, dynamic>?;
+      final rawData = snapshot.value;
+      if (rawData == null || rawData is! Map) return;
+      
+      final data = Map<String, dynamic>.from(rawData);
+      final playersDataRaw = data['players'];
+      
+      // Verificar si playersData es un Map válido
+      Map<String, dynamic>? playersData;
+      if (playersDataRaw is Map) {
+        playersData = Map<String, dynamic>.from(playersDataRaw);
+      }
       
       if (playersData == null) return;
       
@@ -876,8 +895,17 @@ class FirebaseService {
       
       if (!snapshot.exists) return;
       
-      final data = Map<String, dynamic>.from(snapshot.value as Map);
-      final playersData = data['players'] as Map<String, dynamic>?;
+      final rawData = snapshot.value;
+      if (rawData == null || rawData is! Map) return;
+      
+      final data = Map<String, dynamic>.from(rawData);
+      final playersDataRaw = data['players'];
+      
+      // Verificar si playersData es un Map válido
+      Map<String, dynamic>? playersData;
+      if (playersDataRaw is Map) {
+        playersData = Map<String, dynamic>.from(playersDataRaw);
+      }
       
       if (playersData == null) return;
       
@@ -924,14 +952,25 @@ class FirebaseService {
       
       if (!snapshot.exists) return;
       
-      final data = Map<String, dynamic>.from(snapshot.value as Map);
-      final playersData = data['players'] as Map<String, dynamic>?;
+      final rawData = snapshot.value;
+      if (rawData == null || rawData is! Map) return;
+      
+      final data = Map<String, dynamic>.from(rawData);
+      final playersDataRaw = data['players'];
+      
+      // Verificar si playersData es un Map válido
+      Map<String, dynamic>? playersData;
+      if (playersDataRaw is Map) {
+        playersData = Map<String, dynamic>.from(playersDataRaw);
+      }
       
       // Verificar si hay jugadores conectados
       bool hasConnectedPlayers = false;
       if (playersData != null) {
         for (final playerData in playersData.values) {
-          final player = Map<String, dynamic>.from(playerData as Map);
+          if (playerData is! Map) continue;
+          
+          final player = Map<String, dynamic>.from(playerData);
           final isConnected = player['isConnected'] as bool? ?? true;
           if (isConnected) {
             hasConnectedPlayers = true;
@@ -966,13 +1005,24 @@ class FirebaseService {
       final roomsSnapshot = await _database!.ref('gameRooms').get();
       if (!roomsSnapshot.exists) return;
       
-      final rooms = Map<String, dynamic>.from(roomsSnapshot.value as Map);
+      final rawRooms = roomsSnapshot.value;
+      if (rawRooms == null || rawRooms is! Map) return;
+      
+      final rooms = Map<String, dynamic>.from(rawRooms);
       final now = DateTime.now().millisecondsSinceEpoch;
       
       for (final entry in rooms.entries) {
         final roomCode = entry.key;
-        final roomData = Map<String, dynamic>.from(entry.value as Map);
-        final playersData = roomData['players'] as Map<String, dynamic>?;
+        if (entry.value is! Map) continue;
+        
+        final roomData = Map<String, dynamic>.from(entry.value);
+        final playersDataRaw = roomData['players'];
+        
+        // Verificar si playersData es un Map válido
+        Map<String, dynamic>? playersData;
+        if (playersDataRaw is Map) {
+          playersData = Map<String, dynamic>.from(playersDataRaw);
+        }
         
         if (playersData == null || playersData.isEmpty) {
           await _checkEmptyRoom(roomCode);
@@ -982,7 +1032,9 @@ class FirebaseService {
         // Verificar si todos los jugadores han estado inactivos por mucho tiempo
         bool allInactive = true;
         for (final playerData in playersData.values) {
-          final player = Map<String, dynamic>.from(playerData as Map);
+          if (playerData is! Map) continue;
+          
+          final player = Map<String, dynamic>.from(playerData);
           final lastHeartbeat = player['lastHeartbeat'] as int? ?? 0;
           final timeSinceLastHeartbeat = now - lastHeartbeat;
           
