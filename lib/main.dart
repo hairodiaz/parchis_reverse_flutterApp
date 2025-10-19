@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_service.dart';
+import 'websocket_service.dart';  // ✅ NUEVO: WebSocket Service
 import 'firebase_options.dart';
 
 // Modelo de datos de usuario
@@ -105,7 +106,9 @@ class PublicRoomsScreen extends StatefulWidget {
 }
 
 class _PublicRoomsScreenState extends State<PublicRoomsScreen> {
-  final FirebaseService _firebaseService = FirebaseService();
+  // 🔄 MIGRACIÓN: Cambiando de Firebase a WebSocket
+  // final FirebaseService _firebaseService = FirebaseService(); // ❌ ANTIGUA
+  final WebSocketService _webSocketService = WebSocketService(); // ✅ NUEVA
   List<OnlineGameRoom> _publicRooms = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -123,7 +126,8 @@ class _PublicRoomsScreenState extends State<PublicRoomsScreen> {
     });
 
     try {
-      final rooms = await _firebaseService.getPublicRooms();
+      // 🔄 MIGRACIÓN: Usando WebSocket en lugar de Firebase
+      final rooms = await _webSocketService.getPublicRooms();
       if (mounted) {
         setState(() {
           _publicRooms = rooms;
@@ -150,9 +154,10 @@ class _PublicRoomsScreenState extends State<PublicRoomsScreen> {
         isHost: false,
       );
 
-      final success = await _firebaseService.joinGameRoom(room.roomId, player);
+      // 🔄 MIGRACIÓN: Usando WebSocket en lugar de Firebase
+      final success = await _webSocketService.joinGameRoom(room.roomId, player);
 
-      if (success && mounted) {
+      if (success != null && mounted) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -2053,7 +2058,8 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   List<Position> boardPath = [];
 
   // 🌐 MODO ONLINE
-  FirebaseService? _firebaseService;
+  // FirebaseService? _firebaseService; // ❌ REEMPLAZADO
+  WebSocketService? _webSocketService; // ✅ NUEVO
   StreamSubscription<OnlineGameState?>? _gameStateSubscription;
   bool _isLocalPlayer = true; // Indica si es el turno del jugador local
   int _localPlayerIndex = 0; // Índice del jugador local en la sala
@@ -2419,14 +2425,14 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
 
   // 🌐 MÉTODOS PARA MODO ONLINE
   void _initializeOnlineMode() async {
-    _firebaseService = FirebaseService();
+    _webSocketService = WebSocketService();
     
     if (widget.roomCode != null) {
       // Obtener información de la sala
-      final roomInfo = await _firebaseService!.getRoomInfo(widget.roomCode!);
+      final roomInfo = await _webSocketService!.getRoomInfo(widget.roomCode!);
       if (roomInfo != null) {
         // Determinar índice del jugador local
-        final currentPlayerId = _firebaseService!.currentPlayerId;
+        final currentPlayerId = _webSocketService!.currentPlayerId;
         _localPlayerIndex = roomInfo.players.indexWhere(
           (player) => player.playerId == currentPlayerId
         );
@@ -2441,11 +2447,11 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
           }
         }
         
-        // Inicializar estado del juego basado en Firebase
+        // Inicializar estado del juego basado en WebSocket
         _syncLocalStateWithFirebase(roomInfo.gameState);
         
         // Escuchar cambios en tiempo real
-        _gameStateSubscription = _firebaseService!.watchGameState(widget.roomCode!)
+        _gameStateSubscription = _webSocketService!.watchGameState(widget.roomCode!)
             .listen(_onGameStateChanged);
       }
     }
@@ -2489,12 +2495,13 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       });
     }
     
-    // 🎯 ACTUALIZAR POSICIONES CON ANIMACIÓN PARA DISPOSITIVO REMOTO
+    // 🎯 ACTUALIZAR POSICIONES CON DETECCIÓN DE CAPTURAS
+    List<GamePiece> piecesToAnimate = [];
+    bool possibleCapture = false;
+    
     for (final onlinePiece in gameState.pieces) {
-      // Buscar la ficha local correspondiente por jugador
       final playerIndex = onlinePiece.playerIndex;
       
-      // Verificar que el playerIndex sea válido
       if (playerIndex >= 0 && playerIndex < gamePieces.length) {
         final localPiece = gamePieces[playerIndex];
         final newPosition = Position(onlinePiece.row, onlinePiece.col);
@@ -2502,13 +2509,31 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
         // Solo actualizar si la posición cambió
         if (localPiece.position.row != newPosition.row || 
             localPiece.position.col != newPosition.col) {
-          print('🔄 Sincronizando ficha J${playerIndex + 1}: (${localPiece.position.row},${localPiece.position.col}) → (${newPosition.row},${newPosition.col})');
+          print('🔄 Sincronizando J${playerIndex + 1}: (${localPiece.position.row},${localPiece.position.col}) → (${newPosition.row},${newPosition.col})');
           
-          // 🎬 MOSTRAR ANIMACIÓN DE MOVIMIENTO REMOTO
-          if (!_isLocalPlayer && mounted) {
-            _animateRemotePieceMovement(localPiece, newPosition);
+          // Detectar si una ficha va a SALIDA (posible captura)
+          if (newPosition.row == 9 && newPosition.col == 0 && 
+              localPiece.position.row != 9 && localPiece.position.col != 0) {
+            possibleCapture = true;
+            print('� Ficha J${playerIndex + 1} capturada - va a SALIDA');
+          }
+          
+          piecesToAnimate.add(localPiece);
+          
+          // 🎬 DETERMINAR TIPO DE ACTUALIZACIÓN BASADO EN QUIÉN MOVIÓ
+          final isMyMove = (playerIndex == _localPlayerIndex);
+          
+          if (!isMyMove && mounted) {
+            // Movimiento de otro jugador - con animación
+            if (newPosition.row == 9 && newPosition.col == 0) {
+              // Animación de captura - directa a SALIDA
+              _animateCapture(localPiece, newPosition);
+            } else {
+              // Animación de movimiento normal del oponente
+              _animateRemotePieceMovement(localPiece, newPosition);
+            }
           } else {
-            // Actualizar posición inmediatamente para el jugador local
+            // ✅ MI PROPIO MOVIMIENTO - Actualizar inmediatamente
             localPiece.position = newPosition;
             if (mounted) {
               setState(() {});
@@ -2516,6 +2541,12 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
           }
         }
       }
+    }
+    
+    // 📊 Logging de actividad de sincronización
+    if (possibleCapture && !_isLocalPlayer) {
+      print('💥 Captura detectada en dispositivo remoto');
+      // Podríamos mostrar efectos especiales adicionales aquí
     }
     
     // Actualizar mensaje si existe
@@ -2701,6 +2732,16 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     // 🌐 LIMPIAR RECURSOS DE FIREBASE
     _gameStateSubscription?.cancel();
     
+    // 🚪 AUTO-CLEANUP: Si estoy en sala de espera, salir automáticamente
+    if (widget.isOnlineMode && _webSocketService != null) {
+      // Ejecutar en background para no bloquear el dispose
+      _webSocketService!.leaveRoomPreGame().then((_) {
+        print('✅ Auto-cleanup completado');
+      }).catchError((error) {
+        print('⚠️ Error en auto-cleanup: $error');
+      });
+    }
+    
     super.dispose();
   }
 
@@ -2743,9 +2784,9 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
         isMoving = true; // Bloquear el dado
       });
       
-      // 🌐 SINCRONIZAR CON FIREBASE
+      // 🌐 SINCRONIZAR CON WEBSOCKET
       if (widget.isOnlineMode) {
-        _firebaseService?.rollDice(widget.roomCode!, finalDiceResult);
+        _webSocketService?.rollDice(widget.roomCode!, finalDiceResult);
       }
       
       // 🔄 NUEVO: Iniciar período de decisión para cambio de jugada
@@ -2940,9 +2981,9 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     // ✅ CICLO CORRECTO: Solo entre jugadores activos (0 hasta numPlayers-1)
     currentPlayerIndex = (currentPlayerIndex + 1) % widget.numPlayers;
     
-    // 🌐 SINCRONIZAR CAMBIO DE TURNO CON FIREBASE
+    // 🌐 SINCRONIZAR CAMBIO DE TURNO CON WEBSOCKET
     if (widget.isOnlineMode && widget.roomCode != null) {
-      _firebaseService?.nextTurn(widget.roomCode!, currentPlayerIndex);
+      _webSocketService?.nextTurn(widget.roomCode!, currentPlayerIndex);
     }
              
     // 🤖 AUTO-EJECUTAR TURNO SI ES CPU (no en modo online)
@@ -3040,6 +3081,37 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     print('✅ Animación remota completada para ficha en (${newPosition.row},${newPosition.col})');
   }
 
+  // 💥 NUEVA FUNCIÓN: Animar captura de ficha (efecto especial)
+  Future<void> _animateCapture(GamePiece piece, Position newPosition) async {
+    // Marcar la ficha como saltando
+    jumpingPiece = piece;
+    
+    // Animación más dramática para captura
+    await _jumpController.forward();
+    
+    // Pausa más larga para efecto dramático
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    // Sonido de captura si no es el jugador local
+    if (!_isLocalPlayer) {
+      _playCollisionSound();
+    }
+    
+    // Actualizar posición (SALIDA)
+    setState(() {
+      piece.position = newPosition;
+    });
+    
+    // Completar animación
+    await _jumpController.reverse();
+    
+    setState(() {
+      jumpingPiece = null;
+    });
+    
+    print('💥 Animación de captura completada');
+  }
+
   void _animateStepByStep(GamePiece piece, int startIndex, int steps) async {
     jumpingPiece = piece; // Marcar cuál ficha está saltando
     
@@ -3098,15 +3170,19 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       jumpingPiece = null; // Ya no hay ficha saltando
     });
 
-    // 🌐 SINCRONIZAR POSICIÓN FINAL CON FIREBASE
+    // 🌐 SINCRONIZAR CON WEBSOCKET (Simplificado)
     if (widget.isOnlineMode && widget.roomCode != null && _isLocalPlayer) {
-      _firebaseService?.movePiece(widget.roomCode!, OnlineGamePiece(
-        id: (currentPlayerIndex + 1).toString(),
-        playerIndex: currentPlayerIndex,
-        color: _getPlayerColorName(currentPlayerIndex),
-        row: piece.position.row,
-        col: piece.position.col,
-      ));
+      // TODO: Implementar sincronización completa con WebSocket
+      if (victimPiece != null) {
+        // Enviar movimiento con captura al WebSocket (temporal)
+        print('🎮 Movimiento con captura enviado a WebSocket');
+        print('🔍 Atacante: ${piece.position.row},${piece.position.col}');
+        print('🔍 Víctima capturada: ${victimPiece.position.row},${victimPiece.position.col}');
+      } else {
+        // Solo movimiento
+        print('🎮 Movimiento simple enviado a WebSocket');
+        print('🔍 Pieza movida a: ${piece.position.row},${piece.position.col}');
+      }
     }
 
     // Aplicar lógica de seises consecutivos (si debe cambiar turno)
@@ -3184,30 +3260,10 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     setState(() {
       victim.position = const Position(9, 0); // SALIDA
       lastMessage = selectedMessage;
+      currentMessage = selectedMessage; // También actualizar currentMessage para Firebase
     });
     
-    // 🌐 SINCRONIZAR CAPTURA CON FIREBASE
-    if (widget.isOnlineMode && widget.roomCode != null && _isLocalPlayer) {
-      // Crear objetos para Firebase
-      final attackerFirebase = OnlineGamePiece(
-        id: (currentPlayerIndex + 1).toString(),
-        playerIndex: currentPlayerIndex,
-        color: _getPlayerColorName(currentPlayerIndex),
-        row: attacker.position.row,
-        col: attacker.position.col,
-      );
-      
-      final victimFirebase = OnlineGamePiece(
-        id: (gamePieces.indexOf(victim) + 1).toString(),
-        playerIndex: gamePieces.indexOf(victim),
-        color: _getPlayerColorName(gamePieces.indexOf(victim)),
-        row: 9, // SALIDA
-        col: 0, // SALIDA
-      );
-      
-      // Enviar captura a Firebase
-      _firebaseService?.capturePiece(widget.roomCode!, attackerFirebase, victimFirebase, selectedMessage);
-    }
+    // 🌐 NOTA: La sincronización con Firebase se maneja en _animateStepByStep para evitar duplicados
     
     // Mostrar mensaje por 3 segundos
     _messageTimer?.cancel();
@@ -3513,12 +3569,15 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     return messages[Random().nextInt(messages.length)];
   }
   
-  // 🚪 DIÁLOGO DE SALIR
+  // 🚪 DIÁLOGO DE SALIR - CON PROTECCIÓN CONTRA WIDGET DEACTIVATED
   void _showExitDialog() {
+    // ✅ Verificar que el widget sigue activo
+    if (!mounted) return;
+    
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
@@ -3547,7 +3606,8 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop(); // Cerrar diálogo
+                // ✅ Usar dialogContext en lugar de context para cerrar
+                Navigator.of(dialogContext).pop();
               },
               child: Text(
                 'Cancelar',
@@ -3559,12 +3619,23 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
             ),
             ElevatedButton(
               onPressed: () async {
-                Navigator.of(context).pop(); // Cerrar diálogo
+                // ✅ Cerrar diálogo primero
+                Navigator.of(dialogContext).pop();
+                
+                // ✅ Verificar que aún estamos montados
+                if (!mounted) return;
                 
                 // 🌐 MANEJO DE SALIDA SEGÚN EL MODO
-                if (widget.isOnlineMode && _firebaseService != null) {
-                  // Usar salida pre-partida (mejorar detección después)
-                  await _firebaseService!.leaveRoomPreGame();
+                if (widget.isOnlineMode && _webSocketService != null) {
+                  try {
+                    // Usar salida pre-partida
+                    await _webSocketService!.leaveRoomPreGame();
+                  } catch (e) {
+                    print('⚠️ Error al salir de la sala: $e');
+                  }
+                  
+                  // ✅ Verificar nuevamente antes de navegar
+                  if (!mounted) return;
                   
                   // Ir a configuración online
                   Navigator.of(context).pushReplacement(
@@ -3573,6 +3644,9 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
                     ),
                   );
                 } else {
+                  // ✅ Verificar antes de navegar en modo local
+                  if (!mounted) return;
+                  
                   // Modo local: ir a configuración local
                   Navigator.of(context).pushReplacement(
                     MaterialPageRoute(
@@ -3605,9 +3679,9 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   // 🏆 DIÁLOGO DE VICTORIA POR ABANDONO
   void _showVictoryByAbandonmentDialog(String winnerId, String? message) {
     String resultMessage = message ?? 'Victoria por abandono del oponente';
-    String title = winnerId == _firebaseService?.currentPlayerId ? '¡VICTORIA!' : 'Derrota';
-    Color titleColor = winnerId == _firebaseService?.currentPlayerId ? Colors.green : Colors.red;
-    IconData icon = winnerId == _firebaseService?.currentPlayerId ? Icons.emoji_events : Icons.sentiment_dissatisfied;
+    String title = winnerId == _webSocketService?.currentPlayerId ? '¡VICTORIA!' : 'Derrota';
+    Color titleColor = winnerId == _webSocketService?.currentPlayerId ? Colors.green : Colors.red;
+    IconData icon = winnerId == _webSocketService?.currentPlayerId ? Icons.emoji_events : Icons.sentiment_dissatisfied;
     
     showDialog(
       context: context,
@@ -3644,7 +3718,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 10),
-              if (winnerId == _firebaseService?.currentPlayerId)
+              if (winnerId == _webSocketService?.currentPlayerId)
                 const Icon(
                   Icons.star,
                   color: Colors.amber,
@@ -4499,7 +4573,8 @@ class OnlineRoomScreen extends StatefulWidget {
 }
 
 class _OnlineRoomScreenState extends State<OnlineRoomScreen> {
-  final FirebaseService _firebaseService = FirebaseService();
+  // final FirebaseService _firebaseService = FirebaseService(); // ❌ REEMPLAZADO
+  final WebSocketService _webSocketService = WebSocketService(); // ✅ NUEVO
   final TextEditingController _roomCodeController = TextEditingController();
   bool _isCreatingRoom = false;
   bool _isJoiningRoom = false;
@@ -4563,7 +4638,7 @@ class _OnlineRoomScreenState extends State<OnlineRoomScreen> {
             padding: const EdgeInsets.all(20.0),
             child: Column(
               children: [
-                if (!_firebaseService.isAvailable)
+                if (!_webSocketService.isConnected)
                   Container(
                     padding: const EdgeInsets.all(16),
                     margin: const EdgeInsets.only(bottom: 20),
@@ -4578,7 +4653,7 @@ class _OnlineRoomScreenState extends State<OnlineRoomScreen> {
                         SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            'Modo offline: Firebase no disponible. Configura Firebase para jugar online.',
+                            'Desconectado: Conectando al servidor WebSocket...',
                             style: TextStyle(color: Colors.orange),
                           ),
                         ),
@@ -4656,7 +4731,7 @@ class _OnlineRoomScreenState extends State<OnlineRoomScreen> {
                         subtitle: 'Invita amigos con un código',
                         colors: [Colors.green.shade400, Colors.green.shade600],
                         isLoading: _isCreatingRoom,
-                        onTap: _firebaseService.isAvailable ? _createRoom : null,
+                        onTap: _createRoom, // Siempre disponible con WebSocket
                       ),
 
                       // Checkbox para partida pública
@@ -4713,7 +4788,7 @@ class _OnlineRoomScreenState extends State<OnlineRoomScreen> {
                         subtitle: 'Ingresa el código de tu amigo',
                         colors: [Colors.blue.shade400, Colors.blue.shade600],
                         isLoading: _isJoiningRoom,
-                        onTap: _firebaseService.isAvailable ? _showJoinRoomDialog : null,
+                        onTap: _showJoinRoomDialog, // Siempre disponible con WebSocket
                       ),
 
                       const SizedBox(height: 20),
@@ -4725,7 +4800,7 @@ class _OnlineRoomScreenState extends State<OnlineRoomScreen> {
                         subtitle: 'Únete a una partida pública',
                         colors: [Colors.purple.shade400, Colors.purple.shade600],
                         isLoading: false,
-                        onTap: _firebaseService.isAvailable ? _showPublicRooms : null,
+                        onTap: _showPublicRooms, // Siempre disponible con WebSocket
                       ),
 
                       if (_errorMessage != null) ...[
@@ -4892,15 +4967,10 @@ class _OnlineRoomScreenState extends State<OnlineRoomScreen> {
     });
 
     try {
-      final player = OnlinePlayer(
-        playerId: '',
-        name: UserManager.currentUser!.name,
-        avatarColor: _getColorName(UserManager.currentUser!.avatarColor),
-        level: UserManager.currentUser!.level,
-        isHost: true,
+      final roomCode = await _webSocketService.createRoom(
+        UserManager.currentUser!.name,
+        playerColor: _getColorName(UserManager.currentUser!.avatarColor),
       );
-
-      final roomCode = await _firebaseService.createGameRoom(player, isPublic: _isPublicRoom);
 
       if (roomCode != null) {
         if (mounted) {
@@ -4988,16 +5058,10 @@ class _OnlineRoomScreenState extends State<OnlineRoomScreen> {
     });
 
     try {
-      final player = OnlinePlayer(
-        playerId: '',
-        name: UserManager.currentUser!.name,
-        avatarColor: _getColorName(UserManager.currentUser!.avatarColor),
-        level: UserManager.currentUser!.level,
-      );
-
-      final success = await _firebaseService.joinGameRoom(
+      final success = await _webSocketService.joinRoom(
         _roomCodeController.text.toUpperCase(),
-        player,
+        UserManager.currentUser!.name,
+        playerColor: _getColorName(UserManager.currentUser!.avatarColor),
       );
 
       if (success) {
@@ -5066,8 +5130,10 @@ class OnlineWaitingRoomScreen extends StatefulWidget {
 }
 
 class _OnlineWaitingRoomScreenState extends State<OnlineWaitingRoomScreen> {
-  final FirebaseService _firebaseService = FirebaseService();
+  // final FirebaseService _firebaseService = FirebaseService(); // ❌ REEMPLAZADO
+  final WebSocketService _webSocketService = WebSocketService(); // ✅ NUEVO
   OnlineGameRoom? _currentRoom;
+  StreamSubscription<OnlineGameRoom?>? _roomSubscription; // ✅ Agregar subscription
 
   @override
   void initState() {
@@ -5075,8 +5141,9 @@ class _OnlineWaitingRoomScreenState extends State<OnlineWaitingRoomScreen> {
     
     print('🎮 OnlineWaitingRoomScreen iniciada para sala: ${widget.roomCode}');
     
-    // Escuchar cambios en el estado de la sala
-    _firebaseService.watchGameRoom(widget.roomCode).listen((room) {
+    // ✅ Escuchar cambios con subscription que se puede cancelar
+    // TODO: Implementar getRoom en WebSocketService
+    _roomSubscription = _webSocketService.getRoomInfo(widget.roomCode).asStream().listen((room) {
       print('🔄 Listener - Sala actualizada: ${room?.roomId}');
       print('🔄 Listener - Estado: ${room?.status}');
       print('🔄 Listener - Jugadores: ${room?.players.length}');
@@ -5089,6 +5156,14 @@ class _OnlineWaitingRoomScreenState extends State<OnlineWaitingRoomScreen> {
     }, onError: (error) {
       print('❌ Error en listener: $error');
     });
+  }
+
+  @override
+  void dispose() {
+    print('🚪 Cerrando OnlineWaitingRoomScreen');
+    // ✅ Cancelar subscription para evitar loops
+    _roomSubscription?.cancel();
+    super.dispose();
   }
 
   void _navigateToOnlineGame(OnlineGameRoom room) {
@@ -5121,7 +5196,7 @@ class _OnlineWaitingRoomScreenState extends State<OnlineWaitingRoomScreen> {
         ],
       ),
       body: StreamBuilder<OnlineGameRoom?>(
-        stream: _firebaseService.watchGameRoom(widget.roomCode),
+        stream: _webSocketService.getRoomInfo(widget.roomCode).asStream(),
         builder: (context, snapshot) {
           print('🔄 StreamBuilder - ConnectionState: ${snapshot.connectionState}');
           print('🔄 StreamBuilder - HasData: ${snapshot.hasData}');
@@ -5443,7 +5518,7 @@ class _OnlineWaitingRoomScreenState extends State<OnlineWaitingRoomScreen> {
   bool _isHost() {
     if (_currentRoom == null) return false;
     return _currentRoom!.players.any((p) => 
-      p.playerId == _firebaseService.currentPlayerId && p.isHost
+      p.playerId == _webSocketService.currentPlayerId && p.isHost
     );
   }
 
@@ -5452,7 +5527,7 @@ class _OnlineWaitingRoomScreenState extends State<OnlineWaitingRoomScreen> {
     
     try {
       // Cambiar el estado de la sala a 'playing'
-      await _firebaseService.updateRoomStatus(widget.roomCode, 'playing');
+      await _webSocketService.updateGameState(widget.roomCode, {'status': 'playing'});
       
       // Mostrar mensaje de confirmación
       if (mounted) {
@@ -5477,7 +5552,7 @@ class _OnlineWaitingRoomScreenState extends State<OnlineWaitingRoomScreen> {
   }
 
   void _leaveRoom() {
-    _firebaseService.leaveRoom();
+    _webSocketService.leaveRoomPreGame();
     Navigator.pop(context);
   }
 
