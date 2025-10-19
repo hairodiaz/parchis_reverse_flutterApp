@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/hive_service.dart';
+import '../services/auth_service.dart';
 import '../models/game_settings.dart';
 
 /// ⚙️ PANTALLA DE CONFIGURACIONES
@@ -55,10 +56,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   /// 👤 Guardar nickname
   Future<void> _saveNickname() async {
-    final currentUser = HiveService.getCurrentUser();
-    if (currentUser != null && _nicknameController.text.isNotEmpty) {
-      currentUser.name = _nicknameController.text;
-      await HiveService.saveCurrentUser(currentUser);
+    if (_nicknameController.text.isNotEmpty) {
+      await AuthService().updateNickname(_nicknameController.text);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -105,6 +104,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: 'Perfil',
               children: [
                 _buildNicknameField(),
+                const SizedBox(height: 16),
+                _buildAccountStatus(),
               ],
             ),
             
@@ -343,7 +344,137 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// 📊 Información de debug
+  /// � Estado de la cuenta
+  Widget _buildAccountStatus() {
+    final authService = AuthService();
+    final isGuest = authService.isGuest;
+    final isLoggedIn = authService.isLoggedIn;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isLoggedIn ? Colors.green.shade50 : Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isLoggedIn ? Colors.green.shade200 : Colors.orange.shade200,
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                isLoggedIn ? Icons.verified_user : Icons.person_outline,
+                color: isLoggedIn ? Colors.green.shade600 : Colors.orange.shade600,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                isLoggedIn ? 'Cuenta Registrada' : 'Usuario Invitado',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: isLoggedIn ? Colors.green.shade800 : Colors.orange.shade800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            isLoggedIn 
+                ? 'Tu progreso está guardado en la nube y sincronizado automáticamente.'
+                : 'Registra tu cuenta para guardar tu progreso en la nube y acceder a rankings globales.',
+            style: TextStyle(
+              fontSize: 12,
+              color: isLoggedIn ? Colors.green.shade700 : Colors.orange.shade700,
+            ),
+          ),
+          if (isGuest) ...[
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pushNamed(context, '/login'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple.shade600,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.login, size: 18),
+                    SizedBox(width: 8),
+                    Text('Registrar Cuenta'),
+                  ],
+                ),
+              ),
+            ),
+          ] else ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Email: ${authService.userEmail ?? "Sin email"}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.green.shade700,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    // Mostrar diálogo de confirmación
+                    bool? confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Cerrar Sesión'),
+                        content: const Text('¿Estás seguro de que quieres cerrar sesión? Podrás volver a iniciar sesión cuando quieras.'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Cancelar'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text('Cerrar Sesión'),
+                          ),
+                        ],
+                      ),
+                    );
+                    
+                    if (confirm == true) {
+                      await authService.logout();
+                      if (mounted) {
+                        setState(() {}); // Refresh UI
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('✅ Sesión cerrada. Ahora eres un usuario invitado.'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  child: const Text(
+                    'Cerrar Sesión',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// �📊 Información de debug
   Widget _buildDebugInfo() {
     return Card(
       color: Colors.grey.shade100,

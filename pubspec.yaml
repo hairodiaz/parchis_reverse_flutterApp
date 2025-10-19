@@ -13,6 +13,20 @@ dependencies:
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   path_provider: ^2.1.1
+  
+  # 🔐 Firebase & Authentication
+  firebase_core: ^2.24.2
+  firebase_auth: ^4.15.3
+  cloud_firestore: ^4.13.6
+  firebase_database: ^10.3.8
+  
+  # 📱 Social Login
+  flutter_facebook_auth: ^6.0.4
+  google_sign_in: ^6.1.6
+  
+  # 🌐 HTTP & Connectivity
+  http: ^1.1.2
+  connectivity_plus: ^5.0.2
 
 dev_dependencies:
   flutter_test:

@@ -3,7 +3,9 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/services.dart';
 import 'services/hive_service.dart';
+import 'services/auth_service.dart';
 import 'screens/settings_screen.dart';
+import 'screens/login_screen.dart';
 
 // Clase para representar la posición en el tablero
 class Position {
@@ -43,6 +45,10 @@ void main() async {
     await HiveService.init();
     print('✅ Base de datos local inicializada correctamente');
     
+    // 🔐 Inicializar servicio de autenticación
+    await AuthService.initialize();
+    print('✅ Servicio de autenticación inicializado');
+    
     // � Crear usuario por defecto si no existe
     if (HiveService.getCurrentUser() == null) {
       await HiveService.createGuestUser();
@@ -51,6 +57,7 @@ void main() async {
     
     // �🐛 Información de debug
     print('📊 Debug Info: ${HiveService.getDebugInfo()}');
+    print('🔐 Auth Info: ${AuthService().getDebugInfo()}');
   } catch (e) {
     print('❌ Error inicializando base de datos: $e');
   }
@@ -69,6 +76,11 @@ class MainApp extends StatelessWidget {
         primarySwatch: Colors.blue,
       ),
       home: const MainMenuScreen(), // Ir directamente al menú principal
+      routes: {
+        '/main': (context) => const MainMenuScreen(),
+        '/login': (context) => const LoginScreen(),
+        '/settings': (context) => const SettingsScreen(),
+      },
       debugShowCheckedModeBanner: false,
     );
   }
