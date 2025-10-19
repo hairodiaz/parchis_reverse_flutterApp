@@ -1,10 +1,34 @@
 const WebSocket = require('ws');
+const http = require('http');
 
 // 🎮 SERVIDOR WEBSOCKET PARA PARCHIS REVERSE
 // Puerto: 8080 (cambiar si es necesario)
 const PORT = process.env.PORT || 8080;
 
-const wss = new WebSocket.Server({ port: PORT });
+// ✅ Crear servidor HTTP para Railway healthcheck
+const server = http.createServer((req, res) => {
+    if (req.url === '/health' || req.url === '/') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ 
+            status: 'healthy', 
+            service: 'Parchis WebSocket Server',
+            timestamp: new Date().toISOString(),
+            rooms: gameRooms.size,
+            players: playerConnections.size
+        }));
+    } else {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('Not Found');
+    }
+});
+
+// 🚀 Iniciar servidor HTTP
+server.listen(PORT, () => {
+    console.log(`🚀 Servidor HTTP iniciado en puerto ${PORT}`);
+});
+
+// 📡 Crear WebSocket Server sobre el servidor HTTP
+const wss = new WebSocket.Server({ server });
 
 // 📊 Estado del servidor
 const gameRooms = new Map(); // roomCode -> roomData
