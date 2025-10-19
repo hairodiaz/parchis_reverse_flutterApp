@@ -4,8 +4,10 @@ import 'dart:math';
 import 'package:flutter/services.dart';
 import 'services/hive_service.dart';
 import 'services/auth_service.dart';
+import 'services/audio_service.dart';
 import 'screens/settings_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/intro_screen.dart'; // 🎬 NUEVA PANTALLA DE INTRO
 
 // Clase para representar la posición en el tablero
 class Position {
@@ -49,6 +51,10 @@ void main() async {
     await AuthService.initialize();
     print('✅ Servicio de autenticación inicializado');
     
+    // 🎵 Inicializar servicio de audio
+    await AudioService().initialize();
+    print('✅ Servicio de audio inicializado');
+    
     // � Crear usuario por defecto si no existe
     if (HiveService.getCurrentUser() == null) {
       await HiveService.createGuestUser();
@@ -75,7 +81,7 @@ class MainApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: const MainMenuScreen(), // Ir directamente al menú principal
+      home: const IntroScreen(), // 🎬 INICIAR CON VIDEO DE INTRO
       routes: {
         '/main': (context) => const MainMenuScreen(),
         '/login': (context) => const LoginScreen(),
@@ -1422,6 +1428,9 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       setState(() {
         decisionCountdown--;
       });
+      
+      // 🎵 Sonido de timer cada segundo
+      AudioService().playTimer();
 
       if (decisionCountdown <= 0) {
         timer.cancel();
@@ -1492,7 +1501,8 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       });
     });
 
-    Timer(const Duration(milliseconds: 500), () { // Reducido de 800ms a 500ms
+    // ⏱️ SINCRONIZAR CON DURACIÓN DEL SONIDO DICE.MP3 (~1 segundo)
+    Timer(const Duration(milliseconds: 1000), () { // Aumentado para coincidir con sonido
       newDiceTimer.cancel();
       
       setState(() {
@@ -1500,7 +1510,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
         lastMessage = "🎲 Nuevo resultado: $newFinalResult";
       });
 
-      Timer(const Duration(milliseconds: 600), () { // Reducido de 1000ms a 600ms
+      Timer(const Duration(milliseconds: 400), () { // Reducido delay para movimiento más rápido
         setState(() {
           lastMessage = null;
         });
@@ -1525,23 +1535,23 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       isMoving = true; // Asegurar que el dado esté bloqueado
     });
     
-    // Pausa reducida antes de empezar el movimiento para evitar sensación de "cargado"
-    Timer(const Duration(milliseconds: 1000), () { // Reducido de 2000ms a 1000ms
-      Timer(const Duration(milliseconds: 200), () {
+    // ⚡ DELAY REDUCIDO para movimiento más fluido (de 1000ms a 300ms)
+    Timer(const Duration(milliseconds: 300), () { // Reducido significativamente
+      Timer(const Duration(milliseconds: 100), () { // También reducido
         bool hasThreats = _checkAndShowThreatMessage(finalResult);
         
         if (hasThreats) {
-          Timer(const Duration(milliseconds: 1500), () {
+          Timer(const Duration(milliseconds: 1200), () { // Ligeramente reducido
             setState(() {
               lastMessage = null;
             });
             
-            Timer(const Duration(milliseconds: 300), () {
+            Timer(const Duration(milliseconds: 200), () { // Reducido
               _moveCurrentPlayerPiece(finalResult);
             });
           });
         } else {
-          Timer(const Duration(milliseconds: 400), () {
+          Timer(const Duration(milliseconds: 200), () { // Reducido de 400ms a 200ms
             _moveCurrentPlayerPiece(finalResult);
           });
         }
@@ -1679,6 +1689,9 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
 
   // ¡FUNCIONES DE SONIDO! 🎵🎲
   void _playDiceSound() {
+    // 🎲 Reproducir sonido del dado
+    AudioService().playDiceRoll();
+    
     // Vibración táctil para simular el dado rodando
     HapticFeedback.heavyImpact();
     
@@ -1691,7 +1704,10 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   }
   
   void _playCollisionSound() {
-    // Sonido dramático para comer fichas
+    // 💥 Secuencia de sonidos para captura
+    AudioService().playCaptureSequence();
+    
+    // Vibración táctil dramática
     HapticFeedback.heavyImpact();
     Timer(const Duration(milliseconds: 100), () => HapticFeedback.heavyImpact());
   }
@@ -1699,24 +1715,28 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   void _playSpecialCellSound(String cellType) {
     switch (cellType) {
       case 'LANCE\nDE\nNUEVO':
-        // Sonido de suerte
+        // 🎯 Sonido de nuevo turno
+        AudioService().playNewTurn();
         HapticFeedback.lightImpact();
         Timer(const Duration(milliseconds: 100), () => HapticFeedback.lightImpact());
         Timer(const Duration(milliseconds: 200), () => HapticFeedback.mediumImpact());
         break;
       case 'VUELVE\nA LA\nSALIDA':
-        // Sonido de caída dramática
+        // 📉 Sonido de bajar ficha
+        AudioService().playPieceDown();
         HapticFeedback.heavyImpact();
         Timer(const Duration(milliseconds: 200), () => HapticFeedback.heavyImpact());
         Timer(const Duration(milliseconds: 400), () => HapticFeedback.heavyImpact());
         break;
       case '1 TURNO\nSIN\nJUGAR':
-        // Sonido de "dormir"
+        // 😴 Sonido de perder turno
+        AudioService().playLoseTurn();
         HapticFeedback.mediumImpact();
         Timer(const Duration(milliseconds: 300), () => HapticFeedback.lightImpact());
         break;
       default:
-        // Sonido genérico para subir/bajar
+        // 📈 Sonido genérico de subir
+        AudioService().playPieceUp();
         HapticFeedback.mediumImpact();
         Timer(const Duration(milliseconds: 150), () => HapticFeedback.mediumImpact());
     }
@@ -1756,7 +1776,8 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       });
     });
 
-    Timer(const Duration(milliseconds: 500), () { // Reducido de 800ms a 500ms
+    // ⏱️ SINCRONIZAR CON DURACIÓN DEL SONIDO DICE.MP3 (~1 segundo)
+    Timer(const Duration(milliseconds: 1000), () { // Aumentado para coincidir con sonido
       _timer?.cancel();
       setState(() {
         diceValue = finalDiceResult; // Asignar el resultado final SIN cambio brusco
@@ -1870,7 +1891,8 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       });
     });
 
-    Timer(const Duration(milliseconds: 800), () {
+    // ⏱️ SINCRONIZAR CON DURACIÓN DEL SONIDO DICE.MP3 (~1 segundo)
+    Timer(const Duration(milliseconds: 1000), () { // Aumentado para coincidir con sonido
       _timer?.cancel();
       
       // 🧠 CPU ANALIZA EL RESULTADO
@@ -1976,6 +1998,9 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
           consecutiveSixes = 0;
           hasExtraTurn = false;
           
+          // 🎵 Sonido de perder turno por 3 seises
+          AudioService().playLoseTurn();
+          
           // Cambiar turno después de mostrar el mensaje
           Timer(const Duration(milliseconds: 2000), () {
             setState(() {
@@ -1997,6 +2022,9 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
               ? "¡Sacaste 6! ¡Turno extra! 🎲✨"
               : "¡Segundo 6! ¡Cuidado con el tercero! ⚠️🎲";
           lastMessage = extraTurnMessage;
+          
+          // 🎵 Sonido de turno extra (lanzar nuevo)
+          AudioService().playNewTurn();
           
           // Quitar mensaje después de un tiempo
           Timer(const Duration(milliseconds: 1500), () {
@@ -2024,22 +2052,62 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   void _animateStepByStep(GamePiece piece, int startIndex, int steps) async {
     jumpingPiece = piece; // Marcar cuál ficha está saltando
     
-    // Calcular la posición final primero
+    // 🎯 EFECTO REBOTE: Calcular posición final con rebote si se pasa de la META
     int finalIndex = startIndex + steps;
-    if (finalIndex >= boardPath.length) {
-      finalIndex = boardPath.length - 1; // META CAMPEÓN
+    int metaIndex = boardPath.length - 1; // Índice de la META (posición 83)
+    
+    // Si se pasa de la META, implementar efecto rebote
+    if (finalIndex > metaIndex) {
+      int exceso = finalIndex - metaIndex;
+      finalIndex = metaIndex - exceso; // Rebotar hacia atrás
+      
+      // Asegurarse de que no rebote más allá del inicio
+      if (finalIndex < 0) {
+        finalIndex = 0;
+      }
+      
+      // Mostrar mensaje del efecto rebote
+      setState(() {
+        lastMessage = "¡Efecto rebote! Te pasaste por $exceso casillas 🔄";
+      });
     }
+    
     Position finalPosition = boardPath[finalIndex];
     
     // VERIFICAR LA VÍCTIMA ANTES del movimiento
     GamePiece? victimPiece = _checkForVictim(finalPosition, piece);
     
+    // 🎯 ANIMACIÓN CON EFECTO REBOTE (reutilizar metaIndex ya definido)
+    
     for (int i = 1; i <= steps; i++) {
-      int newIndex = startIndex + i;
+      int targetIndex = startIndex + i;
       
-      // Verificar que no se pase del final
-      if (newIndex >= boardPath.length) {
-        newIndex = boardPath.length - 1; // META CAMPEÓN
+      // Si estamos en el proceso de rebote
+      if (startIndex + i > metaIndex) {
+        // Calcular posición de rebote
+        int exceso = (startIndex + i) - metaIndex;
+        targetIndex = metaIndex - exceso;
+        
+        // Asegurarse de no ir más allá del inicio
+        if (targetIndex < 0) {
+          targetIndex = 0;
+        }
+        
+        // Mensaje especial para el rebote
+        if (i == metaIndex - startIndex + 1) {
+          setState(() {
+            lastMessage = "¡Tocaste la META! Ahora rebotando... 🔄";
+          });
+          
+          // 🎵 Sonido de rebote al tocar la META
+          AudioService().playBounceEffect();
+        }
+      } else if (targetIndex >= metaIndex) {
+        // Si llega exactamente a la META
+        targetIndex = metaIndex;
+        
+        // 🎵 Sonido al llegar a la META
+        AudioService().playGoalEffect();
       }
       
       // Animar el salto
@@ -2048,16 +2116,16 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       // Pequeña pausa para el salto hacia arriba
       await Future.delayed(const Duration(milliseconds: 200));
       
-      // Mover a la siguiente casilla mientras está en el aire (SIN verificar colisión aquí)
+      // Mover a la posición calculada
       setState(() {
-        piece.position = boardPath[newIndex];
+        piece.position = boardPath[targetIndex];
       });
+      
+      // 🎵 Sonido de movimiento de ficha
+      AudioService().playPieceMove();
       
       // Completar el salto (bajar)
       await _jumpController.reverse();
-      
-      // Si llegó al final, salir del bucle
-      if (newIndex >= boardPath.length - 1) break;
       
       // Pausa antes del siguiente salto
       await Future.delayed(const Duration(milliseconds: 150));
@@ -2153,6 +2221,9 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       victim.position = const Position(9, 0); // SALIDA
       lastMessage = selectedMessage;
     });
+    
+    // 🎵 Secuencia de sonidos para captura épica
+    AudioService().playCaptureSequence();
     
     // Mostrar mensaje por 3 segundos
     _messageTimer?.cancel();
@@ -2280,6 +2351,9 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
           "$playerName llegó a la META!",
           "¡GANASTE como todo un TIGUERRRR! 👑🎊"
         ];
+        
+        // 🎵 Secuencia de victoria épica
+        AudioService().playVictorySequence();
         break;
     }
     

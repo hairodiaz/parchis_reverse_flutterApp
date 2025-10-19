@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/hive_service.dart';
+import '../models/local_user.dart';
 
 /// 🔐 PANTALLA DE LOGIN/REGISTRO
 /// 
@@ -60,9 +61,9 @@ class _LoginScreenState extends State<LoginScreen>
     });
 
     try {
-      bool success = await AuthService().signInWithFacebook();
+      LocalUser? user = await AuthService().signInWithFacebook();
       
-      if (success) {
+      if (user != null) {
         _showSuccessMessage('¡Bienvenido! Tu cuenta ha sido vinculada exitosamente');
         _navigateToMainMenu();
       } else {
@@ -86,9 +87,9 @@ class _LoginScreenState extends State<LoginScreen>
     });
 
     try {
-      bool success = await AuthService().signInWithGoogle();
+      LocalUser? user = await AuthService().signInWithGoogle();
       
-      if (success) {
+      if (user != null) {
         _showSuccessMessage('¡Bienvenido! Tu cuenta ha sido vinculada exitosamente');
         _navigateToMainMenu();
       } else {
