@@ -1,0 +1,13 @@
+# Ignorar archivos de Flutter
+lib/
+android/
+ios/
+web/
+windows/
+linux/
+macos/
+test/
+pubspec.yaml
+pubspec.lock
+.dart_tool/
+build/

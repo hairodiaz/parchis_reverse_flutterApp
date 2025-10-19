@@ -2,67 +2,8 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/services.dart';
-
-// Modelo de datos de usuario
-class User {
-  final String id;
-  final String name;
-  final Color avatarColor;
-  final String level;
-  final int gamesPlayed;
-  final int gamesWon;
-  
-  const User({
-    required this.id,
-    required this.name,
-    required this.avatarColor,
-    required this.level,
-    this.gamesPlayed = 0,
-    this.gamesWon = 0,
-  });
-  
-  double get winRate => gamesPlayed > 0 ? (gamesWon / gamesPlayed) * 100 : 0;
-}
-
-// Gestor de usuarios predeterminados
-class UserManager {
-  static final List<User> predefinedUsers = [
-    User(
-      id: 'hairo',
-      name: 'Hairo',
-      avatarColor: Colors.blue,
-      level: 'Pro',
-      gamesPlayed: 45,
-      gamesWon: 32,
-    ),
-    User(
-      id: 'maria',
-      name: 'María',
-      avatarColor: Colors.pink,
-      level: 'Intermedio',
-      gamesPlayed: 23,
-      gamesWon: 12,
-    ),
-    User(
-      id: 'carlos',
-      name: 'Carlos',
-      avatarColor: Colors.green,
-      level: 'Experto',
-      gamesPlayed: 67,
-      gamesWon: 51,
-    ),
-    User(
-      id: 'ana',
-      name: 'Ana',
-      avatarColor: Colors.orange,
-      level: 'Principiante',
-      gamesPlayed: 8,
-      gamesWon: 3,
-    ),
-  ];
-  
-  static User? currentUser;
-}
+import 'services/hive_service.dart';
+import 'screens/settings_screen.dart';
 
 // Clase para representar la posición en el tablero
 class Position {
@@ -93,7 +34,27 @@ class GamePiece {
   });
 }
 
-void main() {
+void main() async {
+  // 🚀 Inicializar Flutter y Hive
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  try {
+    // 🗂️ Inicializar base de datos local (Hive)
+    await HiveService.init();
+    print('✅ Base de datos local inicializada correctamente');
+    
+    // � Crear usuario por defecto si no existe
+    if (HiveService.getCurrentUser() == null) {
+      await HiveService.createGuestUser();
+      print('👤 Usuario invitado creado por defecto');
+    }
+    
+    // �🐛 Información de debug
+    print('📊 Debug Info: ${HiveService.getDebugInfo()}');
+  } catch (e) {
+    print('❌ Error inicializando base de datos: $e');
+  }
+
   runApp(const MainApp());
 }
 
@@ -107,406 +68,13 @@ class MainApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: const LoginScreen(), // Comenzar con la pantalla de login
+      home: const MainMenuScreen(), // Ir directamente al menú principal
       debugShowCheckedModeBanner: false,
     );
   }
 }
 
-// 🔐 PANTALLA DE LOGIN
-class LoginScreen extends StatelessWidget {
-  const LoginScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF1E3A8A), // Azul oscuro
-              Color(0xFF3B82F6), // Azul medio
-              Color(0xFF60A5FA), // Azul claro
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              children: [
-                const SizedBox(height: 40),
-                
-                // Logo y título
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white.withOpacity(0.3)),
-                  ),
-                  child: const Column(
-                    children: [
-                      Icon(
-                        Icons.games,
-                        size: 80,
-                        color: Colors.white,
-                      ),
-                      SizedBox(height: 16),
-                      Text(
-                        'Parchís Reverse',
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      Text(
-                        'Dominicano',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.white70,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                
-                const SizedBox(height: 40),
-                
-                // Título de selección
-                const Text(
-                  'Selecciona tu perfil',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                
-                const SizedBox(height: 20),
-                
-                // Lista de usuarios
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: UserManager.predefinedUsers.length,
-                    itemBuilder: (context, index) {
-                      final user = UserManager.predefinedUsers[index];
-                      return _buildUserCard(context, user);
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildUserCard(BuildContext context, User user) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Card(
-        elevation: 8,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () => _loginUser(context, user),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                // Avatar
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    color: user.avatarColor,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 3),
-                    boxShadow: [
-                      BoxShadow(
-                        color: user.avatarColor.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Center(
-                    child: Text(
-                      user.name[0].toUpperCase(),
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-                
-                const SizedBox(width: 16),
-                
-                // Información del usuario
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        user.name,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        'Nivel: ${user.level}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.emoji_events,
-                            size: 16,
-                            color: Colors.orange[400],
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${user.gamesWon}/${user.gamesPlayed} ganadas',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${user.winRate.toStringAsFixed(0)}%',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: user.winRate >= 50 ? Colors.green : Colors.orange,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                
-                // Icono de entrada
-                Icon(
-                  Icons.arrow_forward_ios,
-                  color: user.avatarColor,
-                  size: 20,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _loginUser(BuildContext context, User user) {
-    UserManager.currentUser = user;
-    
-    // Navegar al juego
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (context) => const SplashScreen(),
-      ),
-    );
-  }
-}
-
-// 🎬 PANTALLA DE CARGA (SPLASH SCREEN)
-class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
-
-  @override
-  State<SplashScreen> createState() => _SplashScreenState();
-}
-
-class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMixin {
-  late AnimationController _logoController;
-  late AnimationController _textController;
-  late Animation<double> _logoScale;
-  late Animation<double> _textFade;
-
-  @override
-  void initState() {
-    super.initState();
-    
-    // Animación del logo
-    _logoController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
-      vsync: this,
-    );
-    
-    _logoScale = Tween<double>(
-      begin: 0.5,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _logoController,
-      curve: Curves.elasticOut,
-    ));
-    
-    // Animación del texto
-    _textController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
-      vsync: this,
-    );
-    
-    _textFade = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _textController,
-      curve: Curves.easeIn,
-    ));
-    
-    _startAnimations();
-  }
-  
-  void _startAnimations() async {
-    // Animar logo
-    _logoController.forward();
-    
-    // Esperar un poco y animar texto
-    await Future.delayed(const Duration(milliseconds: 500));
-    _textController.forward();
-    
-    // Esperar y navegar al menú principal
-    await Future.delayed(const Duration(milliseconds: 2500));
-    if (mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const MainMenuScreen()),
-      );
-    }
-  }
-
-  @override
-  void dispose() {
-    _logoController.dispose();
-    _textController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF1976D2), // Azul dominicano
-              Color(0xFF0D47A1), // Azul más oscuro
-            ],
-          ),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Logo animado
-              AnimatedBuilder(
-                animation: _logoScale,
-                builder: (context, child) {
-                  return Transform.scale(
-                    scale: _logoScale.value,
-                    child: Container(
-                      width: 150,
-                      height: 150,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
-                            spreadRadius: 5,
-                            blurRadius: 15,
-                            offset: const Offset(0, 5),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.sports_esports,
-                        size: 80,
-                        color: Color(0xFF1976D2),
-                      ),
-                    ),
-                  );
-                },
-              ),
-              
-              const SizedBox(height: 30),
-              
-              // Título animado
-              AnimatedBuilder(
-                animation: _textFade,
-                builder: (context, child) {
-                  return Opacity(
-                    opacity: _textFade.value,
-                    child: Column(
-                      children: [
-                        const Text(
-                          '🎲 PARCHÍS REVERSE',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: 2,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 10),
-                        const Text(
-                          'DOMINICANO 🇩🇴',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white70,
-                            letterSpacing: 1.5,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 40),
-                        // Indicador de carga
-                        const CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                        const SizedBox(height: 20),
-                        const Text(
-                          'Cargando...',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.white70,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// 🏠 PANTALLA PRINCIPAL DEL MENÚ - ¡PROFESIONAL!
+//  PANTALLA PRINCIPAL DEL MENÚ - ¡PROFESIONAL!
 class MainMenuScreen extends StatefulWidget {
   const MainMenuScreen({super.key});
 
@@ -613,14 +181,13 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
                   ),
                   
                   // 👤 TARJETA DE PERFIL DEL USUARIO
-                  if (UserManager.currentUser != null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                      child: FadeTransition(
-                        opacity: _backgroundAnimation,
-                        child: _buildUserProfileCard(),
-                      ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    child: FadeTransition(
+                      opacity: _backgroundAnimation,
+                      child: _buildUserProfileCard(),
                     ),
+                  ),
                   
                   Expanded(
                     child: Center(
@@ -650,6 +217,24 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
                                 
                                 const SizedBox(height: 20),
                                 
+                                // ⚙️ BOTÓN CONFIGURACIONES
+                                _buildMenuButton(
+                                  icon: Icons.settings_rounded,
+                                  title: 'CONFIGURACIONES',
+                                  subtitle: 'Sonido, personalización y más',
+                                  colors: [Colors.purple.shade400, Colors.purple.shade600],
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => const SettingsScreen(),
+                                      ),
+                                    );
+                                  },
+                                ),
+                                
+                                const SizedBox(height: 20),
+                                
                                 // ℹ️ BOTÓN ACERCA DE
                                 _buildMenuButton(
                                   icon: Icons.info_outline_rounded,
@@ -667,9 +252,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
                                 _buildMenuButton(
                                   icon: Icons.logout_rounded,
                                   title: 'CERRAR SESIÓN',
-                                  subtitle: UserManager.currentUser != null 
-                                      ? 'Salir como ${UserManager.currentUser!.name}'
-                                      : 'Volver al login',
+                                  subtitle: 'Opciones de usuario',
                                   colors: [Colors.red.shade400, Colors.red.shade600],
                                   onTap: () {
                                     _showLogoutDialog();
@@ -802,45 +385,172 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
   }
 
   Widget _buildUserProfileCard() {
-    final user = UserManager.currentUser!;
+    final user = HiveService.getCurrentUser();
     
+    if (user == null) {
+      return const Center(child: Text('No hay usuario'));
+    }
+        
     return GestureDetector(
-      onTap: () => _showUserProfileDetails(),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Colors.white.withOpacity(0.15),
-              Colors.white.withOpacity(0.05),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.3),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+          onTap: () => _showUserProfileDetails(),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.white.withOpacity(0.15),
+                  Colors.white.withOpacity(0.05),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.3),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-          ],
+            child: Row(
+              children: [
+                // Avatar del usuario
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: Colors.blue, // Color por defecto, lo mejoremos después
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 3),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.blue.withOpacity(0.4),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Text(
+                      user.name[0].toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                
+                const SizedBox(width: 16),
+                
+                // Información del usuario
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            '¡Hola, ${user.name}!',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withOpacity(0.8),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              'Nivel ${(user.gamesWon ~/ 5) + 1}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.emoji_events,
+                            size: 16,
+                            color: Colors.orange[300],
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${user.gamesWon}/${user.gamesPlayed} ganadas',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.white.withOpacity(0.8),
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            'Toca para ver detalles',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.white.withOpacity(0.6),
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                
+                // Icono de flecha
+                Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.white.withOpacity(0.7),
+                  size: 16,
+                ),
+              ],
+            ),
+          ),
+        );
+  }
+
+  void _showUserProfileDetails() {
+    final user = HiveService.getCurrentUser();
+    
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo cargar el perfil del usuario')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
         ),
-        child: Row(
+        title: Row(
           children: [
-            // Avatar del usuario
             Container(
               width: 50,
               height: 50,
               decoration: BoxDecoration(
-                color: user.avatarColor,
+                color: Colors.blue,
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.white, width: 3),
                 boxShadow: [
                   BoxShadow(
-                    color: user.avatarColor.withOpacity(0.4),
+                    color: Colors.blue.withOpacity(0.4),
                     blurRadius: 8,
                     offset: const Offset(0, 4),
                   ),
@@ -857,272 +567,105 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
                 ),
               ),
             ),
-            
             const SizedBox(width: 16),
-            
-            // Información del usuario
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Text(
-                        '¡Hola, ${user.name}!',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: user.avatarColor.withOpacity(0.8),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          user.level,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ],
+                  Text(
+                    user.name,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.emoji_events,
-                        size: 16,
-                        color: Colors.orange[300],
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'Nivel ${(user.gamesWon ~/ 5) + 1}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue,
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${user.gamesWon}/${user.gamesPlayed} ganadas',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.white.withOpacity(0.8),
-                        ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        'Toca para ver detalles',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.white.withOpacity(0.6),
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ],
               ),
             ),
-            
-            // Icono de flecha
-            Icon(
-              Icons.arrow_forward_ios,
-              color: Colors.white.withOpacity(0.7),
-              size: 16,
-            ),
           ],
         ),
-      ),
-    );
-  }
-
-  void _showUserProfileDetails() {
-    final user = UserManager.currentUser!;
-    
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Row(
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: user.avatarColor,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
-                ),
-                child: Center(
-                  child: Text(
-                    user.name[0].toUpperCase(),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
+              // Estado del usuario
+              _buildProfileSection(
+                title: '👤 Estado del Usuario',
+                items: [
+                  _buildProfileRow('Tipo:', user.isGuest ? 'Usuario Invitado' : 'Usuario Registrado'),
+                  if (user.lastLoginDate != null)
+                    _buildProfileRow('Último acceso:', _formatDate(user.lastLoginDate!)),
+                  if (user.email != null)
+                    _buildProfileRow('Email:', user.email!),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      user.name,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: user.avatarColor.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        user.level,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: user.avatarColor,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+              
+              const SizedBox(height: 16),
+              
+              // Estadísticas de juego
+              _buildProfileSection(
+                title: '📊 Estadísticas de Juego',
+                items: [
+                  _buildProfileRow('Partidas jugadas:', '${user.gamesPlayed}'),
+                  _buildProfileRow('Partidas ganadas:', '${user.gamesWon}'),
+                  _buildProfileRow('Partidas perdidas:', '${user.gamesPlayed - user.gamesWon}'),
+                  _buildProfileRow('Porcentaje de victoria:', '${user.winRate.toStringAsFixed(1)}%'),
+                ],
               ),
+              
+              const SizedBox(height: 16),
+              
+              // Rachas y logros
+              _buildProfileSection(
+                title: '🏆 Rachas y Logros',
+                items: [
+                  _buildProfileRow('Racha actual:', '${user.currentStreak} victorias'),
+                  _buildProfileRow('Mejor racha:', '${user.bestStreak} victorias'),
+                  _buildProfileRow('Logros obtenidos:', '${user.achievements.length}'),
+                ],
+              ),
+              
+              if (user.achievements.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                _buildAchievementsSection(user.achievements),
+              ],
             ],
           ),
-          content: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  '📊 Estadísticas de Juego',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                
-                // Estadísticas principales
-                _buildStatRow('🎮 Partidas jugadas:', '${user.gamesPlayed}'),
-                _buildStatRow('🏆 Partidas ganadas:', '${user.gamesWon}'),
-                _buildStatRow('📉 Partidas perdidas:', '${user.gamesPlayed - user.gamesWon}'),
-                
-                const SizedBox(height: 16),
-                
-                // Porcentaje de victorias
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        user.avatarColor.withOpacity(0.1),
-                        user.avatarColor.withOpacity(0.05),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: user.avatarColor.withOpacity(0.3),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        '🎯 Porcentaje de victoria:',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: user.winRate >= 50 ? Colors.green : Colors.orange,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          '${user.winRate.toStringAsFixed(1)}%',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                
-                const SizedBox(height: 16),
-                
-                // Información adicional
-                const Text(
-                  '🎲 Información Adicional',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                
-                _buildStatRow('🎨 Color favorito:', _getColorName(user.avatarColor)),
-                _buildStatRow('⭐ Nivel de jugador:', user.level),
-                _buildStatRow('🆔 ID de usuario:', user.id),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: TextButton.styleFrom(
-                backgroundColor: user.avatarColor.withOpacity(0.1),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                child: Text(
-                  'Cerrar',
-                  style: TextStyle(
-                    color: user.avatarColor,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.blue.withOpacity(0.1),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
               ),
             ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildStatRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(fontSize: 14),
-          ),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Text(
+                'Cerrar',
+                style: TextStyle(
+                  color: Colors.blue,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ),
         ],
@@ -1130,261 +673,160 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
     );
   }
 
-  String _getColorName(Color color) {
-    if (color == Colors.blue) return 'Azul';
-    if (color == Colors.pink) return 'Rosa';
-    if (color == Colors.green) return 'Verde';
-    if (color == Colors.orange) return 'Naranja';
-    return 'Personalizado';
+  // Helper methods para el perfil de usuario
+  Widget _buildProfileSection({required String title, required List<Widget> items}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Column(
+            children: items,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProfileRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 14,
+              color: Colors.black54,
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAchievementsSection(List<String> achievements) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '🏅 Logros Desbloqueados',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.amber.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.amber.shade200),
+          ),
+          child: achievements.isEmpty
+              ? const Text(
+                  'Aún no has desbloqueado logros. ¡Sigue jugando!',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.black54,
+                    fontStyle: FontStyle.italic,
+                  ),
+                )
+              : Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: achievements.map((achievement) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade200,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        achievement,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+        ),
+      ],
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+    
+    if (difference.inDays == 0) {
+      return 'Hoy';
+    } else if (difference.inDays == 1) {
+      return 'Ayer';
+    } else if (difference.inDays < 7) {
+      return 'Hace ${difference.inDays} días';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
+    }
   }
 
   void _showAboutDialog() {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+      builder: (context) => AlertDialog(
+        title: const Text('Acerca de'),
+        content: const Text('Parchís Reverse Dominicano v1.0\nDesarrollado por Ing. Hairo Díaz'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
           ),
-          title: const Row(
-            children: [
-              Icon(Icons.info_outline, color: Colors.blue, size: 28),
-              SizedBox(width: 10),
-              Text(
-                'Acerca de',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          content: const SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '🎲 Parchís Reverse Dominicano',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.purple,
-                  ),
-                ),
-                SizedBox(height: 10),
-                Text(
-                  'Versión: 1.0.0',
-                  style: TextStyle(fontSize: 14, color: Colors.grey),
-                ),
-                SizedBox(height: 15),
-                Text(
-                  '📱 Características:',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                SizedBox(height: 8),
-                Text('• 2-4 jugadores (Humanos y CPU)'),
-                Text('• CPU inteligente con personalidad'),
-                Text('• Casillas especiales divertidas'),
-                Text('• Efectos visuales y sonoros'),
-                Text('• Interfaz responsive y moderna'),
-                SizedBox(height: 15),
-                Text(
-                  '👨‍💻 Desarrollador:',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                SizedBox(height: 8),
-                Text(
-                  'Ing. Hairo Díaz',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.blue,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                SizedBox(height: 8),
-                Text(
-                  'Ingeniero de Software especializado en desarrollo móvil con Flutter/Dart',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-                SizedBox(height: 15),
-                Text(
-                  '🏆 Hecho con ❤️ en República Dominicana',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontStyle: FontStyle.italic,
-                    color: Colors.green,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: TextButton.styleFrom(
-                backgroundColor: Colors.blue.shade50,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                child: Text(
-                  'Cerrar',
-                  style: TextStyle(
-                    color: Colors.blue,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+        ],
+      ),
     );
   }
 
   void _showLogoutDialog() {
     showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+      builder: (context) => AlertDialog(
+        title: const Text('Información'),
+        content: const Text('Funcionalidad simplificada con sistema Hive local.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
           ),
-          title: Row(
-            children: [
-              const Icon(
-                Icons.logout_rounded,
-                color: Colors.red,
-                size: 28,
-              ),
-              const SizedBox(width: 10),
-              const Text(
-                '¿Cerrar sesión?',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF5D4037),
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (UserManager.currentUser != null) ...[
-                Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: UserManager.currentUser!.avatarColor,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                      child: Center(
-                        child: Text(
-                          UserManager.currentUser!.name[0].toUpperCase(),
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            UserManager.currentUser!.name,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            'Nivel: ${UserManager.currentUser!.level}',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-              ],
-              Text(
-                '¿Estás seguro de que quieres cerrar sesión y volver al login?',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[700],
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.grey[600],
-              ),
-              child: const Text(
-                'Cancelar',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop(); // Cerrar diálogo
-                UserManager.currentUser = null; // Limpiar usuario
-                
-                // Navegar al login y limpiar toda la pila de navegación
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(
-                    builder: (context) => const LoginScreen(),
-                  ),
-                  (route) => false,
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: const Text(
-                'Cerrar sesión',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+        ],
+      ),
     );
   }
 }
@@ -1408,9 +850,16 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
   void initState() {
     super.initState();
     
-    // Si hay usuario logueado, configurar su nombre en Jugador 1
-    if (UserManager.currentUser != null) {
-      playerNames[0] = UserManager.currentUser!.name;
+    // Configurar nombre del usuario actual después de initState
+    _loadUserName();
+  }
+  
+  void _loadUserName() {
+    final user = HiveService.getCurrentUser();
+    if (mounted && user != null) {
+      setState(() {
+        playerNames[0] = user.name;
+      });
     }
   }
 
@@ -1420,24 +869,23 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
       appBar: AppBar(
         title: Row(
           children: [
-            if (UserManager.currentUser != null)
-              Container(
-                width: 32,
-                height: 32,
-                margin: const EdgeInsets.only(right: 12),
-                decoration: BoxDecoration(
-                  color: UserManager.currentUser!.avatarColor,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
-                ),
-                child: Center(
-                  child: Text(
-                    UserManager.currentUser!.name[0].toUpperCase(),
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
+            Container(
+              width: 32,
+              height: 32,
+              margin: const EdgeInsets.only(right: 12),
+              decoration: BoxDecoration(
+                color: Colors.blue, // Color predeterminado
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: Center(
+                child: Text(
+                  playerNames[0][0].toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                   ),
                 ),
               ),
@@ -1615,14 +1063,14 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                                     ),
                                   ),
                                   TextField(
-                                    enabled: !(index == 0 && UserManager.currentUser != null), // Deshabilitar para Jugador 1 si hay usuario logueado
+                                    enabled: false, // Siempre está el usuario en Jugador 1
                                     decoration: InputDecoration(
-                                      hintText: index == 0 && UserManager.currentUser != null 
+                                      hintText: index == 0 
                                           ? '👤 Usuario logueado' 
                                           : 'Nombre del jugador',
                                       border: InputBorder.none,
                                       contentPadding: EdgeInsets.zero,
-                                      suffixIcon: index == 0 && UserManager.currentUser != null 
+                                      suffixIcon: index == 0 
                                           ? Icon(
                                               Icons.lock_outline,
                                               color: Colors.grey[400],
@@ -1633,7 +1081,7 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w600,
-                                      color: index == 0 && UserManager.currentUser != null 
+                                      color: index == 0 
                                           ? Colors.grey[600] 
                                           : Colors.black,
                                     ),
@@ -1641,8 +1089,8 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                                       text: playerNames[index],
                                     ),
                                     onChanged: (value) {
-                                      // Solo permitir cambios si no es el usuario logueado
-                                      if (!(index == 0 && UserManager.currentUser != null)) {
+                                      // Solo permitir cambios si no es el usuario (index 0)
+                                      if (index != 0) {
                                         setState(() {
                                           playerNames[index] = value.isEmpty 
                                               ? 'Jugador ${index + 1}' 
@@ -1822,11 +1270,8 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   // Obtener nombre del jugador con formato correcto
   String _getPlayerDisplayName(int playerIndex) {
     if (playerIndex == 0 && widget.isHuman[0]) {
-      // Si es el jugador humano y hay usuario logueado, usar su nombre
-      if (UserManager.currentUser != null) {
-        return UserManager.currentUser!.name;
-      }
-      return customPlayerNames[0] ?? 'HUMANO';
+      // Si es el jugador humano, usar el nombre del usuario actual
+      return customPlayerNames[0] ?? playerNames[0];
     } else {
       return customPlayerNames[playerIndex] ?? 'CPU $playerIndex';
     }
@@ -2036,7 +1481,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     });
 
     Timer(const Duration(milliseconds: 500), () { // Reducido de 800ms a 500ms
-      newDiceTimer?.cancel();
+      newDiceTimer.cancel();
       
       setState(() {
         currentDiceResult = newFinalResult; // Asignar resultado final SIN cambio brusco
@@ -2101,9 +1546,10 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       customPlayerNames[i] = widget.playerNames[i];
     }
     
-    // Si hay usuario logueado y es el jugador 1, usar su nombre
-    if (UserManager.currentUser != null && widget.isHuman[0]) {
-      customPlayerNames[0] = UserManager.currentUser!.name;
+    // Si el jugador 1 es humano, usar el nombre del usuario actual
+    if (widget.isHuman[0]) {
+      // Usar el nombre que ya se configuró desde la pantalla anterior
+      customPlayerNames[0] = widget.playerNames[0];
     }
     
     // 🎮 AUTO-INICIAR SI EL PRIMER JUGADOR ES CPU
@@ -2877,113 +2323,6 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     return null;
   }
 
-  // Construir el indicador de jugador para las esquinas - ¡VERSIÓN ÉPICA!
-  Widget _buildPlayerIndicator(int playerIndex) {
-    bool isCurrentPlayer = currentPlayerIndex == playerIndex;
-    bool isCPU = !widget.isHuman[playerIndex];
-    bool isCPUThinking = isCurrentPlayer && isCPU && isMoving;
-    
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: isCurrentPlayer 
-          ? (isCPUThinking 
-             ? Colors.purple.withOpacity(0.9)  // 🤖 COLOR ÉPICO PARA CPU PENSANDO
-             : Colors.white.withOpacity(0.9)) 
-          : Colors.black.withOpacity(0.6),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isCurrentPlayer 
-            ? (isCPUThinking
-               ? Colors.purple.shade300  // 🌟 BORDE MÁGICO
-               : (playerColors[playerIndex] == Colors.yellow 
-                  ? Colors.orange.shade700  
-                  : playerColors[playerIndex]))
-            : Colors.white.withOpacity(0.5),
-          width: isCurrentPlayer ? (isCPUThinking ? 4 : 3) : 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isCPUThinking 
-              ? Colors.purple.withOpacity(0.8)  // ✨ SOMBRA MÁGICA
-              : Colors.black.withOpacity(0.3),
-            spreadRadius: isCPUThinking ? 3 : 1,
-            blurRadius: isCPUThinking ? 8 : 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Círculo con la ficha del jugador
-          Container(
-            width: 20,
-            height: 20,
-            decoration: BoxDecoration(
-              color: playerColors[playerIndex],
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
-                  spreadRadius: 1,
-                  blurRadius: 2,
-                  offset: const Offset(0, 1),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 6),
-          // Nombre del jugador con efectos épicos
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                _getPlayerName(playerIndex),
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: isCurrentPlayer ? FontWeight.bold : FontWeight.w500,
-                  color: isCurrentPlayer 
-                    ? (isCPUThinking
-                       ? Colors.white  // 🤖 TEXTO BLANCO PARA CPU PENSANDO
-                       : (playerColors[playerIndex] == Colors.yellow 
-                          ? Colors.orange.shade700  
-                          : playerColors[playerIndex]))
-                    : Colors.white,
-                ),
-              ),
-              // 🤖 ICONO ESPECIAL PARA CPU
-              if (isCPU) ...[
-                const SizedBox(width: 3),
-                Icon(
-                  isCPUThinking ? Icons.psychology : Icons.smart_toy,
-                  size: 12,
-                  color: isCurrentPlayer 
-                    ? (isCPUThinking ? Colors.yellow : Colors.grey.shade600)
-                    : Colors.grey.shade400,
-                ),
-              ],
-              // ⚡ EFECTO ESPECIAL CUANDO CPU ESTÁ PENSANDO
-              if (isCPUThinking) ...[
-                const SizedBox(width: 2),
-                const SizedBox(
-                  width: 8,
-                  height: 8,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 1.5,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.yellow),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
   // 🤖 SISTEMA CPU INTELIGENTE
   String _getCpuThinkingMessage() {
     List<String> messages = [
@@ -3079,19 +2418,18 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
         title: Row(
           children: [
             // Avatar del usuario actual
-            if (UserManager.currentUser != null)
-              Container(
-                width: 32,
-                height: 32,
-                margin: const EdgeInsets.only(right: 12),
-                decoration: BoxDecoration(
-                  color: UserManager.currentUser!.avatarColor,
+            Container(
+              width: 32,
+              height: 32,
+              margin: const EdgeInsets.only(right: 12),
+              decoration: BoxDecoration(
+                color: Colors.blue, // Color predeterminado
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 2),
                 ),
                 child: Center(
                   child: Text(
-                    UserManager.currentUser!.name[0].toUpperCase(),
+                    (customPlayerNames[0] ?? 'J')[0].toUpperCase(),
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -3115,16 +2453,14 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
                           fontSize: 16,
                         ),
                       ),
-                      if (UserManager.currentUser != null) ...[
-                        const SizedBox(width: 8),
-                        Text(
-                          '- ${UserManager.currentUser!.name}',
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 14,
-                          ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '- ${customPlayerNames[0] ?? 'Jugador'}',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
                         ),
-                      ],
+                      ),
                     ],
                   ),
                   // Mensaje del CPU si está activo
