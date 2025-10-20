@@ -1,0 +1,77 @@
+🎮 PARCHÍS MULTIPLAYER ONLINE - INSTRUCCIONES DE PRUEBA
+======================================================
+
+📦 ARCHIVOS INCLUIDOS:
+- parchis_reverse_app.exe (Ejecutable principal)
+- flutter_windows.dll (Librería de Flutter)
+- audioplayers_windows_plugin.dll (Plugin de audio)
+- firebase_core_plugin.lib (Plugin de Firebase)
+- data/ (Carpeta con recursos de la aplicación)
+
+🚀 CÓMO PROBAR EL MULTIPLAYER:
+
+1. CONFIGURACIÓN INICIAL:
+   - Ejecuta "parchis_reverse_app.exe" fuera del ambiente de desarrollo
+   - En VS Code, corre el emulador Android con "flutter run -d emulator-5554"
+   - Ahora tienes 2 instancias: Windows (exe) + Android (emulador)
+
+2. CREAR UNA SALA DE JUEGO:
+   En una de las instancias:
+   - Toca "Configuración"
+   - Selecciona "Juego Online"
+   - Toca "Crear Sala"
+   - Elige "Sala Pública" o "Sala Privada"
+   - Si es pública, aparecerá en la lista
+   - Si es privada, guarda el código generado
+
+3. UNIRSE A LA SALA:
+   En la otra instancia:
+   - Ve a "Configuración" → "Juego Online"
+   - OPCIÓN A: Buscar salas públicas → "Ver Salas Públicas" → Unirse
+   - OPCIÓN B: Unirse con código → Ingresa el código de sala privada
+
+4. PROBAR FUNCIONALIDADES:
+   ✅ Sincronización en tiempo real de dados
+   ✅ Movimientos bidireccionales
+   ✅ Alternancia de turnos automática
+   ✅ Mensajes informativos
+   ✅ Detección de abandono (cierra una aplicación)
+   ✅ Victoria automática por abandono
+
+🔧 FUNCIONALIDADES A PROBAR:
+
+• SYNC EN TIEMPO REAL:
+  - Lanza el dado en una instancia → Se ve en ambas
+  - Mueve una ficha → Se sincroniza automáticamente
+  - Turnos se alternan entre jugadores
+
+• DETECCIÓN DE ABANDONO:
+  - Cierra una aplicación abruptamente
+  - La otra instancia detectará el abandono en ~30 segundos
+  - Se declarará victoria automática
+
+• SALAS PÚBLICAS/PRIVADAS:
+  - Salas públicas aparecen en listado en tiempo real
+  - Salas privadas requieren código específico
+  - Contadores de jugadores se actualizan
+
+• NAVEGACIÓN:
+  - Botón "Salir" lleva a la configuración correcta
+  - Modo online/local se maneja independientemente
+
+🐛 PROBLEMAS CONOCIDOS:
+- Firebase Auth puede causar warnings en compilación (normal)
+- Emulador Android puede tardar en iniciar
+- Primera conexión a Firebase puede tomar unos segundos
+
+📝 NOTAS TÉCNICAS:
+- Heartbeat cada 10 segundos para detectar actividad
+- Verificación de abandono cada 15 segundos
+- Timeout de desconexión: 30 segundos
+- Base de datos: Firebase Realtime Database
+
+🎯 OBJETIVO DE LA PRUEBA:
+Verificar que dos jugadores pueden jugar una partida completa de Parchís
+en línea con sincronización perfecta y manejo de desconexiones.
+
+¡Disfruta probando el multiplayer! 🎉

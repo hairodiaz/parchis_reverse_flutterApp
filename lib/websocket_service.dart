@@ -55,41 +55,18 @@ class WebSocketService {
   /// 🔌 Conectar al servidor WebSocket
   Future<bool> connect({String? serverUrl}) async {
     try {
-      // 🌐 SERVIDOR DE PRODUCCIÓN EN RAILWAY
-      // ✅ Funciona correctamente - se conecta cuando se necesita
-      final url = serverUrl ?? 'wss://parchisreverseflutterapp-production.up.railway.app';
+      // 📱 CONFIGURACIÓN PARA DIFERENTES PLATAFORMAS:
+      // - Emulador Android: 10.0.2.2:8080
+      // - Dispositivo físico: IP de tu PC (ej: 192.168.1.100:8080)
+      // - Web/Desktop: localhost:8080
+      final url = serverUrl ?? 'ws://10.0.2.2:8080'; // Cambiado para emulador Android
       
-      print('🔌 Intentando conectar a WebSocket: $url');
-      print('🕐 Esperando conexión... (timeout: 15 segundos)');
-      print('🌐 Verificando conectividad de red...');
+      print('🔌 Conectando a WebSocket: $url');
       
-      // 📡 Notificar que estamos conectando
-      _connectionController.add('connecting');
-      
-      // ⏱️ Timeout extendido de 15 segundos para la conexión
-      _socket = await WebSocket.connect(
-        url,
-        headers: {
-          'Origin': 'https://parchisreverseflutterapp-production.up.railway.app',
-          'User-Agent': 'Flutter WebSocket Client',
-        },
-      ).timeout(
-        Duration(seconds: 15),
-        onTimeout: () {
-          print('⏰ TIMEOUT: La conexión tardó más de 15 segundos');
-          print('🚨 Posibles causas:');
-          print('   - Railway no soporta WebSocket en el puerto HTTP');
-          print('   - Firewall bloqueando conexiones WebSocket');
-          print('   - Problemas de DNS/red en el emulador');
-          _connectionController.add('error');
-          throw TimeoutException('Timeout conectando al servidor Railway', Duration(seconds: 15));
-        },
-      );
-      
+      _socket = await WebSocket.connect(url);
       _isConnected = true;
       
-      print('✅ ¡CONECTADO EXITOSAMENTE al servidor WebSocket!');
-      print('🌐 URL: $url');
+      print('✅ Conectado al servidor WebSocket');
       _connectionController.add('connected');
       
       // 📩 Escuchar mensajes del servidor
@@ -318,15 +295,12 @@ class WebSocketService {
   Future<List<OnlineGameRoom>> getPublicRooms() async {
     // 🔌 Auto-conectar si no estamos conectados
     if (!_isConnected) {
-      print('🔌 No conectado - Intentando conectar automáticamente...');
+      print('🔌 Auto-conectando a WebSocket...');
       final connected = await connect();
       if (!connected) {
-        print('❌ FALLO DE CONEXIÓN: No se pudo conectar al servidor WebSocket');
-        print('🧪 Mostrando datos de prueba mientras se soluciona la conexión');
+        print('❌ No se pudo conectar al servidor WebSocket');
         // 🧪 DATOS DE PRUEBA mientras solucionamos el servidor
         return _generateTestRooms();
-      } else {
-        print('✅ CONEXIÓN EXITOSA: Conectado al servidor de Railway');
       }
     }
     

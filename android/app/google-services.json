@@ -1,24 +1,18 @@
 {
   "project_info": {
     "project_number": "837321484025",
-    "firebase_url": "https://parchis-reverse-app-default-rtdb.firebaseio.com",
     "project_id": "parchis-reverse-app",
     "storage_bucket": "parchis-reverse-app.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:837321484025:android:1095f49de346e21c892428",
+        "mobilesdk_app_id": "1:837321484025:android:859d0b836998587c892428",
         "android_client_info": {
           "package_name": "com.example.parchis_reverse_app"
         }
       },
-      "oauth_client": [
-        {
-          "client_id": "837321484025-4vhnm98un3thpvve78tepff49p7uivfo.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
+      "oauth_client": [],
       "api_key": [
         {
           "current_key": "AIzaSyC4sHUrfFxd8WTNo75KDRUzOAMIohhmgPI"
@@ -26,12 +20,7 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "837321484025-4vhnm98un3thpvve78tepff49p7uivfo.apps.googleusercontent.com",
-              "client_type": 3
-            }
-          ]
+          "other_platform_oauth_client": []
         }
       }
     }
