@@ -1,0 +1,407 @@
+// Temporalmente deshabilitado hasta configurar Firebase correctamente
+// import 'package:firebase_auth/firebase_auth.dart';
+// import 'package:firebase_core/firebase_core.dart';
+// import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
+// import 'package:google_sign_in/google_sign_in.dart';
+// import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import '../models/local_user.dart';
+import 'hive_service.dart';
+
+/// 🔐 AUTH SERVICE - Sistema de Autenticación Híbrido
+/// 
+/// Funcionalidades:
+/// - ✅ Login con Facebook/Google
+/// - ✅ Gestión de usuarios invitados
+/// - ✅ Migración automática de datos locales
+/// - ✅ Sincronización local + cloud
+/// - ✅ Funcionamiento offline
+class AuthService {
+  static final AuthService _instance = AuthService._internal();
+  factory AuthService() => _instance;
+  AuthService._internal();
+
+  // 🔥 Firebase instances
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  
+  // 📱 Estado actual
+  User? _currentFirebaseUser;
+  LocalUser? _currentLocalUser;
+  bool _isInitialized = false;
+
+  // 🚀 Inicializar servicio
+  static Future<void> initialize() async {
+    try {
+      // TODO: Configurar Firebase correctamente con firebase_options.dart
+      // await Firebase.initializeApp();
+      // await AuthService()._setupAuthListener();
+      
+      // Por ahora, trabajar solo en modo local
+      AuthService()._isInitialized = true;
+      print('✅ AuthService inicializado en modo local');
+      print('⚠️  Firebase deshabilitado temporalmente');
+    } catch (e) {
+      print('❌ Error inicializando AuthService: $e');
+      // Continuar en modo offline
+      AuthService()._isInitialized = true;
+    }
+  }
+
+  // 👂 Configurar listener de cambios de autenticación
+  Future<void> _setupAuthListener() async {
+    _auth.authStateChanges().listen((User? firebaseUser) async {
+      _currentFirebaseUser = firebaseUser;
+      
+      if (firebaseUser != null) {
+        print('🔐 Usuario Firebase autenticado: ${firebaseUser.email}');
+        await _syncFirebaseUserWithLocal(firebaseUser);
+      } else {
+        print('🚪 Usuario Firebase desautenticado');
+        await _handleLogout();
+      }
+    });
+  }
+
+  // 🔄 Sincronizar usuario Firebase con local
+  Future<void> _syncFirebaseUserWithLocal(User firebaseUser) async {
+    try {
+      // Verificar si el usuario local ya existe y está registrado
+      LocalUser? localUser = HiveService.getCurrentUser();
+      
+      if (localUser != null && localUser.facebookId == firebaseUser.uid) {
+        // Usuario ya sincronizado
+        localUser.updateLoginDate();
+        await HiveService.saveCurrentUser(localUser);
+        _currentLocalUser = localUser;
+        print('🔄 Usuario ya sincronizado: ${localUser.name}');
+        return;
+      }
+
+      // Obtener datos del usuario desde Firestore
+      DocumentSnapshot userDoc = await _firestore
+          .collection('users')
+          .doc(firebaseUser.uid)
+          .get();
+
+      if (userDoc.exists) {
+        // Usuario existe en Firestore, sincronizar con local
+        Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
+        
+        LocalUser syncedUser = LocalUser(
+          name: userData['name'] ?? firebaseUser.displayName ?? 'Usuario',
+          facebookId: firebaseUser.uid,
+          email: firebaseUser.email,
+          isGuest: false,
+          gamesWon: userData['stats']?['gamesWon'] ?? 0,
+          gamesPlayed: userData['stats']?['gamesPlayed'] ?? 0,
+          currentStreak: userData['stats']?['currentStreak'] ?? 0,
+          bestStreak: userData['stats']?['bestStreak'] ?? 0,
+          achievements: List<String>.from(userData['achievements'] ?? []),
+        );
+        
+        syncedUser.updateLoginDate();
+        await HiveService.saveCurrentUser(syncedUser);
+        _currentLocalUser = syncedUser;
+        
+        print('📥 Usuario sincronizado desde Firestore: ${syncedUser.name}');
+      } else {
+        // Usuario nuevo, migrar datos locales a Firestore
+        await _migrateLocalUserToFirestore(firebaseUser, localUser);
+      }
+    } catch (e) {
+      print('❌ Error sincronizando usuario: $e');
+    }
+  }
+
+  // 📤 Migrar usuario local a Firestore
+  Future<void> _migrateLocalUserToFirestore(User firebaseUser, LocalUser? localUser) async {
+    try {
+      // Usar datos locales si existen, o crear nuevo perfil
+      String displayName = localUser?.name ?? firebaseUser.displayName ?? 'Usuario';
+      
+      LocalUser migratedUser = LocalUser(
+        name: displayName,
+        facebookId: firebaseUser.uid,
+        email: firebaseUser.email,
+        isGuest: false,
+        gamesWon: localUser?.gamesWon ?? 0,
+        gamesPlayed: localUser?.gamesPlayed ?? 0,
+        currentStreak: localUser?.currentStreak ?? 0,
+        bestStreak: localUser?.bestStreak ?? 0,
+        achievements: localUser?.achievements ?? [],
+      );
+
+      // Guardar en Firestore
+      await _firestore.collection('users').doc(firebaseUser.uid).set({
+        'name': migratedUser.name,
+        'email': migratedUser.email,
+        'profilePicture': firebaseUser.photoURL,
+        'stats': {
+          'gamesPlayed': migratedUser.gamesPlayed,
+          'gamesWon': migratedUser.gamesWon,
+          'winRate': migratedUser.winRate,
+          'currentStreak': migratedUser.currentStreak,
+          'bestStreak': migratedUser.bestStreak,
+        },
+        'achievements': migratedUser.achievements,
+        'createdAt': FieldValue.serverTimestamp(),
+        'lastLoginAt': FieldValue.serverTimestamp(),
+        'isGuest': false,
+      });
+
+      // Guardar localmente
+      migratedUser.updateLoginDate();
+      await HiveService.saveCurrentUser(migratedUser);
+      _currentLocalUser = migratedUser;
+
+      print('📤 Usuario migrado a Firestore: ${migratedUser.name}');
+      
+      // Si había usuario invitado, mostrar mensaje de migración exitosa
+      if (localUser != null && localUser.isGuest) {
+        print('🎉 ¡Datos de invitado migrados exitosamente!');
+      }
+    } catch (e) {
+      print('❌ Error migrando usuario a Firestore: $e');
+    }
+  }
+
+  // 📱 Login con Facebook
+  Future<bool> signInWithFacebook() async {
+    try {
+      // Verificar conectividad
+      if (!await _hasInternetConnection()) {
+        print('❌ Sin conexión a internet para login con Facebook');
+        return false;
+      }
+
+      print('🔑 Iniciando login con Facebook...');
+      
+      // Trigger Facebook login flow
+      final LoginResult result = await FacebookAuth.instance.login(
+        permissions: ['email', 'public_profile'],
+      );
+
+      if (result.status == LoginStatus.success) {
+        // Obtener access token
+        final AccessToken accessToken = result.accessToken!;
+        
+        // Crear credential para Firebase
+        final OAuthCredential facebookAuthCredential = 
+            FacebookAuthProvider.credential(accessToken.token);
+
+        // Login en Firebase
+        final UserCredential userCredential = 
+            await _auth.signInWithCredential(facebookAuthCredential);
+
+        if (userCredential.user != null) {
+          print('✅ Login con Facebook exitoso: ${userCredential.user!.email}');
+          return true;
+        }
+      } else {
+        print('❌ Login con Facebook cancelado: ${result.status}');
+        return false;
+      }
+    } catch (e) {
+      print('❌ Error en login con Facebook: $e');
+      return false;
+    }
+    return false;
+  }
+
+  // 🔍 Login con Google
+  Future<bool> signInWithGoogle() async {
+    try {
+      // Verificar conectividad
+      if (!await _hasInternetConnection()) {
+        print('❌ Sin conexión a internet para login con Google');
+        return false;
+      }
+
+      print('🔑 Iniciando login con Google...');
+
+      // Trigger Google login flow
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      
+      if (googleUser == null) {
+        print('❌ Login con Google cancelado por el usuario');
+        return false;
+      }
+
+      // Obtener authentication details
+      final GoogleSignInAuthentication googleAuth = 
+          await googleUser.authentication;
+
+      // Crear credential para Firebase
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // Login en Firebase
+      final UserCredential userCredential = 
+          await _auth.signInWithCredential(credential);
+
+      if (userCredential.user != null) {
+        print('✅ Login con Google exitoso: ${userCredential.user!.email}');
+        return true;
+      }
+    } catch (e) {
+      print('❌ Error en login con Google: $e');
+      return false;
+    }
+    return false;
+  }
+
+  // 🚪 Logout
+  Future<void> logout() async {
+    try {
+      print('🚪 Cerrando sesión...');
+      
+      // Logout de todos los servicios
+      await _auth.signOut();
+      await _googleSignIn.signOut();
+      await FacebookAuth.instance.logOut();
+      
+      // Crear nuevo usuario invitado
+      await HiveService.createGuestUser();
+      
+      print('✅ Logout exitoso - Usuario invitado creado');
+    } catch (e) {
+      print('❌ Error en logout: $e');
+    }
+  }
+
+  // 🚪 Manejar logout
+  Future<void> _handleLogout() async {
+    _currentFirebaseUser = null;
+    
+    // Verificar si tenemos usuario local
+    LocalUser? localUser = HiveService.getCurrentUser();
+    
+    if (localUser == null || !localUser.isGuest) {
+      // Crear usuario invitado si no hay uno o si el actual está registrado
+      await HiveService.createGuestUser();
+      _currentLocalUser = HiveService.getCurrentUser();
+    }
+  }
+
+  // 🌐 Verificar conexión a internet
+  Future<bool> _hasInternetConnection() async {
+    try {
+      final ConnectivityResult connectivityResult = 
+          await Connectivity().checkConnectivity();
+      return connectivityResult != ConnectivityResult.none;
+    } catch (e) {
+      print('❌ Error verificando conectividad: $e');
+      return false;
+    }
+  }
+
+  // 📊 Sincronizar estadísticas con Firestore
+  Future<void> syncStatsToFirestore() async {
+    try {
+      if (_currentFirebaseUser == null || _currentLocalUser == null) return;
+      if (!await _hasInternetConnection()) return;
+
+      await _firestore.collection('users').doc(_currentFirebaseUser!.uid).update({
+        'stats': {
+          'gamesPlayed': _currentLocalUser!.gamesPlayed,
+          'gamesWon': _currentLocalUser!.gamesWon,
+          'winRate': _currentLocalUser!.winRate,
+          'currentStreak': _currentLocalUser!.currentStreak,
+          'bestStreak': _currentLocalUser!.bestStreak,
+        },
+        'achievements': _currentLocalUser!.achievements,
+        'lastSyncAt': FieldValue.serverTimestamp(),
+      });
+
+      print('📊 Estadísticas sincronizadas con Firestore');
+    } catch (e) {
+      print('❌ Error sincronizando estadísticas: $e');
+    }
+  }
+
+  // 📝 Actualizar nickname
+  Future<void> updateNickname(String newNickname) async {
+    try {
+      // Actualizar localmente
+      LocalUser? localUser = HiveService.getCurrentUser();
+      if (localUser != null) {
+        localUser.name = newNickname;
+        await HiveService.saveCurrentUser(localUser);
+        _currentLocalUser = localUser;
+      }
+
+      // Actualizar en Firestore si está registrado
+      if (_currentFirebaseUser != null && await _hasInternetConnection()) {
+        await _firestore.collection('users').doc(_currentFirebaseUser!.uid).update({
+          'name': newNickname,
+          'lastUpdateAt': FieldValue.serverTimestamp(),
+        });
+        print('📝 Nickname actualizado en Firestore');
+      }
+
+      print('📝 Nickname actualizado: $newNickname');
+    } catch (e) {
+      print('❌ Error actualizando nickname: $e');
+    }
+  }
+
+  // 🎮 Registrar partida
+  Future<void> recordGame({required bool won}) async {
+    LocalUser? localUser = HiveService.getCurrentUser();
+    if (localUser != null) {
+      if (won) {
+        localUser.recordWin();
+      } else {
+        localUser.recordLoss();
+      }
+      await HiveService.saveCurrentUser(localUser);
+      _currentLocalUser = localUser;
+
+      // Sincronizar con Firestore si está disponible
+      if (!localUser.isGuest) {
+        await syncStatsToFirestore();
+      }
+    }
+  }
+
+  // 🏆 Agregar logro
+  Future<void> addAchievement(String achievement) async {
+    LocalUser? localUser = HiveService.getCurrentUser();
+    if (localUser != null) {
+      localUser.addAchievement(achievement);
+      await HiveService.saveCurrentUser(localUser);
+      _currentLocalUser = localUser;
+
+      // Sincronizar con Firestore si está disponible
+      if (!localUser.isGuest) {
+        await syncStatsToFirestore();
+      }
+    }
+  }
+
+  // 📱 Getters
+  bool get isInitialized => _isInitialized;
+  bool get isLoggedIn => _currentFirebaseUser != null;
+  bool get isGuest => _currentLocalUser?.isGuest ?? true;
+  LocalUser? get currentLocalUser => _currentLocalUser ?? HiveService.getCurrentUser();
+  User? get currentFirebaseUser => _currentFirebaseUser;
+  String get userName => currentLocalUser?.name ?? 'Invitado';
+  String? get userEmail => currentLocalUser?.email ?? _currentFirebaseUser?.email;
+  String? get profilePictureUrl => _currentFirebaseUser?.photoURL;
+
+  // 📊 Información de debug
+  Map<String, dynamic> getDebugInfo() {
+    return {
+      'isInitialized': _isInitialized,
+      'isLoggedIn': isLoggedIn,
+      'isGuest': isGuest,
+      'firebaseUser': _currentFirebaseUser?.email ?? 'null',
+      'localUser': _currentLocalUser?.name ?? 'null',
+      'localUserIsGuest': _currentLocalUser?.isGuest ?? true,
+    };
+  }
+}
