@@ -140,7 +140,17 @@ class HiveService {
     };
   }
 
-  /// 📱 INFORMACIÓN DEL SISTEMA
+  /// � Establecer usuario actual
+  static Future<void> setCurrentUser(LocalUser user) async {
+    if (_userBox == null) {
+      throw Exception('❌ Hive no inicializado');
+    }
+    
+    await _userBox!.put('current_user', user);
+    print('✅ Usuario establecido: ${user.name}');
+  }
+
+  /// �📱 INFORMACIÓN DEL SISTEMA
 
   /// Verificar si Hive está inicializado
   static bool get isInitialized {

@@ -63,15 +63,14 @@ void main() async {
     await AudioService().initialize();
     print('✅ Servicio de audio inicializado');
     
-    // � Crear usuario por defecto si no existe
+    // 👤 Crear usuario por defecto si no existe
     if (HiveService.getCurrentUser() == null) {
-      await HiveService.createGuestUser();
+      await AuthService().loginAsGuest();
       print('👤 Usuario invitado creado por defecto');
     }
     
-    // �🐛 Información de debug
+    // 🐛 Información de debug
     print('📊 Debug Info: ${HiveService.getDebugInfo()}');
-    print('🔐 Auth Info: ${AuthService().getDebugInfo()}');
   } catch (e) {
     print('❌ Error inicializando base de datos: $e');
   }
