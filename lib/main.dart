@@ -9,6 +9,14 @@ import 'screens/settings_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/intro_screen.dart'; // 🎬 NUEVA PANTALLA DE INTRO
 
+// Enum para prioridades de mensajes
+enum MessagePriority {
+  critical, // Mensajes críticos (3 seises, eliminación) - no pueden ser interrumpidos
+  high,     // Mensajes importantes (llegada a META, capturas)
+  normal,   // Mensajes normales (turnos extra, dice results)
+  special   // Mensajes de casillas especiales (pueden ser largos)
+}
+
 // Clase para representar la posición en el tablero
 class Position {
   final int row;
@@ -103,8 +111,14 @@ class MainMenuScreen extends StatefulWidget {
 class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStateMixin {
   late AnimationController _backgroundController;
   late AnimationController _buttonsController;
+  late AnimationController _floatingController;
   late Animation<double> _backgroundAnimation;
   late Animation<double> _buttonsAnimation;
+  late Animation<double> _floatingAnimation;
+  
+  // 🎠 CAROUSEL VARIABLES
+  late PageController _carouselController;
+  int _currentGameMode = 0;
 
   @override
   void initState() {
@@ -119,6 +133,14 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
       duration: const Duration(milliseconds: 800),
       vsync: this,
     );
+    
+    _floatingController = AnimationController(
+      duration: const Duration(seconds: 3),
+      vsync: this,
+    );
+    
+    // 🎠 Inicializar carousel controller
+    _carouselController = PageController(initialPage: 0, viewportFraction: 0.8);
     
     _backgroundAnimation = Tween<double>(
       begin: 0.0,
@@ -136,6 +158,14 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
       curve: Curves.elasticOut,
     ));
     
+    _floatingAnimation = Tween<double>(
+      begin: -5.0,
+      end: 5.0,
+    ).animate(CurvedAnimation(
+      parent: _floatingController,
+      curve: Curves.easeInOut,
+    ));
+    
     _startAnimations();
   }
   
@@ -143,12 +173,16 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
     _backgroundController.forward();
     await Future.delayed(const Duration(milliseconds: 500));
     _buttonsController.forward();
+    await Future.delayed(const Duration(milliseconds: 800));
+    _floatingController.repeat(reverse: true);
   }
 
   @override
   void dispose() {
     _backgroundController.dispose();
     _buttonsController.dispose();
+    _floatingController.dispose();
+    _carouselController.dispose();
     super.dispose();
   }
 
@@ -161,154 +195,134 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
           return Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
                 colors: [
-                  Color.lerp(Colors.blue.shade900, Colors.purple.shade900, _backgroundAnimation.value)!,
-                  Color.lerp(Colors.purple.shade900, Colors.indigo.shade900, _backgroundAnimation.value)!,
-                  Color.lerp(Colors.indigo.shade900, Colors.blue.shade900, _backgroundAnimation.value)!,
+                  Color.lerp(const Color(0xFF6A1B9A), const Color(0xFF8E24AA), _backgroundAnimation.value)!,
+                  Color.lerp(const Color(0xFF8E24AA), const Color(0xFF9C27B0), _backgroundAnimation.value)!,
+                  Color.lerp(const Color(0xFF9C27B0), const Color(0xFFAB47BC), _backgroundAnimation.value)!,
+                  Color.lerp(const Color(0xFFAB47BC), const Color(0xFF7B1FA2), _backgroundAnimation.value)!,
                 ],
+                stops: const [0.0, 0.3, 0.7, 1.0],
               ),
             ),
             child: SafeArea(
-              child: Column(
+              child: Stack(
                 children: [
-                  // 🎯 TÍTULO PRINCIPAL
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 40),
-                    child: FadeTransition(
-                      opacity: _backgroundAnimation,
-                      child: const Text(
-                        '🎲 PARCHÍS REVERSE\nDOMINICANO',
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: 2.0,
-                          shadows: [
-                            Shadow(
-                              blurRadius: 10.0,
-                              color: Colors.black54,
-                              offset: Offset(2.0, 2.0),
-                            ),
-                          ],
+                  // 🔝 TOP BAR CON ICONOS
+                  _buildTopBar(),
+                  
+                  // 📱 CONTENIDO PRINCIPAL
+                  Column(
+                    children: [
+                      // 🎯 LOGO Y TÍTULO (más compacto)
+                      Padding(
+                        padding: EdgeInsets.only(
+                          top: MediaQuery.of(context).size.height * 0.06,
+                          bottom: 15,
                         ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),
-                  
-                  // 👤 TARJETA DE PERFIL DEL USUARIO
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                     child: FadeTransition(
                       opacity: _backgroundAnimation,
-                      child: _buildUserProfileCard(),
-                    ),
-                  ),
-                  
-                  Expanded(
-                    child: Center(
-                      child: AnimatedBuilder(
-                        animation: _buttonsAnimation,
-                        builder: (context, child) {
-                          return Transform.scale(
-                            scale: _buttonsAnimation.value,
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                // 🎮 BOTÓN JUGAR
-                                _buildMenuButton(
-                                  icon: Icons.play_arrow_rounded,
-                                  title: 'JUGAR',
-                                  subtitle: 'Iniciar nueva partida',
-                                  colors: [Colors.green.shade400, Colors.green.shade600],
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => const PlayerConfigScreen(),
+                      child: Column(
+                        children: [
+                          // Logo animado (más pequeño)
+                          AnimatedBuilder(
+                            animation: _floatingAnimation,
+                            builder: (context, child) {
+                              return Transform.scale(
+                                scale: 1.0 + (_floatingAnimation.value * 0.01),
+                                child: Container(
+                                  width: 70,
+                                  height: 70,
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [Color(0xFFFFD700), Color(0xFFFFA000)],
+                                    ),
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.3),
+                                        blurRadius: 12 + (_floatingAnimation.value * 0.3),
+                                        offset: const Offset(0, 6),
                                       ),
-                                    );
-                                  },
-                                ),
-                                
-                                const SizedBox(height: 20),
-                                
-                                // ⚙️ BOTÓN CONFIGURACIONES
-                                _buildMenuButton(
-                                  icon: Icons.settings_rounded,
-                                  title: 'CONFIGURACIONES',
-                                  subtitle: 'Sonido, personalización y más',
-                                  colors: [Colors.purple.shade400, Colors.purple.shade600],
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => const SettingsScreen(),
+                                      BoxShadow(
+                                        color: const Color(0xFFFFD700).withOpacity(0.3),
+                                        blurRadius: 15,
+                                        offset: const Offset(0, 0),
                                       ),
-                                    );
-                                  },
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.casino,
+                                    size: 35,
+                                    color: Colors.white,
+                                  ),
                                 ),
-                                
-                                const SizedBox(height: 20),
-                                
-                                // ℹ️ BOTÓN ACERCA DE
-                                _buildMenuButton(
-                                  icon: Icons.info_outline_rounded,
-                                  title: 'ACERCA DE',
-                                  subtitle: 'Información y créditos',
-                                  colors: [Colors.blue.shade400, Colors.blue.shade600],
-                                  onTap: () {
-                                    _showAboutDialog();
-                                  },
-                                ),
-                                
-                                const SizedBox(height: 20),
-                                
-                                // 🚪 BOTÓN CERRAR SESIÓN
-                                _buildMenuButton(
-                                  icon: Icons.logout_rounded,
-                                  title: 'CERRAR SESIÓN',
-                                  subtitle: 'Opciones de usuario',
-                                  colors: [Colors.red.shade400, Colors.red.shade600],
-                                  onTap: () {
-                                    _showLogoutDialog();
-                                  },
+                              );
+                            },
+                          ),
+                          
+                          const SizedBox(height: 12),
+                          
+                          // Título compacto
+                          const Text(
+                            '🎲 PARCHÍS REVERSE',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: 1.2,
+                              shadows: [
+                                Shadow(
+                                  blurRadius: 12.0,
+                                  color: Colors.black45,
+                                  offset: Offset(0, 3),
                                 ),
                               ],
                             ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                  
-                  // 👨‍💻 CRÉDITOS EN LA PARTE INFERIOR
-                  Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: FadeTransition(
-                      opacity: _backgroundAnimation,
-                      child: const Column(
-                        children: [
-                          Text(
-                            'Desarrollado por',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.white60,
-                            ),
+                            textAlign: TextAlign.center,
                           ),
-                          Text(
-                            'Ing. Hairo Díaz',
+                          
+                          const Text(
+                            'DOMINICANO',
                             style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFFFFD700),
+                              letterSpacing: 2.5,
+                              shadows: [
+                                Shadow(
+                                  blurRadius: 6.0,
+                                  color: Colors.black45,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
                             ),
+                            textAlign: TextAlign.center,
                           ),
-                        ],
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
+                      
+                      // 🎠 CAROUSEL DE MODOS DE JUEGO
+                      Expanded(
+                        flex: 2,
+                        child: _buildGameModeCarousel(),
+                      ),
+                      
+                      // 👤 PERFIL DE USUARIO (expandido)
+                      Flexible(
+                        flex: 1,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+                          child: FadeTransition(
+                            opacity: _backgroundAnimation,
+                            child: _buildExpandedUserProfile(),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -319,227 +333,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
     );
   }
 
-  Widget _buildMenuButton({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required List<Color> colors,
-    required VoidCallback onTap,
-  }) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 40),
-      child: Material(
-        elevation: 8,
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: colors,
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: colors.first.withOpacity(0.3),
-                  spreadRadius: 2,
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    icon,
-                    size: 32,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(width: 20),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.white.withOpacity(0.8),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.arrow_forward_ios,
-                  color: Colors.white.withOpacity(0.7),
-                  size: 20,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
-  Widget _buildUserProfileCard() {
-    final user = HiveService.getCurrentUser();
-    
-    if (user == null) {
-      return const Center(child: Text('No hay usuario'));
-    }
-        
-    return GestureDetector(
-          onTap: () => _showUserProfileDetails(),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.white.withOpacity(0.15),
-                  Colors.white.withOpacity(0.05),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.3),
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                // Avatar del usuario
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: Colors.blue, // Color por defecto, lo mejoremos después
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 3),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.blue.withOpacity(0.4),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Center(
-                    child: Text(
-                      user.name[0].toUpperCase(),
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-                
-                const SizedBox(width: 16),
-                
-                // Información del usuario
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            '¡Hola, ${user.name}!',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.blue.withOpacity(0.8),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              'Nivel ${(user.gamesWon ~/ 5) + 1}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.emoji_events,
-                            size: 16,
-                            color: Colors.orange[300],
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${user.gamesWon}/${user.gamesPlayed} ganadas',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.white.withOpacity(0.8),
-                            ),
-                          ),
-                          const Spacer(),
-                          Text(
-                            'Toca para ver detalles',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.white.withOpacity(0.6),
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                
-                // Icono de flecha
-                Icon(
-                  Icons.arrow_forward_ios,
-                  color: Colors.white.withOpacity(0.7),
-                  size: 16,
-                ),
-              ],
-            ),
-          ),
-        );
-  }
+
+
+
 
   void _showUserProfileDetails() {
     final user = HiveService.getCurrentUser();
@@ -820,12 +617,140 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Acerca de'),
-        content: const Text('Parchís Reverse Dominicano v1.0\nDesarrollado por Ing. Hairo Díaz'),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        backgroundColor: Colors.white,
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF6A1B9A), Color(0xFF9C27B0)],
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.casino,
+                color: Colors.white,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Acerca de',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF6A1B9A),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Parchís Reverse Dominicano',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Versión 1.0.0',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF6A1B9A).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFF6A1B9A).withOpacity(0.3),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '👨‍💻 Desarrollado por:',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF6A1B9A),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Ing. Hairo Díaz',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '🎯 Una versión moderna del clásico juego de mesa dominicano con mecánicas únicas y experiencia inmersiva.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[700],
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Icon(
+                  Icons.favorite,
+                  color: Colors.red[400],
+                  size: 16,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Hecho con pasión en República Dominicana',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cerrar'),
+            style: TextButton.styleFrom(
+              backgroundColor: const Color(0xFF6A1B9A).withOpacity(0.1),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Text(
+                'Cerrar',
+                style: TextStyle(
+                  color: Color(0xFF6A1B9A),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -845,6 +770,498 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
           ),
         ],
       ),
+    );
+  }
+
+  // 🔝 TOP BAR CON ICONOS FLOTANTES
+  Widget _buildTopBar() {
+    return Positioned(
+      top: 20,
+      left: 0,
+      right: 0,
+      child: FadeTransition(
+        opacity: _backgroundAnimation,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // ⚙️ CONFIGURACIONES (izquierda)
+              _buildTopIcon(
+                icon: Icons.settings_rounded,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                  );
+                },
+              ),
+              
+              // ℹ️ ACERCA DE + 🚪 SALIR (derecha)
+              Row(
+                children: [
+                  _buildTopIcon(
+                    icon: Icons.info_outline_rounded,
+                    onTap: _showAboutDialog,
+                  ),
+                  const SizedBox(width: 15),
+                  _buildTopIcon(
+                    icon: Icons.logout_rounded,
+                    onTap: _showLogoutDialog,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 🔘 ICONO DEL TOP BAR
+  Widget _buildTopIcon({required IconData icon, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.3),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Icon(
+          icon,
+          color: Colors.white,
+          size: 20,
+        ),
+      ),
+    );
+  }
+
+  // 🎠 CAROUSEL DE MODOS DE JUEGO
+  Widget _buildGameModeCarousel() {
+    final gameModes = [
+      {'icon': Icons.play_arrow_rounded, 'title': 'CLÁSICO', 'subtitle': 'Modo tradicional', 'available': true},
+      {'icon': Icons.emoji_events, 'title': 'RANKED', 'subtitle': 'Competitivo', 'available': false},
+      {'icon': Icons.public, 'title': 'ONLINE', 'subtitle': 'Multijugador', 'available': false},
+      {'icon': Icons.emoji_events_outlined, 'title': 'TORNEO', 'subtitle': 'Eliminación', 'available': false},
+    ];
+
+    return Column(
+      children: [
+        // Carousel
+        Expanded(
+          child: PageView.builder(
+            controller: _carouselController,
+            onPageChanged: (index) {
+              setState(() {
+                _currentGameMode = index;
+              });
+            },
+            itemCount: gameModes.length,
+            itemBuilder: (context, index) {
+              final mode = gameModes[index];
+              return _buildGameModeCard(
+                icon: mode['icon'] as IconData,
+                title: mode['title'] as String,
+                subtitle: mode['subtitle'] as String,
+                available: mode['available'] as bool,
+                isActive: index == _currentGameMode,
+              );
+            },
+          ),
+        ),
+        
+        // Indicadores de página
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(
+            gameModes.length,
+            (index) => AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              width: _currentGameMode == index ? 12 : 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: _currentGameMode == index 
+                    ? const Color(0xFFFFD700) 
+                    : Colors.white.withOpacity(0.4),
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // 🎮 TARJETA DE MODO DE JUEGO
+  Widget _buildGameModeCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool available,
+    required bool isActive,
+  }) {
+    return AnimatedBuilder(
+      animation: _buttonsAnimation,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _buttonsAnimation.value * (isActive ? 1.0 : 0.9),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 10),
+            child: Material(
+              elevation: isActive ? 12 : 6,
+              borderRadius: BorderRadius.circular(25),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(25),
+                onTap: () {
+                  if (available) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const PlayerConfigScreen()),
+                    );
+                  } else {
+                    _showComingSoonDialog(title);
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: available 
+                          ? [const Color(0xFF4CAF50), const Color(0xFF2E7D32)]
+                          : [Colors.grey.shade400, Colors.grey.shade600],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Icon(
+                          icon,
+                          size: 48,
+                          color: Colors.white,
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 16),
+                      
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 8),
+                      
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.white.withOpacity(0.8),
+                        ),
+                      ),
+                      
+                      if (!available) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(15),
+                            border: Border.all(color: Colors.orange, width: 1),
+                          ),
+                          child: const Text(
+                            'Próximamente',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // 📢 DIÁLOGO "PRÓXIMAMENTE"
+  void _showComingSoonDialog(String feature) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.construction, color: Colors.orange),
+            SizedBox(width: 12),
+            Text('Próximamente'),
+          ],
+        ),
+        content: Text(
+          'La función "$feature" estará disponible en futuras actualizaciones.\n\n¡Mantente atento!',
+          style: const TextStyle(fontSize: 16),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.orange.withOpacity(0.1),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Text(
+                'Entendido',
+                style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 👤 PERFIL DE USUARIO EXPANDIDO  
+  Widget _buildExpandedUserProfile() {
+    final user = HiveService.getCurrentUser();
+    
+    if (user == null) {
+      return const Center(child: Text('No hay usuario'));
+    }
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withOpacity(0.25),
+            Colors.white.withOpacity(0.12),
+            Colors.white.withOpacity(0.08),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(25),
+        border: Border.all(color: Colors.white.withOpacity(0.4), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.15),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Avatar y nombre
+            Row(
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF64B5F6), Color(0xFF1976D2)],
+                  ),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF1976D2).withOpacity(0.4),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Text(
+                    user.name[0].toUpperCase(),
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+              
+              const SizedBox(width: 16),
+              
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '¡Hola, ${user.name}!',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 2),
+                    
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFFD700), Color(0xFFFFA000)],
+                        ),
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      child: Text(
+                        'Nivel ${(user.gamesWon ~/ 5) + 1}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 12),
+          
+          // Estadísticas
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildStatItem(
+                icon: Icons.emoji_events,
+                label: 'Ganadas',
+                value: '${user.gamesWon}',
+                color: Colors.orange,
+              ),
+              _buildStatItem(
+                icon: Icons.sports_esports,
+                label: 'Jugadas',
+                value: '${user.gamesPlayed}',
+                color: Colors.blue,
+              ),
+              _buildStatItem(
+                icon: Icons.trending_up,
+                label: 'Racha',
+                value: '${user.currentStreak}',
+                color: Colors.green,
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 8),
+          
+          // Botón ver detalles
+          GestureDetector(
+            onTap: _showUserProfileDetails,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: Colors.white.withOpacity(0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Ver detalles completos',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    size: 14,
+                    color: Colors.white.withOpacity(0.8),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 📊 ITEM DE ESTADÍSTICA
+  Widget _buildStatItem({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            icon,
+            color: color,
+            size: 20,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.white.withOpacity(0.8),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1272,6 +1689,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   String? lastMessage;
   Timer? _messageTimer;
   String currentMessage = ''; // Para mensajes de casillas especiales
+  String? priorityMessage; // Para mensajes críticos (3 seises, eliminación, etc.)
   
   // Ruta de movimiento en el tablero (secuencia de posiciones)
   List<Position> boardPath = [];
@@ -1282,6 +1700,21 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   int currentDiceResult = 0; // Resultado actual del dado
   Timer? _decisionTimer; // Timer para auto-continuar
   int decisionCountdown = 3; // Countdown de 3 segundos
+
+  // ⏰ SISTEMA DE TIMER PARA JUGADORES HUMANOS
+  Timer? _playerTimer; // Timer de 10 segundos por turno
+  int timerCountdown = 10; // Contador de timer (10 segundos)
+  bool isTimerFlashing = false; // Para el parpadeo visual a los 5s
+  List<int> autoLaunchCount = [0, 0, 0, 0]; // Contador de lanzamientos automáticos por jugador
+  static const int maxAutoLaunches = 3; // Máximo de lanzamientos automáticos antes de eliminación
+
+  // 🏆 SISTEMA DE FINALIZACIÓN DEL JUEGO
+  List<bool> playerFinished = [false, false, false, false]; // Jugadores que terminaron
+  List<int> finishOrder = []; // Orden de llegada a la meta
+  bool gameEnded = false; // Si el juego terminó
+  
+  // 💀 SISTEMA DE ELIMINACIÓN
+  List<bool> playerEliminated = [false, false, false, false]; // Jugadores eliminados
 
   // �👤 SISTEMA DE PERFILES DE JUGADORES
   
@@ -1363,6 +1796,16 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
           ),
           actions: [
             TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Cerrar perfil
+                _showEditNicknameDialog(playerIndex); // Abrir editor de apodo
+              },
+              child: const Text(
+                '✏️ Cambiar Apodo',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+            ),
+            TextButton(
               onPressed: () => Navigator.of(context).pop(),
               child: const Text(
                 'Cerrar',
@@ -1375,6 +1818,119 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     );
   }
   
+  // 🏷️ EDITOR DE APODOS DINÁMICO
+  void _showEditNicknameDialog(int playerIndex) {
+    String currentName = _getPlayerName(playerIndex);
+    String newName = currentName;
+    
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.deepPurple.shade50,
+          title: Row(
+            children: [
+              Container(
+                width: 16,
+                height: 16,
+                decoration: BoxDecoration(
+                  color: _getPlayerColor(playerIndex),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Cambiar Apodo',
+                style: TextStyle(
+                  color: _getPlayerColor(playerIndex),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Nuevo apodo para ${_getColorName(_getPlayerColor(playerIndex))}:',
+                style: const TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: TextEditingController(text: currentName),
+                decoration: InputDecoration(
+                  hintText: 'Escribe el nuevo apodo...',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  prefixIcon: const Icon(Icons.person_outline),
+                ),
+                maxLength: 15,
+                onChanged: (value) {
+                  newName = value.trim();
+                },
+                onSubmitted: (value) {
+                  _updatePlayerNickname(playerIndex, value.trim());
+                  Navigator.of(context).pop();
+                },
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '💡 Consejo: Máximo 15 caracteres',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade600,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                _updatePlayerNickname(playerIndex, newName);
+                Navigator.of(context).pop();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _getPlayerColor(playerIndex),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // 💾 ACTUALIZAR APODO DE JUGADOR
+  void _updatePlayerNickname(int playerIndex, String newName) {
+    setState(() {
+      if (newName.isEmpty) {
+        // Si está vacío, usar el nombre por defecto (color)
+        customPlayerNames[playerIndex] = null;
+      } else {
+        // Actualizar con el nuevo apodo
+        customPlayerNames[playerIndex] = newName;
+      }
+    });
+    
+    // Mostrar confirmación
+    _showMessage(
+      "✅ Apodo actualizado: ${_getPlayerName(playerIndex)}",
+      priority: MessagePriority.normal,
+      durationSeconds: 2
+    );
+    
+    // 🎵 Sonido de confirmación
+    AudioService().playPieceUp();
+  }
+
   // Widget auxiliar para filas del perfil
   Widget _buildProfileRow(String label, String value) {
     return Padding(
@@ -1429,8 +1985,10 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
         decisionCountdown--;
       });
       
-      // 🎵 Sonido de timer cada segundo
-      AudioService().playTimer();
+      // 🎵 Sonido de timer solo en momentos clave (no cada segundo)
+      if (decisionCountdown == 1) {
+        AudioService().playTimer(); // Solo sonido en el último segundo
+      }
 
       if (decisionCountdown <= 0) {
         timer.cancel();
@@ -1484,7 +2042,8 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     setState(() {
       remainingChanges[currentPlayerIndex]--;
       isDecisionTime = false;
-      lastMessage = "🔄 ¡Cambiando jugada! (${remainingChanges[currentPlayerIndex]} cambios restantes)";
+      _showMessage("🔄 ¡Cambiando jugada! (${remainingChanges[currentPlayerIndex]} cambios restantes)",
+          priority: MessagePriority.normal, durationSeconds: 2);
     });
 
     // 🎯 GENERAR NUEVO RESULTADO ANTES de la animación
@@ -1507,7 +2066,8 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       
       setState(() {
         currentDiceResult = newFinalResult; // Asignar resultado final SIN cambio brusco
-        lastMessage = "🎲 Nuevo resultado: $newFinalResult";
+        _showMessage("🎲 Nuevo resultado: $newFinalResult",
+            priority: MessagePriority.normal, durationSeconds: 2);
       });
 
       Timer(const Duration(milliseconds: 400), () { // Reducido delay para movimiento más rápido
@@ -1534,6 +2094,49 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       diceValue = finalResult;
       isMoving = true; // Asegurar que el dado esté bloqueado
     });
+    
+    // 🚨 VERIFICAR REGLA DE 3 SEISES ANTES DE MOVER LA FICHA
+    if (finalResult == 6) {
+      consecutiveSixes++;
+      
+      // ¡TERCER 6 CONSECUTIVO! - PENALIZACIÓN INMEDIATA
+      if (consecutiveSixes >= 3) {
+        setState(() {
+          consecutiveSixes = 0;
+          hasExtraTurn = false;
+          isMoving = false; // Desbloquear dado inmediatamente
+        });
+        
+        // Mensaje crítico con alta prioridad
+        _showMessage("¡3 seises consecutivos! ¡Vuelves a la salida! 😱💥",
+            priority: MessagePriority.critical, durationSeconds: 4);
+        
+        // 🎵 Sonido de penalización grave
+        AudioService().playLoseTurn();
+        
+        // ENVIAR FICHA A LA SALIDA INMEDIATAMENTE - SIN MOVIMIENTO
+        GamePiece currentPiece = gamePieces[currentPlayerIndex];
+        setState(() {
+          currentPiece.position = const Position(9, 0); // Volver a la salida
+        });
+        
+        // Cambiar turno después de mostrar el mensaje
+        Timer(const Duration(milliseconds: 2500), () {
+          setState(() {
+            lastMessage = null;
+            _nextActivePlayer();
+          });
+          
+          // 🤖 SI EL NUEVO JUGADOR ES CPU: Continuar automáticamente
+          Timer(const Duration(milliseconds: 500), () {
+            if (_isCurrentPlayerCPU() && !isMoving) {
+              _rollDice();
+            }
+          });
+        });
+        return; // ¡IMPORTANTE! NO EJECUTAR EL MOVIMIENTO
+      }
+    }
     
     // ⚡ DELAY REDUCIDO para movimiento más fluido (de 1000ms a 300ms)
     Timer(const Duration(milliseconds: 300), () { // Reducido significativamente
@@ -1574,11 +2177,14 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       customPlayerNames[0] = widget.playerNames[0];
     }
     
-    // 🎮 AUTO-INICIAR SI EL PRIMER JUGADOR ES CPU
+    // 🎮 AUTO-INICIAR SI EL PRIMER JUGADOR ES CPU / ⏰ TIMER SI ES HUMANO
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Timer(const Duration(milliseconds: 1000), () {
         if (_isCurrentPlayerCPU() && !isMoving) {
           _rollDice();
+        } else if (widget.isHuman[currentPlayerIndex] && !isMoving) {
+          // Iniciar timer para el primer jugador si es humano
+          _startPlayerTimer();
         }
       });
     });
@@ -1742,18 +2348,512 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     }
   }
 
+  // 📬 GESTIÓN UNIFICADA DE MENSAJES
+  void _showMessage(String message, {MessagePriority priority = MessagePriority.normal, int durationSeconds = 3}) {
+    setState(() {
+      switch (priority) {
+        case MessagePriority.critical:
+          priorityMessage = message;
+          lastMessage = null;
+          currentMessage = '';
+          break;
+        case MessagePriority.high:
+          if (priorityMessage == null) {
+            lastMessage = message;
+            currentMessage = '';
+          }
+          break;
+        case MessagePriority.normal:
+          if (priorityMessage == null && lastMessage == null) {
+            lastMessage = message;
+          }
+          break;
+        case MessagePriority.special:
+          if (priorityMessage == null) {
+            currentMessage = message;
+            lastMessage = null;
+          }
+          break;
+      }
+    });
+    
+    // Limpiar mensaje después del tiempo especificado
+    _messageTimer?.cancel();
+    _messageTimer = Timer(Duration(seconds: durationSeconds), () {
+      setState(() {
+        switch (priority) {
+          case MessagePriority.critical:
+            priorityMessage = null;
+            break;
+          case MessagePriority.high:
+          case MessagePriority.normal:
+            lastMessage = null;
+            break;
+          case MessagePriority.special:
+            currentMessage = '';
+            break;
+        }
+      });
+    });
+  }
+
   @override
   void dispose() {
     _timer?.cancel();
     _messageTimer?.cancel();
+    _decisionTimer?.cancel();
+    _playerTimer?.cancel(); // Cancelar timer de jugador 
     _animationController.dispose();
     _jumpController.dispose();
     super.dispose();
   }
 
+  // ⏰ SISTEMA DE TIMER PARA JUGADORES HUMANOS
+  
+  void _startPlayerTimer() {
+    // Solo para jugadores humanos
+    if (!widget.isHuman[currentPlayerIndex] || isMoving) return;
+    
+    setState(() {
+      timerCountdown = 10;
+      isTimerFlashing = false;
+    });
+    
+    _playerTimer?.cancel(); // Cancelar timer anterior
+    _playerTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        timerCountdown--;
+        
+        // Activar parpadeo a los 5 segundos
+        if (timerCountdown <= 5) {
+          isTimerFlashing = true;
+        }
+      });
+      
+      // 🎵 Sonido de urgencia a los 5 segundos
+      if (timerCountdown == 5) {
+        AudioService().playTimer();
+      } else if (timerCountdown <= 3 && timerCountdown > 0) {
+        AudioService().playTimer(); // Sonido cada segundo en los últimos 3
+      }
+      
+      // ⏰ TIEMPO AGOTADO - LANZAMIENTO AUTOMÁTICO
+      if (timerCountdown <= 0) {
+        timer.cancel();
+        _handlePlayerTimeout();
+      }
+    });
+  }
+  
+  void _stopPlayerTimer() {
+    _playerTimer?.cancel();
+    setState(() {
+      timerCountdown = 10;
+      isTimerFlashing = false;
+    });
+  }
+  
+  void _handlePlayerTimeout() {
+    autoLaunchCount[currentPlayerIndex]++;
+    
+    setState(() {
+      lastMessage = "⏰ ¡Tiempo agotado! Lanzamiento automático (${autoLaunchCount[currentPlayerIndex]}/$maxAutoLaunches)";
+      isTimerFlashing = false;
+    });
+    
+    // 🎵 Sonido de timeout
+    AudioService().playLoseTurn();
+    
+    // Verificar si debe ser eliminado
+    if (autoLaunchCount[currentPlayerIndex] >= maxAutoLaunches) {
+      _eliminatePlayer();
+      return;
+    }
+    
+    // Lanzar dado automáticamente
+    Timer(const Duration(milliseconds: 1500), () {
+      setState(() {
+        lastMessage = null;
+      });
+      _autoRollDice();
+    });
+  }
+  
+  void _eliminatePlayer() {
+    String playerName = _getPlayerDisplayName(currentPlayerIndex);
+    
+    setState(() {
+      playerEliminated[currentPlayerIndex] = true; // Marcar como eliminado  
+    });
+    
+    // Mensaje crítico de eliminación
+    _showMessage("💀 ¡$playerName eliminado por inactividad! (3 timeouts)",
+        priority: MessagePriority.critical, durationSeconds: 5);
+    
+    // 🎵 Sonido de eliminación
+    AudioService().playLoseTurn();
+    
+    // Verificar si el juego debe terminar
+    Timer(const Duration(milliseconds: 2000), () {
+      _checkGameEnd();
+      
+      if (!gameEnded) {
+        // Si el juego no terminó, continuar con el siguiente jugador
+        setState(() {
+          _nextActivePlayer();
+        });
+        
+        // Auto-continuar si el siguiente es CPU
+        Timer(const Duration(milliseconds: 500), () {
+          if (_isCurrentPlayerCPU() && !isMoving) {
+            _rollDice();
+          } else if (widget.isHuman[currentPlayerIndex] && !isMoving) {
+            _startPlayerTimer(); // Iniciar timer para el nuevo jugador humano
+          }
+        });
+      }
+    });
+  }
+  
+  void _autoRollDice() {
+    // Lanzamiento automático sin timer
+    _playDiceSound();
+    
+    int finalResult = random.nextInt(6) + 1;
+    
+    _animationController.reset();
+    _animationController.forward();
+    
+    _timer = Timer.periodic(const Duration(milliseconds: 80), (timer) {
+      setState(() {
+        diceValue = random.nextInt(6) + 1;
+      });
+    });
+
+    Timer(const Duration(milliseconds: 1000), () {
+      _timer?.cancel();
+      setState(() {
+        diceValue = finalResult;
+        isMoving = true;
+      });
+      
+      _continueWithDiceResult(finalResult);
+    });
+  }
+
+  // 🏆 SISTEMA DE FINALIZACIÓN DEL JUEGO
+  
+  void _checkPlayerFinished(int playerIndex) {
+    // Verificar si el jugador llegó a la META (posición 0,0)
+    GamePiece playerPiece = gamePieces[playerIndex];
+    
+    if (playerPiece.position.row == 0 && playerPiece.position.col == 0 && !playerFinished[playerIndex]) {
+      setState(() {
+        playerFinished[playerIndex] = true;
+        finishOrder.add(playerIndex);
+      });
+      
+      String playerName = _getPlayerDisplayName(playerIndex);
+      int position = finishOrder.length;
+      
+      String positionText = _getPositionText(position);
+      
+      // Mensaje de alta prioridad para victoria
+      _showMessage("🏆 ¡$playerName llega en $positionText lugar! 🎉",
+          priority: MessagePriority.high, durationSeconds: 4);
+      
+      // Sonido según la posición
+      if (position == 1) {
+        AudioService().playPieceUp(); // Sonido épico de victoria (usamos el sonido de subir)
+      } else {
+        AudioService().playNewTurn(); // Sonido de logro
+      }
+      
+      // Verificar si el juego debe terminar
+      Timer(const Duration(milliseconds: 2000), () {
+        _checkGameEnd();
+      });
+    }
+  }
+  
+  String _getPositionText(int position) {
+    switch (position) {
+      case 1: return "1er";
+      case 2: return "2do";
+      case 3: return "3er";
+      case 4: return "4to";
+      default: return "${position}to";
+    }
+  }
+  
+  void _checkGameEnd() {
+    if (gameEnded) return;
+    
+    // Contar jugadores activos (no eliminados y no terminados)
+    int activePlayersCount = 0;
+    for (int i = 0; i < widget.numPlayers; i++) {
+      if (!playerFinished[i] && !playerEliminated[i]) {
+        activePlayersCount++;
+      }
+    }
+    
+    // El juego termina cuando queda solo 1 jugador activo (o menos)
+    if (activePlayersCount <= 1) {
+      _endGame();
+    }
+  }
+  
+  void _endGame() {
+    if (gameEnded) return;
+    
+    setState(() {
+      gameEnded = true;
+      isMoving = true; // Bloquear el dado
+    });
+    
+    _stopPlayerTimer(); // Detener cualquier timer activo
+    
+    // Agregar jugadores restantes al final del orden
+    for (int i = 0; i < widget.numPlayers; i++) {
+      if (!playerFinished[i] && !playerEliminated[i]) {
+        finishOrder.add(i);
+      }
+    }
+    
+    // Agregar jugadores eliminados al final
+    for (int i = 0; i < widget.numPlayers; i++) {
+      if (playerEliminated[i] && !finishOrder.contains(i)) {
+        finishOrder.add(i);
+      }
+    }
+    
+    // Mostrar pantalla de resultados
+    Timer(const Duration(milliseconds: 1500), () {
+      _showGameResults();
+    });
+  }
+  
+  void _showGameResults() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.emoji_events, color: Colors.amber, size: 32),
+              SizedBox(width: 10),
+              Text(
+                '🏆 RESULTADOS FINALES',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.amber[800],
+                ),
+              ),
+            ],
+          ),
+          content: Container(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ...finishOrder.asMap().entries.map((entry) {
+                  int position = entry.key + 1;
+                  int playerIndex = entry.value;
+                  bool isWinner = position == 1;
+                  bool isEliminated = playerEliminated[playerIndex];
+                  
+                  return Container(
+                    margin: EdgeInsets.symmetric(vertical: 4),
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isWinner 
+                          ? Colors.amber.withOpacity(0.2)
+                          : isEliminated
+                              ? Colors.red.withOpacity(0.1)
+                              : Colors.grey.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isWinner 
+                            ? Colors.amber
+                            : isEliminated
+                                ? Colors.red
+                                : Colors.grey,
+                        width: isWinner ? 3 : 1,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        // Posición
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: isWinner 
+                                ? Colors.amber
+                                : isEliminated
+                                    ? Colors.red
+                                    : Colors.grey,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(
+                              isEliminated ? '💀' : _getPositionText(position),
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: isWinner ? 16 : 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 15),
+                        
+                        // Color del jugador
+                        Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            color: _getPlayerColor(playerIndex),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                        ),
+                        SizedBox(width: 15),
+                        
+                        // Nombre y status
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _getPlayerDisplayName(playerIndex),
+                                style: TextStyle(
+                                  fontSize: isWinner ? 18 : 16,
+                                  fontWeight: isWinner ? FontWeight.bold : FontWeight.w600,
+                                  color: isEliminated ? Colors.red[700] : Colors.black,
+                                ),
+                              ),
+                              if (isEliminated)
+                                Text(
+                                  'Eliminado por inactividad',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.red[600],
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        
+                        // Ícono especial para el ganador
+                        if (isWinner)
+                          Icon(
+                            Icons.emoji_events,
+                            color: Colors.amber,
+                            size: 32,
+                          ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ],
+            ),
+          ),
+          actions: [
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop(); // Cerrar diálogo
+                      _restartGame(); // Reiniciar juego
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text(
+                      '🔄 Jugar de Nuevo',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop(); // Cerrar diálogo
+                      Navigator.of(context).pop(); // Volver al menú principal
+                    },
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text(
+                      '🏠 Menú Principal',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+  
+  void _restartGame() {
+    setState(() {
+      // Reiniciar variables de juego
+      gameEnded = false;
+      isMoving = false;
+      currentPlayerIndex = 0;
+      consecutiveSixes = 0;
+      hasExtraTurn = false;
+      lastMessage = null;
+      
+      // Reiniciar arrays
+      playerFinished = [false, false, false, false];
+      playerEliminated = [false, false, false, false];
+      finishOrder.clear();
+      autoLaunchCount = [0, 0, 0, 0];
+      
+      // Reiniciar fichas a la salida
+      for (int i = 0; i < gamePieces.length; i++) {
+        gamePieces[i].position = const Position(9, 0);
+      }
+    });
+    
+    // Iniciar el primer turno
+    Timer(const Duration(milliseconds: 1000), () {
+      if (_isCurrentPlayerCPU() && !isMoving) {
+        _rollDice();
+      } else if (widget.isHuman[currentPlayerIndex] && !isMoving) {
+        _startPlayerTimer();
+      }
+    });
+  }
+
   void _rollDice() {
     if (_timer != null && _timer!.isActive) return;
     if (isMoving) return; // No permitir lanzar dado mientras se mueve una ficha
+    
+    // ⏰ DETENER TIMER AL LANZAR DADO
+    _stopPlayerTimer();
+    
+    // 🔄 RESETEAR CONTADOR DE TIMEOUTS (lanzamiento manual)
+    autoLaunchCount[currentPlayerIndex] = 0;
     
     // 🤖 SISTEMA CPU INTELIGENTE - ¡ÉPICO!
     if (_isCurrentPlayerCPU()) {
@@ -1912,10 +3012,10 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
           });
         }
         
-        // 🚀 EJECUTAR MOVIMIENTO
+        // 🚀 EJECUTAR MOVIMIENTO CON VERIFICACIÓN DE 3 SEISES
         Timer(const Duration(milliseconds: 600), () {
           if (mounted) {
-            _moveCurrentPlayerPiece(finalDiceValue);
+            _continueWithDiceResult(finalDiceValue);
           }
         });
       });
@@ -1976,11 +3076,21 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   void _nextActivePlayer() {
     // ✅ CICLO CORRECTO: Solo entre jugadores activos (0 hasta numPlayers-1)
     currentPlayerIndex = (currentPlayerIndex + 1) % widget.numPlayers;
-             
-    // 🤖 AUTO-EJECUTAR TURNO SI ES CPU
+    
+    // Resetear contador de auto-lanzamientos si fue el jugador cambiado
+    // (no se resetea si el mismo jugador sigue jugando por turnos extra)
+    
+    // 🎵 Audio de cambio de turno removido para evitar confusión
+    // (el sonido 'lanzar_nuevo' sugería algo positivo en cambios normales)
+    // Solo mantenemos audio para eventos específicos como logros
+    
+    // 🤖 AUTO-EJECUTAR TURNO SI ES CPU / ⏰ INICIAR TIMER SI ES HUMANO
     Timer(const Duration(milliseconds: 500), () {
       if (_isCurrentPlayerCPU() && !isMoving) {
         _rollDice();
+      } else if (widget.isHuman[currentPlayerIndex] && !isMoving) {
+        // Iniciar timer para jugador humano
+        _startPlayerTimer();
       }
     });
   }
@@ -1989,57 +3099,36 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   void _handleDiceResult(int diceResult) {
     setState(() {
       if (diceResult == 6) {
-        consecutiveSixes++;
+        // La lógica de 3 seises ya se maneja en _continueWithDiceResult
+        // Solo manejar turnos extra aquí
         hasExtraTurn = true;
         
-        // 🚨 PENALIZACIÓN: 3 seises consecutivos
-        if (consecutiveSixes >= 3) {
-          lastMessage = "¡3 seises consecutivos! ¡Pierdes el turno! 😱";
-          consecutiveSixes = 0;
-          hasExtraTurn = false;
+        // ✅ TURNO EXTRA POR SACAR 6 (ya verificado que no son 3 seises)
+        String extraTurnMessage = consecutiveSixes == 1 
+            ? "¡Sacaste 6! ¡Turno extra! 🎲✨"
+            : "¡Segundo 6! ¡Cuidado con el tercero! ⚠️🎲";
+        lastMessage = extraTurnMessage;
+        
+        // 🎵 Sonido de turno extra (lanzar nuevo)
+        AudioService().playNewTurn();
+        
+        // Quitar mensaje después de un tiempo
+        Timer(const Duration(milliseconds: 1500), () {
+          setState(() {
+            lastMessage = null;
+          });
           
-          // 🎵 Sonido de perder turno por 3 seises
-          AudioService().playLoseTurn();
-          
-          // Cambiar turno después de mostrar el mensaje
-          Timer(const Duration(milliseconds: 2000), () {
-            setState(() {
-              lastMessage = null;
-              _nextActivePlayer();
-            });
-            
-            // 🤖 SI EL NUEVO JUGADOR ES CPU: Continuar automáticamente
+          // 🤖 SI ES CPU: Continuar automáticamente con el turno extra
+          // 👤 SI ES HUMANO: Reiniciar timer para el turno extra
+          if (_isCurrentPlayerCPU() && !isMoving) {
             Timer(const Duration(milliseconds: 500), () {
-              if (_isCurrentPlayerCPU() && !isMoving) {
-                _rollDice();
-              }
+              _rollDice();
             });
-          });
-          return;
-        } else {
-          // ✅ TURNO EXTRA POR SACAR 6
-          String extraTurnMessage = consecutiveSixes == 1 
-              ? "¡Sacaste 6! ¡Turno extra! 🎲✨"
-              : "¡Segundo 6! ¡Cuidado con el tercero! ⚠️🎲";
-          lastMessage = extraTurnMessage;
-          
-          // 🎵 Sonido de turno extra (lanzar nuevo)
-          AudioService().playNewTurn();
-          
-          // Quitar mensaje después de un tiempo
-          Timer(const Duration(milliseconds: 1500), () {
-            setState(() {
-              lastMessage = null;
-            });
-            
-            // 🤖 SI ES CPU: Continuar automáticamente con el turno extra
-            if (_isCurrentPlayerCPU() && !isMoving) {
-              Timer(const Duration(milliseconds: 500), () {
-                _rollDice();
-              });
-            }
-          });
-        }
+          } else if (widget.isHuman[currentPlayerIndex] && !isMoving) {
+            // 🔄 CRÍTICO: Reiniciar timer para turno extra de jugador humano
+            _startPlayerTimer();
+          }
+        });
       } else {
         // 🔄 NO ES 6: Resetear contador y cambiar turno
         consecutiveSixes = 0;
@@ -2136,14 +3225,30 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       _executeCollision(piece, victimPiece);
     }
 
-    // ¡NUEVA FUNCIONALIDAD! Verificar casillas especiales
-    bool shouldChangeTurn = await _checkSpecialCell(piece);
+  // ¡NUEVA FUNCIONALIDAD! Verificar casillas especiales con prioridad sobre dados
+  bool shouldChangeTurn = await _checkSpecialCell(piece, diceValue);    // � VERIFICAR FINALIZACIÓN: Comprobar si el jugador llegó a la META
+    int pieceIndex = boardPath.indexWhere((pos) => 
+        pos.row == piece.position.row && pos.col == piece.position.col);
+    
+    if (pieceIndex == metaIndex) {
+      // La ficha llegó exactamente a la META
+      // Determinar jugador por color de la ficha
+      int playerIndex = piece.color == Colors.red ? 0 :
+                       piece.color == Colors.green ? 1 :  
+                       piece.color == Colors.yellow ? 2 : 3;
+      _checkPlayerFinished(playerIndex);
+    }
 
-    // 🎲 LÓGICA DE SEISES CONSECUTIVOS: Manejar el resultado después del movimiento
+    // �🎲 LÓGICA DE SEISES CONSECUTIVOS: Manejar el resultado después del movimiento
     setState(() {
       isMoving = false; // Desbloquear el dado
       jumpingPiece = null; // Ya no hay ficha saltando
     });
+
+    // Si el juego terminó, no continuar con la lógica de dados
+    if (gameEnded) {
+      return;
+    }
 
     // Aplicar lógica de seises consecutivos (si debe cambiar turno)
     if (shouldChangeTurn) {
@@ -2153,19 +3258,25 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
 
   // Verificar si hay una víctima en la posición de destino (SIN enviarla a SALIDA aún)
   GamePiece? _checkForVictim(Position targetPosition, GamePiece movingPiece) {
-    // Posiciones especiales donde pueden coexistir fichas
+    // Solo SALIDA y META son zonas completamente seguras
     bool isSalida = (targetPosition.row == 9 && targetPosition.col == 0);
     bool isMeta = (targetPosition.row == 0 && targetPosition.col == 0);
     
-    // Si es SALIDA o META, no hay víctima
+    // Si es SALIDA o META, no hay víctima (zonas seguras)
     if (isSalida || isMeta) {
       return null;
     }
     
+    // ✅ TODAS LAS DEMÁS CASILLAS PERMITEN CAPTURAS, incluyendo casillas especiales
+    // Esto es correcto según las reglas del Parchís
+    
     // Buscar si hay otra ficha en esta posición (excluyendo la que se está moviendo)
     for (GamePiece otherPiece in gamePieces) {
-      // Si otra ficha está en la misma posición Y no es la ficha que se está moviendo
-      if (otherPiece != movingPiece &&
+      // Verificar si es ficha del mismo jugador (las fichas del mismo jugador no se capturan)
+      bool samePlayer = (movingPiece.color == otherPiece.color);
+      
+      // Si otra ficha está en la misma posición Y no es la ficha que se está moviendo Y no es del mismo jugador
+      if (otherPiece != movingPiece && !samePlayer &&
           otherPiece.position.row == targetPosition.row && 
           otherPiece.position.col == targetPosition.col) {
         return otherPiece; // Retornar la víctima
@@ -2248,7 +3359,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   }
 
   // ¡NUEVA FUNCIÓN SÚPER DIVERTIDA! 🎉 Verificar casillas especiales con mensajes jocosos
-  Future<bool> _checkSpecialCell(GamePiece piece) async {
+  Future<bool> _checkSpecialCell(GamePiece piece, int diceValue) async {
     String playerName = _getPlayerName(currentPlayerIndex);
     String specialText = _getSpecialCellText(piece.position.row, piece.position.col);
     
@@ -2352,8 +3463,8 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
           "¡GANASTE como todo un TIGUERRRR! 👑🎊"
         ];
         
-        // 🎵 Secuencia de victoria épica
-        AudioService().playVictorySequence();
+        // 🎵 Audio se maneja en _checkPlayerFinished() para evitar duplicación
+        // No reproducir audio aquí para prevenir conflictos
         break;
     }
     
@@ -2384,18 +3495,38 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       currentMessage = '';
     });
     
-    // ¡EFECTOS ESPECIALES!
+    // ¡EFECTOS ESPECIALES CON PRIORIDAD SOBRE DADOS! 🎯
     if (skipNextTurn) {
-      // Marcar jugador para saltar próximo turno (implementar después)
+      // 🚨 PRIORIDAD: Casilla especial cancela beneficio de dado 6
+      if (diceValue == 6) {
+        setState(() {
+          consecutiveSixes = 0; // Resetear contador porque se pierde el turno extra
+        });
+        
+        // Mensaje de alta prioridad para informar sobre anulación
+        _showMessage("¡Casilla especial anula el turno extra del 6! 😱",
+            priority: MessagePriority.high, durationSeconds: 3);
+        
+        // El mensaje se limpia automáticamente por _showMessage
+      }
+      
+      // TODO: Implementar skip de siguiente turno cuando sea el turno de este jugador
       print("$playerName debe saltar el próximo turno");
+      return true; // Cambiar turno normalmente (saltar se implementará después)
     }
     
     if (rollAgain) {
-      // No cambiar jugador, permitir tirar de nuevo
-      return false; // No cambiar turno
+      // 🎲 CASILLA "LANCE DE NUEVO": Compatible con dado 6
+      if (diceValue == 6) {
+        // Mensaje normal para doble suerte
+        _showMessage("¡Dado 6 + Casilla especial = DOBLE SUERTE! 🍀✨",
+            priority: MessagePriority.normal, durationSeconds: 2);
+      }
+      return false; // No cambiar turno (tirar de nuevo)
     }
     
-    return true; // Cambiar turno normalmente
+    // 🎯 CASILLAS CON TELEPORTACIÓN: Mantienen lógica normal de dados
+    return true; // Cambiar turno normalmente (permitir lógica de dado 6)
   }
   
   // Función auxiliar para encontrar posición por número
@@ -2813,6 +3944,41 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
                                     color: Colors.white,
                                   ),
                                 ),
+                                
+                                // ⏰ TIMER DE JUGADOR HUMANO (solo últimos 5 segundos)
+                                if (widget.isHuman[currentPlayerIndex] && !isMoving && timerCountdown <= 5)
+                                  Container(
+                                    margin: const EdgeInsets.only(top: 8),
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: isTimerFlashing ? Colors.red.withOpacity(0.8) : Colors.orange.withOpacity(0.8),
+                                      borderRadius: BorderRadius.circular(15),
+                                      border: Border.all(
+                                        color: isTimerFlashing ? Colors.red : Colors.orange,
+                                        width: 2,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          isTimerFlashing ? Icons.warning : Icons.timer,
+                                          color: Colors.white,
+                                          size: 16,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          '${timerCountdown}s',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: isTimerFlashing ? 16 : 14,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                
                                 const SizedBox(height: 8),
                                 GestureDetector(
                                   onTap: _rollDice,
@@ -2900,7 +4066,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
           ),
           
           // Popup de mensaje en el centro
-          if (lastMessage != null || currentMessage.isNotEmpty)
+          if (priorityMessage != null || lastMessage != null || currentMessage.isNotEmpty)
             Center(
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 40),
@@ -2932,7 +4098,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      currentMessage.isNotEmpty ? currentMessage : (lastMessage ?? ''),
+                      priorityMessage ?? (currentMessage.isNotEmpty ? currentMessage : (lastMessage ?? '')),
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
