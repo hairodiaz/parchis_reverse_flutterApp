@@ -2488,7 +2488,10 @@ void _continueWithDiceResult(int finalResult) {
     String playerName = _getPlayerDisplayName(currentPlayerIndex);
     
     setState(() {
-      playerEliminated[currentPlayerIndex] = true; // Marcar como eliminado  
+      playerEliminated[currentPlayerIndex] = true; // Marcar como eliminado
+      
+      // 🗑️ REMOVER FICHA DEL TABLERO - DESAPARECE COMPLETAMENTE
+      gamePieces[currentPlayerIndex].position = const Position(-1, -1); // Posición fuera del tablero
     });
     
     // Mensaje crítico de eliminación
@@ -2737,20 +2740,24 @@ void _continueWithDiceResult(int finalResult) {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                _getPlayerDisplayName(playerIndex),
+                                isEliminated ? '💀 ${_getPlayerDisplayName(playerIndex)}' : _getPlayerDisplayName(playerIndex),
                                 style: TextStyle(
                                   fontSize: isWinner ? 18 : 16,
                                   fontWeight: isWinner ? FontWeight.bold : FontWeight.w600,
                                   color: isEliminated ? Colors.red[700] : Colors.black,
+                                  decoration: isEliminated ? TextDecoration.lineThrough : null, // ← TACHADO
+                                  decorationColor: isEliminated ? Colors.red[700] : null,
+                                  decorationThickness: isEliminated ? 2.0 : null,
                                 ),
                               ),
                               if (isEliminated)
                                 Text(
-                                  'Eliminado por inactividad',
+                                  '⚠️ ELIMINADO POR INACTIVIDAD',
                                   style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.red[600],
+                                    fontSize: 11,
+                                    color: Colors.red[800],
                                     fontStyle: FontStyle.italic,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
                             ],
@@ -3079,8 +3086,10 @@ void _continueWithDiceResult(int finalResult) {
 
   // 🔄 SISTEMA INTELIGENTE DE TURNOS - Solo jugadores activos
   void _nextActivePlayer() {
-    // ✅ CICLO CORRECTO: Solo entre jugadores activos (0 hasta numPlayers-1)
-    currentPlayerIndex = (currentPlayerIndex + 1) % widget.numPlayers;
+    // ✅ CICLO CORRECTO: Solo entre jugadores activos (SALTAR ELIMINADOS)
+    do {
+      currentPlayerIndex = (currentPlayerIndex + 1) % widget.numPlayers;
+    } while (playerEliminated[currentPlayerIndex]); // Saltar jugadores eliminados
     
     // Resetear contador de auto-lanzamientos si fue el jugador cambiado
     // (no se resetea si el mismo jugador sigue jugando por turnos extra)
@@ -3771,13 +3780,17 @@ void _continueWithDiceResult(int finalResult) {
                                 margin: const EdgeInsets.symmetric(horizontal: 2),
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: isCurrentPlayer 
-                                      ? Colors.white.withOpacity(0.9)
-                                      : Colors.white.withOpacity(0.3),
+                                  color: playerEliminated[index]
+                                      ? Colors.red.withOpacity(0.2) // Fondo rojo para eliminados
+                                      : (isCurrentPlayer 
+                                          ? Colors.white.withOpacity(0.9)
+                                          : Colors.white.withOpacity(0.3)),
                                   borderRadius: BorderRadius.circular(8),
-                                  border: isCurrentPlayer 
-                                      ? Border.all(color: _getPlayerColor(index), width: 2)
-                                      : null,
+                                  border: playerEliminated[index]
+                                      ? Border.all(color: Colors.red, width: 2) // Borde rojo para eliminados
+                                      : (isCurrentPlayer 
+                                          ? Border.all(color: _getPlayerColor(index), width: 2)
+                                          : null),
                                 ),
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
@@ -3790,7 +3803,9 @@ void _continueWithDiceResult(int finalResult) {
                                           width: 12,
                                           height: 12,
                                           decoration: BoxDecoration(
-                                            color: _getPlayerColor(index),
+                                            color: playerEliminated[index] 
+                                                ? Colors.grey[400] // Color gris para eliminados
+                                                : _getPlayerColor(index),
                                             shape: BoxShape.circle,
                                             border: Border.all(color: Colors.white, width: 1),
                                           ),
@@ -3804,11 +3819,13 @@ void _continueWithDiceResult(int finalResult) {
                                     ),
                                     // Nombre del jugador
                                     Text(
-                                      _getPlayerDisplayName(index),
+                                      playerEliminated[index] ? '💀 ${_getPlayerDisplayName(index)}' : _getPlayerDisplayName(index),
                                       style: TextStyle(
                                         fontSize: 9,
                                         fontWeight: isCurrentPlayer ? FontWeight.bold : FontWeight.normal,
-                                        color: isCurrentPlayer ? Colors.black87 : Colors.white,
+                                        color: playerEliminated[index] ? Colors.red[300] : (isCurrentPlayer ? Colors.black87 : Colors.white),
+                                        decoration: playerEliminated[index] ? TextDecoration.lineThrough : null,
+                                        decorationColor: playerEliminated[index] ? Colors.red[300] : null,
                                       ),
                                       textAlign: TextAlign.center,
                                       maxLines: 1,
@@ -4151,9 +4168,10 @@ void _continueWithDiceResult(int finalResult) {
     int number = _getRealBoardNumber(row, col);
     String specialText = _getSpecialCellText(row, col);
     
-    // Verificar si hay fichas en esta posición
+    // Verificar si hay fichas en esta posición (EXCLUIR ELIMINADAS)
     List<GamePiece> piecesInThisCell = gamePieces
-        .where((piece) => piece.position.row == row && piece.position.col == col)
+        .where((piece) => piece.position.row == row && piece.position.col == col && 
+                         piece.position.row >= 0 && piece.position.col >= 0) // Excluir fichas eliminadas (-1,-1)
         .toList();
 
     return Container(
