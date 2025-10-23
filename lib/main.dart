@@ -1698,6 +1698,11 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   bool isDecisionTime = false; // ¿Está el jugador decidiendo si cambiar?
   int currentDiceResult = 0; // Resultado actual del dado
   Timer? _decisionTimer; // Timer para auto-continuar
+  
+  // 🧪 MODO DEBUG - PARA TESTING DE 3 SEISES
+  // ✅ true = SIEMPRE SALE 6 (para probar regla de 3 seises)
+  // ❌ false = ALEATORIO NORMAL (para juego real)
+  bool debugMode = false; // ← CAMBIAR A false PARA MODO NORMAL
   int decisionCountdown = 3; // Countdown de 3 segundos
 
   // ⏰ SISTEMA DE TIMER PARA JUGADORES HUMANOS
@@ -2046,7 +2051,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     });
 
     // 🎯 GENERAR NUEVO RESULTADO ANTES de la animación
-    int newFinalResult = Random().nextInt(6) + 1;
+    int newFinalResult = debugMode ? 6 : Random().nextInt(6) + 1;
 
     // Nuevo lanzamiento de dado
     _playDiceSound();
@@ -2087,79 +2092,80 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     _continueWithDiceResult(currentDiceResult);
   }
 
-  // Continuar el juego con el resultado final
-  void _continueWithDiceResult(int finalResult) {
-    setState(() {
-      diceValue = finalResult;
-      isMoving = true; // Asegurar que el dado esté bloqueado
-    });
+void _continueWithDiceResult(int finalResult) {
+  setState(() {
+    diceValue = finalResult;
+    isMoving = true; 
+  });
+  
+  // 🚨 VERIFICAR REGLA DE 3 SEISES ANTES DE MOVER LA FICHA
+  if (finalResult == 6) {
+    consecutiveSixes++;
     
-    // 🚨 VERIFICAR REGLA DE 3 SEISES ANTES DE MOVER LA FICHA
-    if (finalResult == 6) {
-      consecutiveSixes++;
+    // ¡TERCER 6 CONSECUTIVO! - PENALIZACIÓN INMEDIATA
+    if (consecutiveSixes >= 3) {
+      print("🚨 DEBUG: 3 seises detectados! Player: $currentPlayerIndex"); // Debug
       
-      // ¡TERCER 6 CONSECUTIVO! - PENALIZACIÓN INMEDIATA
-      if (consecutiveSixes >= 3) {
-        setState(() {
-          consecutiveSixes = 0;
-          hasExtraTurn = false;
-          isMoving = false; // Desbloquear dado inmediatamente
+      setState(() {
+        consecutiveSixes = 0;
+        hasExtraTurn = false;
+        isMoving = false;
+        
+        // ENVIAR FICHA A LA SALIDA INMEDIATAMENTE
+        gamePieces[currentPlayerIndex].position = const Position(9, 0);
+      });
+      
+      // Mensaje crítico
+      _showMessage("¡3 seises consecutivos! ¡${_getPlayerName(currentPlayerIndex)} vuelve a la salida! 😱💥",
+          priority: MessagePriority.critical, durationSeconds: 4);
+      
+      // 🎵 Sonido de penalización
+      AudioService().playLoseTurn();
+      
+      // Cambiar turno después del mensaje
+      Timer(const Duration(milliseconds: 2500), () {
+        _nextActivePlayer();
+        
+        // Continuar con el siguiente jugador
+        Timer(const Duration(milliseconds: 500), () {
+          if (_isCurrentPlayerCPU() && !isMoving) {
+            _rollDice();
+          } else if (widget.isHuman[currentPlayerIndex] && !isMoving) {
+            _startPlayerTimer();
+          }
         });
-        
-        // Mensaje crítico con alta prioridad
-        _showMessage("¡3 seises consecutivos! ¡Vuelves a la salida! 😱💥",
-            priority: MessagePriority.critical, durationSeconds: 4);
-        
-        // 🎵 Sonido de penalización grave
-        AudioService().playLoseTurn();
-        
-        // ENVIAR FICHA A LA SALIDA INMEDIATAMENTE - SIN MOVIMIENTO
-        GamePiece currentPiece = gamePieces[currentPlayerIndex];
-        setState(() {
-          currentPiece.position = const Position(9, 0); // Volver a la salida
-        });
-        
-        // Cambiar turno después de mostrar el mensaje
-        Timer(const Duration(milliseconds: 2500), () {
+      });
+      return; // ¡CRÍTICO! NO EJECUTAR EL MOVIMIENTO
+    }
+  } else {
+    // Si no es 6, resetear contador
+    consecutiveSixes = 0;
+  }
+  
+  // CONTINUAR CON MOVIMIENTO NORMAL
+  Timer(const Duration(milliseconds: 300), () {
+    Timer(const Duration(milliseconds: 100), () {
+      bool hasThreats = _checkAndShowThreatMessage(finalResult);
+      
+      if (hasThreats) {
+        Timer(const Duration(milliseconds: 1200), () {
           setState(() {
             lastMessage = null;
-            _nextActivePlayer();
           });
           
-          // 🤖 SI EL NUEVO JUGADOR ES CPU: Continuar automáticamente
-          Timer(const Duration(milliseconds: 500), () {
-            if (_isCurrentPlayerCPU() && !isMoving) {
-              _rollDice();
-            }
-          });
-        });
-        return; // ¡IMPORTANTE! NO EJECUTAR EL MOVIMIENTO
-      }
-    }
-    
-    // ⚡ DELAY REDUCIDO para movimiento más fluido (de 1000ms a 300ms)
-    Timer(const Duration(milliseconds: 300), () { // Reducido significativamente
-      Timer(const Duration(milliseconds: 100), () { // También reducido
-        bool hasThreats = _checkAndShowThreatMessage(finalResult);
-        
-        if (hasThreats) {
-          Timer(const Duration(milliseconds: 1200), () { // Ligeramente reducido
-            setState(() {
-              lastMessage = null;
-            });
-            
-            Timer(const Duration(milliseconds: 200), () { // Reducido
-              _moveCurrentPlayerPiece(finalResult);
-            });
-          });
-        } else {
-          Timer(const Duration(milliseconds: 200), () { // Reducido de 400ms a 200ms
+          Timer(const Duration(milliseconds: 200), () {
             _moveCurrentPlayerPiece(finalResult);
           });
-        }
-      });
+        });
+      } else {
+        Timer(const Duration(milliseconds: 200), () {
+          _moveCurrentPlayerPiece(finalResult);
+        });
+      }
     });
-  }
+  });
+}
+
 
   @override
   void initState() {
@@ -2518,7 +2524,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     // Lanzamiento automático sin timer
     _playDiceSound();
     
-    int finalResult = random.nextInt(6) + 1;
+    int finalResult = debugMode ? 6 : random.nextInt(6) + 1;
     
     _animationController.reset();
     _animationController.forward();
@@ -2864,7 +2870,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     _playDiceSound();
     
     // 🎯 GENERAR RESULTADO FINAL ANTES de la animación
-    int finalDiceResult = random.nextInt(6) + 1;
+    int finalDiceResult = debugMode ? 6 : random.nextInt(6) + 1;
     
     _animationController.reset();
     _animationController.forward();
@@ -2995,7 +3001,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       _timer?.cancel();
       
       // 🧠 CPU ANALIZA EL RESULTADO
-      int finalDiceValue = random.nextInt(6) + 1;
+      int finalDiceValue = debugMode ? 6 : random.nextInt(6) + 1;
       if (mounted) {
         setState(() {
           diceValue = finalDiceValue;
