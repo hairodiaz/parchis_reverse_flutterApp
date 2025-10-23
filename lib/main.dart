@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/services.dart';
+import 'package:wakelock_plus/wakelock_plus.dart'; // 📱 MANTENER PANTALLA ACTIVA
 import 'services/hive_service.dart';
 import 'services/auth_service.dart';
 import 'services/audio_service.dart';
@@ -2064,8 +2065,8 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       });
     });
 
-    // ⏱️ SINCRONIZAR CON DURACIÓN DEL SONIDO DICE.MP3 (~1 segundo)
-    Timer(const Duration(milliseconds: 1000), () { // Aumentado para coincidir con sonido
+    // ⏱️ SINCRONIZAR CON DURACIÓN DEL SONIDO DICE.MP3 + 1.5s adicionales para coordinación perfecta
+    Timer(const Duration(milliseconds: 2500), () { // Aumentado de 1000ms a 2500ms (+ 1.5s)
       newDiceTimer.cancel();
       
       setState(() {
@@ -2170,6 +2171,9 @@ void _continueWithDiceResult(int finalResult) {
   @override
   void initState() {
     super.initState();
+    
+    // 📱 ACTIVAR WAKELOCK - MANTENER PANTALLA ENCENDIDA
+    _enableWakelock();
     
     // Configurar jugadores según la pantalla de configuración
     for (int i = 0; i < widget.numPlayers; i++) {
@@ -2404,13 +2408,60 @@ void _continueWithDiceResult(int finalResult) {
 
   @override
   void dispose() {
+    // � DESACTIVAR WAKELOCK AL SALIR DEL JUEGO
+    _disableWakelock();
+    
+    // �🛑 CANCELAR TODOS LOS TIMERS ACTIVOS
     _timer?.cancel();
     _messageTimer?.cancel();
     _decisionTimer?.cancel();
-    _playerTimer?.cancel(); // Cancelar timer de jugador 
+    _playerTimer?.cancel();
+    
+    // 🔇 DETENER TODOS LOS AUDIOS DEL JUEGO
+    try {
+      AudioService().stopAllSounds(); // Detener todos los sonidos activos
+    } catch (e) {
+      print('Error al detener audio: $e');
+    }
+    
+    // 🧹 LIMPIAR CONTROLADORES DE ANIMACIÓN
     _animationController.dispose();
     _jumpController.dispose();
+    
+    // 🧹 LIMPIAR VARIABLES DE ESTADO
+    if (mounted) {
+      setState(() {
+        isMoving = false;
+        gameEnded = true; // Marcar juego como terminado
+        lastMessage = null;
+        currentMessage = '';
+        priorityMessage = null;
+      });
+    }
+    
     super.dispose();
+  }
+
+  // 📱 WAKELOCK - MANTENER PANTALLA ACTIVA
+
+  // 🔐 ACTIVAR PANTALLA SIEMPRE ENCENDIDA
+  void _enableWakelock() async {
+    try {
+      await WakelockPlus.enable();
+      print('✅ Wakelock activado - Pantalla permanecerá encendida');
+    } catch (e) {
+      print('❌ Error al activar wakelock: $e');
+    }
+  }
+
+  // 🔓 DESACTIVAR PANTALLA SIEMPRE ENCENDIDA
+  void _disableWakelock() async {
+    try {
+      await WakelockPlus.disable();
+      print('✅ Wakelock desactivado - Pantalla volverá a comportamiento normal');
+    } catch (e) {
+      print('❌ Error al desactivar wakelock: $e');
+    }
   }
 
   // ⏰ SISTEMA DE TIMER PARA JUGADORES HUMANOS
@@ -2538,7 +2589,8 @@ void _continueWithDiceResult(int finalResult) {
       });
     });
 
-    Timer(const Duration(milliseconds: 1000), () {
+    // ⏱️ SINCRONIZAR CON DURACIÓN DEL SONIDO DICE.MP3 + 1.5s adicionales para coordinación perfecta
+    Timer(const Duration(milliseconds: 2500), () { // Aumentado de 1000ms a 2500ms (+ 1.5s)
       _timer?.cancel();
       setState(() {
         diceValue = finalResult;
@@ -2620,6 +2672,16 @@ void _continueWithDiceResult(int finalResult) {
     });
     
     _stopPlayerTimer(); // Detener cualquier timer activo
+    
+    // � DESACTIVAR WAKELOCK AL TERMINAR EL JUEGO
+    _disableWakelock();
+    
+    // �🔇 DETENER AUDIOS AL TERMINAR EL JUEGO
+    try {
+      AudioService().stopAllSounds();
+    } catch (e) {
+      print('Error al detener audio al terminar juego: $e');
+    }
     
     // Agregar jugadores restantes al final del orden
     for (int i = 0; i < widget.numPlayers; i++) {
@@ -2888,8 +2950,8 @@ void _continueWithDiceResult(int finalResult) {
       });
     });
 
-    // ⏱️ SINCRONIZAR CON DURACIÓN DEL SONIDO DICE.MP3 (~1 segundo)
-    Timer(const Duration(milliseconds: 1000), () { // Aumentado para coincidir con sonido
+    // ⏱️ SINCRONIZAR CON DURACIÓN DEL SONIDO DICE.MP3 + 1.5s adicionales para coordinación perfecta
+    Timer(const Duration(milliseconds: 2500), () { // Aumentado de 1000ms a 2500ms (+ 1.5s)
       _timer?.cancel();
       setState(() {
         diceValue = finalDiceResult; // Asignar el resultado final SIN cambio brusco
@@ -3003,8 +3065,8 @@ void _continueWithDiceResult(int finalResult) {
       });
     });
 
-    // ⏱️ SINCRONIZAR CON DURACIÓN DEL SONIDO DICE.MP3 (~1 segundo)
-    Timer(const Duration(milliseconds: 1000), () { // Aumentado para coincidir con sonido
+    // ⏱️ SINCRONIZAR CON DURACIÓN DEL SONIDO DICE.MP3 + 1.5s adicionales para coordinación perfecta
+    Timer(const Duration(milliseconds: 2500), () { // Aumentado de 1000ms a 2500ms (+ 1.5s)
       _timer?.cancel();
       
       // 🧠 CPU ANALIZA EL RESULTADO
@@ -3613,7 +3675,17 @@ void _continueWithDiceResult(int finalResult) {
               ),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
+                // � DESACTIVAR WAKELOCK AL SALIR
+                _disableWakelock();
+                
+                // �🔇 DETENER TODOS LOS AUDIOS ANTES DE SALIR
+                try {
+                  await AudioService().stopAllSounds();
+                } catch (e) {
+                  print('Error al detener audio al salir: $e');
+                }
+                
                 Navigator.of(context).pop(); // Cerrar diálogo
                 Navigator.of(context).pushReplacement(
                   MaterialPageRoute(

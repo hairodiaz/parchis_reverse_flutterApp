@@ -254,8 +254,20 @@ class AudioService {
   double get effectsVolume => _effectsVolume;
   double get musicVolume => _musicVolume;
 
+  // 🔇 DETENER TODOS LOS SONIDOS INMEDIATAMENTE
+  Future<void> stopAllSounds() async {
+    try {
+      await _effectsPlayer.stop();
+      await _musicPlayer.stop();
+      print('🔇 Todos los sonidos detenidos');
+    } catch (e) {
+      print('⚠️ Error deteniendo sonidos: $e');
+    }
+  }
+
   // 🧹 Limpieza
   Future<void> dispose() async {
+    await stopAllSounds(); // Detener sonidos antes de liberar recursos
     await _effectsPlayer.dispose();
     await _musicPlayer.dispose();
     print('🧹 AudioService liberado');
