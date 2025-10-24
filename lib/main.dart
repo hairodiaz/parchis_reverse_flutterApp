@@ -2297,6 +2297,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   int extraTurnsRemaining = 0; // NUEVO: Sistema de turnos extra acumulables
   bool isMoving = false; // Para bloquear el dado mientras se mueve una ficha
   GamePiece? jumpingPiece; // Para saber qué ficha está saltando
+  String? pendingSpecialCellSound; // Para reproducir sonido de casilla especial al final de animación
   
   // Variables para mensajes jocosos
   String? lastMessage;
@@ -3006,10 +3007,59 @@ void _continueWithDiceResult(int finalResult) {
         Timer(const Duration(milliseconds: 300), () => HapticFeedback.lightImpact());
         break;
       default:
-        // 📈 Sonido genérico de subir
-        AudioService().playPieceUp();
+        // 📈 SONIDO MOVIDO: Se reproducirá cuando la ficha llegue a la nueva posición
+        // Solo vibración inmediata para feedback de casilla especial
         HapticFeedback.mediumImpact();
         Timer(const Duration(milliseconds: 150), () => HapticFeedback.mediumImpact());
+    }
+  }
+
+  // � FUNCIÓN AUXILIAR: Determinar si una casilla especial causa movimiento inmediato
+  bool _causesMovement(String specialText) {
+    switch (specialText) {
+      case 'SUBE\nAL\n63':
+      case 'SUBE\nAL\n70':
+      case 'VUELVE\nA LA\nSALIDA':
+      case 'BAJA\nAL\n24':
+      case 'BAJA\nAL\n30':
+      case 'BAJA\nAL\n40':
+      case 'BAJA\nAL\n50':
+        return true; // Estas casillas causan teletransporte/movimiento
+      default:
+        return false; // Otras casillas no causan movimiento inmediato
+    }
+  }
+
+  // �🎵 NUEVA FUNCIÓN: Reproducir sonido de casilla especial después del movimiento
+  void _playSpecialCellSoundAfterMovement(Position position) {
+    // Usar el sonido almacenado en lugar de detectar la casilla actual
+    if (pendingSpecialCellSound != null) {
+      String cellType = pendingSpecialCellSound!;
+      
+      switch (cellType) {
+        case 'SUBE\nAL\n63':
+        case 'SUBE\nAL\n70':
+          // 🚀 Sonido de subir para casillas que te llevan hacia arriba
+          AudioService().playPieceUp();
+          break;
+        case 'VUELVE\nA LA\nSALIDA':
+          // 📉 Sonido de bajar cuando llegas a la SALIDA
+          AudioService().playPieceDown();
+          break;
+        case 'BAJA\nAL\n24':
+        case 'BAJA\nAL\n30':
+        case 'BAJA\nAL\n40':
+        case 'BAJA\nAL\n50':
+          // ⬇️ Sonido de bajar para casillas que te llevan hacia abajo
+          AudioService().playPieceDown();
+          break;
+        default:
+          // No reproducir sonido para otras casillas
+          break;
+      }
+      
+      // Limpiar el sonido pendiente
+      pendingSpecialCellSound = null;
     }
   }
 
@@ -3908,6 +3958,9 @@ void _continueWithDiceResult(int finalResult) {
       // 🎵 Sonido de movimiento de ficha
       AudioService().playPieceMove();
       
+      // 🎵 NUEVO: Reproducir sonido de casilla especial si corresponde
+      _playSpecialCellSoundAfterMovement(piece.position);
+      
       // Completar el salto (bajar)
       await _jumpController.reverse();
       
@@ -4086,8 +4139,14 @@ void _continueWithDiceResult(int finalResult) {
     
     if (specialText.isEmpty) return true; // No es casilla especial, cambiar turno normalmente
     
-    // ¡SONIDO DE CASILLA ESPECIAL! 🎵
-    _playSpecialCellSound(specialText);
+    // 🎵 PREPARAR SONIDO: Solo para casillas que NO causan movimiento inmediato
+    if (!_causesMovement(specialText)) {
+      _playSpecialCellSound(specialText);
+      pendingSpecialCellSound = null; // No hay sonido pendiente
+    } else {
+      // 🎵 ALMACENAR SONIDO: Para reproducir después del movimiento
+      pendingSpecialCellSound = specialText;
+    }
     
     // ¡MENSAJES JOCOSOS DOMINICANOS! 🇩🇴
     List<String> messages = [];
@@ -4103,14 +4162,15 @@ void _continueWithDiceResult(int finalResult) {
           "¡Tira otra vez como todo un CAMPEÓN! 🎲✨"
         ];
         
-        // ✅ AGREGAR OTRO TURNO EXTRA POR LA CASILLA "LANCE DE NUEVO"
+        // 🍀 LANCE DE NUEVO: Incrementar turnos extra para acumulación correcta
         extraTurnsRemaining++;
         print("🍀 DEBUG: Casilla 'LANCE DE NUEVO' agregó turno extra. Total: $extraTurnsRemaining");
         
-        // 🎯 MENSAJE ESPECIAL SI HAY DOBLE SUERTE (dado 6 + casilla)
+        // 🎯 MENSAJE ESPECIAL SI HAY DOBLE SUERTE (6 + Lance de Nuevo)
         if (diceValue == 6) {
           messages.add("¡DOBLE SUERTE! Dado 6 + Lance de Nuevo = $extraTurnsRemaining turnos extra! 🎲✨🍀");
         }
+        print("� DEBUG: Casilla 'LANCE DE NUEVO' activada. Solo rollAgain=true");
         
         rollAgain = true;
         break;
