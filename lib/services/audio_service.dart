@@ -61,20 +61,19 @@ class AudioService {
     await _playEffect('Dice.mp3');
   }
 
-  /// Sonido de mover ficha (con volumen aumentado)
+  /// Sonido de mover ficha (pop corto y preciso)
   Future<void> playPieceMove() async {
     if (!_isInitialized || !_soundEnabled || _effectsVolume == 0.0) {
       return;
     }
 
     try {
-      // 🔊 VOLUMEN AUMENTADO para movimiento de ficha (que se escuche mejor)
-      double boostedVolume = (_effectsVolume * 1.5).clamp(0.0, 1.0); 
-      await _effectsPlayer.setVolume(boostedVolume);
-      await _effectsPlayer.play(AssetSource('audio/effects/fichaMov.mp3'));
-      print('🔊 Reproduciendo efecto: fichaMov.mp3 (volumen aumentado)');
+      // 🎯 SONIDO CORTO Y PRECISO para movimiento de ficha
+      await _effectsPlayer.setVolume(_effectsVolume);
+      await _effectsPlayer.play(AssetSource('audio/effects/pop_ficha.mp3'));
+      print('🔊 Reproduciendo efecto: pop_ficha.mp3 (sonido corto y preciso)');
     } catch (e) {
-      print('❌ Error reproduciendo fichaMov.mp3: $e');
+      print('❌ Error reproduciendo pop_ficha.mp3: $e');
     }
   }
 

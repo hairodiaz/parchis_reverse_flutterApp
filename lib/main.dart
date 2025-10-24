@@ -2009,17 +2009,17 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                     itemCount: numPlayers,
                     itemBuilder: (context, index) {
                       return Container(
-                        margin: const EdgeInsets.only(bottom: 15),
-                        padding: const EdgeInsets.all(15),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(15),
+                          borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              spreadRadius: 2,
-                              blurRadius: 8,
-                              offset: const Offset(0, 4),
+                              color: Colors.black.withOpacity(0.08),
+                              spreadRadius: 1,
+                              blurRadius: 6,
+                              offset: const Offset(0, 3),
                             ),
                           ],
                         ),
@@ -2027,15 +2027,15 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                           children: [
                             // Color del jugador
                             Container(
-                              width: 40,
-                              height: 40,
+                              width: 35,
+                              height: 35,
                               decoration: BoxDecoration(
                                 color: availableColors[selectedColorIndices[index]],
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 3),
+                                border: Border.all(color: Colors.white, width: 2.5),
                               ),
                             ),
-                            const SizedBox(width: 15),
+                            const SizedBox(width: 12),
                             
                             // Nombre del jugador
                             Expanded(
@@ -2102,8 +2102,8 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                               },
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 15, 
-                                  vertical: 8
+                                  horizontal: 12, 
+                                  vertical: 6
                                 ),
                                 decoration: BoxDecoration(
                                   color: index == 0 
@@ -2163,28 +2163,28 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                             GestureDetector(
                               onTap: () => _showColorPicker(index),
                               child: Container(
-                                width: 50,
-                                height: 40,
+                                width: 45,
+                                height: 35,
                                 decoration: BoxDecoration(
                                   color: availableColors[selectedColorIndices[index]],
-                                  borderRadius: BorderRadius.circular(12),
+                                  borderRadius: BorderRadius.circular(10),
                                   border: Border.all(
                                     color: Colors.white,
-                                    width: 3,
+                                    width: 2.5,
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.2),
+                                      color: Colors.black.withOpacity(0.15),
                                       spreadRadius: 1,
-                                      blurRadius: 3,
-                                      offset: const Offset(0, 2),
+                                      blurRadius: 2,
+                                      offset: const Offset(0, 1),
                                     ),
                                   ],
                                 ),
                                 child: const Icon(
                                   Icons.palette,
                                   color: Colors.white,
-                                  size: 20,
+                                  size: 18,
                                 ),
                               ),
                             ),

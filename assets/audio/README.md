@@ -11,15 +11,17 @@ Música de fondo y temas principales:
 
 ### 🔊 `effects/`
 Efectos de sonido del juego:
-- `dice_roll.mp3` - Sonido de dado rodando
-- `piece_move.mp3` - Sonido de mover ficha
-- `piece_capture.mp3` - Sonido de capturar ficha
-- `piece_home.mp3` - Sonido de ficha llegando a casa
-- `bounce_effect.mp3` - Sonido de efecto rebote
-- `button_click.mp3` - Sonido de botón
-- `notification.mp3` - Sonido de notificación
-- `error.mp3` - Sonido de error
-- `success.mp3` - Sonido de éxito
+- `Dice.mp3` - Sonido de dado rodando
+- `pop_ficha.mp3` - Sonido corto y preciso de mover ficha ✨
+- `fichaMov.mp3` - Sonido largo de mover ficha (DEPRECADO)
+- `Subir.mp3` - Sonido de subir ficha (captura/casa)
+- `down_token.mp3` - Sonido de bajar ficha (ser capturado)
+- `fanfare.mp3` - Sonido de victoria/fanfarria
+- `risa.mp3` - Sonido de risa (CPU burlándose)
+- `uiiiiiiii.mp3` - Sonido de emoción/sorpresa
+- `pierde_turno.mp3` - Sonido de perder turno
+- `lanzar_nuevo.mp3` - Sonido de nuevo lanzamiento/turno extra
+- `timer.mp3` - Sonido de timer/tiempo límite
 
 ## 🎚️ Configuración de Audio
 
