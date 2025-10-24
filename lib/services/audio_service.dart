@@ -68,10 +68,10 @@ class AudioService {
     }
 
     try {
-      // 🎯 SONIDO CORTO Y PRECISO para movimiento de ficha
+      // 🎯 SONIDO CORTO Y PRECISO para movimiento de ficha (120ms)
       await _effectsPlayer.setVolume(_effectsVolume);
-      await _effectsPlayer.play(AssetSource('audio/effects/pop_ficha.mp3'));
-      print('🔊 Reproduciendo efecto: pop_ficha.mp3 (sonido corto y preciso)');
+      await _effectsPlayer.play(AssetSource('audio/effects/pop_ficha_short.wav'));
+      print('🔊 Reproduciendo efecto: pop_ficha_short.wav (120ms - perfecto para pasos)');
     } catch (e) {
       print('❌ Error reproduciendo pop_ficha.mp3: $e');
     }
