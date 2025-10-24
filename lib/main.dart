@@ -18,6 +18,74 @@ enum MessagePriority {
   special   // Mensajes de casillas especiales (pueden ser largos)
 }
 
+// 📬 CLASE PARA DATOS DE MENSAJE
+class MessageData {
+  final String text;
+  final MessagePriority priority;
+  final int durationSeconds;
+  final DateTime timestamp;
+  
+  MessageData(this.text, this.priority, this.durationSeconds) 
+    : timestamp = DateTime.now();
+}
+
+// 🎯 SISTEMA DE COLA DE MENSAJES - EVITA CANCELACIONES PREMATURAS
+class MessageQueue {
+  final List<MessageData> _queue = [];
+  bool _isProcessing = false;
+  Timer? _currentMessageTimer;
+  Function(MessageData)? onDisplayMessage;
+  Function()? onClearMessage;
+  
+  // Agregar mensaje a la cola
+  void addMessage(String text, MessagePriority priority, int durationSeconds) {
+    final message = MessageData(text, priority, durationSeconds);
+    
+    // 🚨 CRÍTICOS interrumpen todo inmediatamente
+    if (priority == MessagePriority.critical) {
+      _queue.insert(0, message); // Insertar al principio
+      if (_isProcessing) {
+        _currentMessageTimer?.cancel();
+        _isProcessing = false;
+      }
+    } else {
+      _queue.add(message); // Agregar al final
+    }
+    
+    if (!_isProcessing) {
+      _processNextMessage();
+    }
+  }
+  
+  // Procesar siguiente mensaje en la cola
+  void _processNextMessage() async {
+    if (_queue.isEmpty) {
+      _isProcessing = false;
+      onClearMessage?.call();
+      return;
+    }
+    
+    _isProcessing = true;
+    final message = _queue.removeAt(0);
+    
+    // Mostrar mensaje
+    onDisplayMessage?.call(message);
+    
+    // Esperar duración completa del mensaje
+    _currentMessageTimer = Timer(Duration(seconds: message.durationSeconds), () {
+      _processNextMessage(); // Procesar siguiente
+    });
+  }
+  
+  // Limpiar toda la cola (solo para emergencias)
+  void clear() {
+    _currentMessageTimer?.cancel();
+    _queue.clear();
+    _isProcessing = false;
+    onClearMessage?.call();
+  }
+}
+
 // Clase para representar la posición en el tablero
 class Position {
   final int row;
@@ -1682,6 +1750,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   // 🎲 REGLAS CLÁSICAS DEL PARCHÍS
   int consecutiveSixes = 0; // Contador de seises consecutivos
   bool hasExtraTurn = false; // Indica si el jugador tiene turno extra por sacar 6
+  int extraTurnsRemaining = 0; // NUEVO: Sistema de turnos extra acumulables
   bool isMoving = false; // Para bloquear el dado mientras se mueve una ficha
   GamePiece? jumpingPiece; // Para saber qué ficha está saltando
   
@@ -1691,6 +1760,9 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   String currentMessage = ''; // Para mensajes de casillas especiales
   String? priorityMessage; // Para mensajes críticos (3 seises, eliminación, etc.)
   
+  // 📬 NUEVO SISTEMA DE COLA DE MENSAJES
+  late MessageQueue _messageQueue;
+  
   // Ruta de movimiento en el tablero (secuencia de posiciones)
   List<Position> boardPath = [];
 
@@ -1699,6 +1771,10 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   bool isDecisionTime = false; // ¿Está el jugador decidiendo si cambiar?
   int currentDiceResult = 0; // Resultado actual del dado
   Timer? _decisionTimer; // Timer para auto-continuar
+  Timer? _cpuTimer; // Timer para movimientos del CPU
+  
+  // 🎵 CONTROL DE AUDIO PARA EVITAR DUPLICACIONES
+  bool _isPlayingCollisionAudio = false; // Flag para evitar sonidos duplicados durante colisiones
   
   // 🧪 MODO DEBUG - PARA TESTING DE 3 SEISES
   // ✅ true = SIEMPRE SALE 6 (para probar regla de 3 seises)
@@ -1991,9 +2067,9 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       });
       
       // 🎵 Sonido de timer solo en momentos clave (no cada segundo)
-      if (decisionCountdown == 1) {
+      /*if (decisionCountdown == 1) {
         AudioService().playTimer(); // Solo sonido en el último segundo
-      }
+      }*/
 
       if (decisionCountdown <= 0) {
         timer.cancel();
@@ -2110,6 +2186,7 @@ void _continueWithDiceResult(int finalResult) {
       setState(() {
         consecutiveSixes = 0;
         hasExtraTurn = false;
+        extraTurnsRemaining = 0; // Resetear turnos extra acumulados
         isMoving = false;
         
         // ENVIAR FICHA A LA SALIDA INMEDIATAMENTE
@@ -2137,6 +2214,10 @@ void _continueWithDiceResult(int finalResult) {
         });
       });
       return; // ¡CRÍTICO! NO EJECUTAR EL MOVIMIENTO
+    } else {
+      // ✅ AGREGAR UN TURNO EXTRA POR SACAR 6 (no es el tercero)
+      extraTurnsRemaining++;
+      print("🎲 DEBUG: Dado 6 agregó turno extra. Total: $extraTurnsRemaining");
     }
   } else {
     // Si no es 6, resetear contador
@@ -2238,6 +2319,34 @@ void _continueWithDiceResult(int finalResult) {
     
     // Crear la ruta del tablero
     _initializeBoardPath();
+    
+    // 📬 INICIALIZAR SISTEMA DE COLA DE MENSAJES
+    _messageQueue = MessageQueue();
+    _messageQueue.onDisplayMessage = (MessageData message) {
+      setState(() {
+        // Asignar a la variable apropiada según prioridad
+        switch (message.priority) {
+          case MessagePriority.critical:
+            priorityMessage = message.text;
+            break;
+          case MessagePriority.high:
+          case MessagePriority.normal:
+            lastMessage = message.text;
+            break;
+          case MessagePriority.special:
+            currentMessage = message.text;
+            break;
+        }
+      });
+    };
+    
+    _messageQueue.onClearMessage = () {
+      setState(() {
+        lastMessage = null;
+        currentMessage = '';
+        priorityMessage = null;
+      });
+    };
   }
 
   void _initializeGamePieces() {
@@ -2318,16 +2427,16 @@ void _continueWithDiceResult(int finalResult) {
     Timer(const Duration(milliseconds: 600), () => HapticFeedback.heavyImpact()); // Final del dado
   }
   
-  void _playCollisionSound() {
-    // 💥 Secuencia de sonidos para captura
-    AudioService().playCaptureSequence();
-    
-    // Vibración táctil dramática
-    HapticFeedback.heavyImpact();
-    Timer(const Duration(milliseconds: 100), () => HapticFeedback.heavyImpact());
-  }
+
   
   void _playSpecialCellSound(String cellType) {
+    // 🎵 NO REPRODUCIR SONIDOS DURANTE COLISIONES PARA EVITAR DUPLICACIÓN
+    if (_isPlayingCollisionAudio) {
+      // Solo vibración durante colisiones, sin audio
+      HapticFeedback.lightImpact();
+      return;
+    }
+    
     switch (cellType) {
       case 'LANCE\nDE\nNUEVO':
         // 🎯 Sonido de nuevo turno
@@ -2337,8 +2446,8 @@ void _continueWithDiceResult(int finalResult) {
         Timer(const Duration(milliseconds: 200), () => HapticFeedback.mediumImpact());
         break;
       case 'VUELVE\nA LA\nSALIDA':
-        // 📉 Sonido de bajar ficha
-        AudioService().playPieceDown();
+        // � SONIDO MOVIDO: Se reproducirá cuando la ficha llegue a SALIDA visualmente
+        // Solo vibración inmediata para feedback de casilla especial
         HapticFeedback.heavyImpact();
         Timer(const Duration(milliseconds: 200), () => HapticFeedback.heavyImpact());
         Timer(const Duration(milliseconds: 400), () => HapticFeedback.heavyImpact());
@@ -2358,64 +2467,23 @@ void _continueWithDiceResult(int finalResult) {
   }
 
   // 📬 GESTIÓN UNIFICADA DE MENSAJES
+  // 📬 NUEVA FUNCIÓN DE MENSAJES CON COLA - EVITA CANCELACIONES PREMATURAS
   void _showMessage(String message, {MessagePriority priority = MessagePriority.normal, int durationSeconds = 3}) {
-    setState(() {
-      switch (priority) {
-        case MessagePriority.critical:
-          priorityMessage = message;
-          lastMessage = null;
-          currentMessage = '';
-          break;
-        case MessagePriority.high:
-          if (priorityMessage == null) {
-            lastMessage = message;
-            currentMessage = '';
-          }
-          break;
-        case MessagePriority.normal:
-          if (priorityMessage == null && lastMessage == null) {
-            lastMessage = message;
-          }
-          break;
-        case MessagePriority.special:
-          if (priorityMessage == null) {
-            currentMessage = message;
-            lastMessage = null;
-          }
-          break;
-      }
-    });
-    
-    // Limpiar mensaje después del tiempo especificado
-    _messageTimer?.cancel();
-    _messageTimer = Timer(Duration(seconds: durationSeconds), () {
-      setState(() {
-        switch (priority) {
-          case MessagePriority.critical:
-            priorityMessage = null;
-            break;
-          case MessagePriority.high:
-          case MessagePriority.normal:
-            lastMessage = null;
-            break;
-          case MessagePriority.special:
-            currentMessage = '';
-            break;
-        }
-      });
-    });
+    // 🎯 USAR SISTEMA DE COLA PARA EVITAR QUE SE CUELGUEN LOS MENSAJES
+    _messageQueue.addMessage(message, priority, durationSeconds);
   }
 
   @override
   void dispose() {
-    // � DESACTIVAR WAKELOCK AL SALIR DEL JUEGO
+    // 🔐 DESACTIVAR WAKELOCK AL SALIR DEL JUEGO
     _disableWakelock();
     
-    // �🛑 CANCELAR TODOS LOS TIMERS ACTIVOS
+    // 🛑 CANCELAR TODOS LOS TIMERS ACTIVOS
     _timer?.cancel();
     _messageTimer?.cancel();
     _decisionTimer?.cancel();
     _playerTimer?.cancel();
+    _cpuTimer?.cancel();
     
     // 🔇 DETENER TODOS LOS AUDIOS DEL JUEGO
     try {
@@ -2428,16 +2496,15 @@ void _continueWithDiceResult(int finalResult) {
     _animationController.dispose();
     _jumpController.dispose();
     
-    // 🧹 LIMPIAR VARIABLES DE ESTADO
-    if (mounted) {
-      setState(() {
-        isMoving = false;
-        gameEnded = true; // Marcar juego como terminado
-        lastMessage = null;
-        currentMessage = '';
-        priorityMessage = null;
-      });
-    }
+    // 📬 LIMPIAR SISTEMA DE COLA DE MENSAJES
+    _messageQueue.clear();
+    
+    // 🧹 LIMPIAR VARIABLES DE ESTADO (SIN setState PARA EVITAR ERRORES)
+    isMoving = false;
+    gameEnded = true; // Marcar juego como terminado
+    lastMessage = null;
+    currentMessage = '';
+    priorityMessage = null;
     
     super.dispose();
   }
@@ -3079,7 +3146,7 @@ void _continueWithDiceResult(int finalResult) {
       }
       
       // ⏱️ PAUSA PARA ANÁLISIS - TIEMPO AUMENTADO PARA LEER BIEN
-      Timer(const Duration(milliseconds: 2500), () {
+      _cpuTimer = Timer(const Duration(milliseconds: 2500), () {
         if (mounted) {
           setState(() {
             lastMessage = null;
@@ -3087,7 +3154,7 @@ void _continueWithDiceResult(int finalResult) {
         }
         
         // 🚀 EJECUTAR MOVIMIENTO CON VERIFICACIÓN DE 3 SEISES
-        Timer(const Duration(milliseconds: 600), () {
+        _cpuTimer = Timer(const Duration(milliseconds: 600), () {
           if (mounted) {
             _continueWithDiceResult(finalDiceValue);
           }
@@ -3171,46 +3238,50 @@ void _continueWithDiceResult(int finalResult) {
     });
   }
 
-  // 🎲 LÓGICA DE SEISES CONSECUTIVOS - REGLA CLÁSICA DEL PARCHÍS
+  // � NUEVA FUNCIÓN: Manejar turnos extra acumulados
+  void _handleExtraTurns() {
+    if (extraTurnsRemaining > 0) {
+      print("🎲 DEBUG: Procesando turno extra. Quedan: $extraTurnsRemaining");
+      
+      // Mostrar mensaje de turno extra
+      String message = extraTurnsRemaining == 1 
+          ? "¡Turno extra! 🎲✨" 
+          : "¡$extraTurnsRemaining turnos extra restantes! 🎲✨🎲";
+      
+      _showMessage(message, priority: MessagePriority.normal, durationSeconds: 2);
+      
+      // Consumir un turno extra
+      extraTurnsRemaining--;
+      
+      // Continuar con el mismo jugador
+      Timer(const Duration(milliseconds: 1500), () {
+        if (_isCurrentPlayerCPU() && !isMoving) {
+          _rollDice(); // CPU lanza automáticamente
+        } else if (widget.isHuman[currentPlayerIndex] && !isMoving) {
+          _startPlayerTimer(); // Iniciar timer para humano
+        }
+      });
+    } else {
+      // No hay más turnos extra, cambiar al siguiente jugador
+      print("🔄 DEBUG: No hay más turnos extra, cambiando jugador");
+      _nextActivePlayer();
+    }
+  }
+
+  // �🎲 LÓGICA DE SEISES CONSECUTIVOS - REGLA CLÁSICA DEL PARCHÍS
   void _handleDiceResult(int diceResult) {
     setState(() {
-      if (diceResult == 6) {
-        // La lógica de 3 seises ya se maneja en _continueWithDiceResult
-        // Solo manejar turnos extra aquí
-        hasExtraTurn = true;
-        
-        // ✅ TURNO EXTRA POR SACAR 6 (ya verificado que no son 3 seises)
-        String extraTurnMessage = consecutiveSixes == 1 
-            ? "¡Sacaste 6! ¡Turno extra! 🎲✨"
-            : "¡Segundo 6! ¡Cuidado con el tercero! ⚠️🎲";
-        lastMessage = extraTurnMessage;
-        
-        // 🎵 Sonido de turno extra (lanzar nuevo)
-        AudioService().playNewTurn();
-        
-        // Quitar mensaje después de un tiempo
-        Timer(const Duration(milliseconds: 1500), () {
-          setState(() {
-            lastMessage = null;
-          });
-          
-          // 🤖 SI ES CPU: Continuar automáticamente con el turno extra
-          // 👤 SI ES HUMANO: Reiniciar timer para el turno extra
-          if (_isCurrentPlayerCPU() && !isMoving) {
-            Timer(const Duration(milliseconds: 500), () {
-              _rollDice();
-            });
-          } else if (widget.isHuman[currentPlayerIndex] && !isMoving) {
-            // 🔄 CRÍTICO: Reiniciar timer para turno extra de jugador humano
-            _startPlayerTimer();
-          }
-        });
-      } else {
-        // 🔄 NO ES 6: Resetear contador y cambiar turno
+      // 🎯 NUEVA LÓGICA: Ya no manejamos turnos extra por 6 aquí (se hace en _continueWithDiceResult)
+      // Solo verificamos si hay turnos extra pendientes para continuar o cambiar jugador
+      
+      if (diceResult != 6) {
+        // Si no es 6, resetear contador de seises consecutivos
         consecutiveSixes = 0;
         hasExtraTurn = false;
-        _nextActivePlayer();
       }
+      
+      // Usar el nuevo sistema de turnos extra acumulables
+      _handleExtraTurns();
     });
   }
 
@@ -3329,6 +3400,23 @@ void _continueWithDiceResult(int finalResult) {
     // Aplicar lógica de seises consecutivos (si debe cambiar turno)
     if (shouldChangeTurn) {
       _handleDiceResult(diceValue);
+    } else {
+      // 🤖 CASILLA "LANCE DE NUEVO": Activar lanzamiento automático para CPU
+      if (_isCurrentPlayerCPU()) {
+        // CPU debe lanzar automáticamente después de caer en "LANCE DE NUEVO"
+        Timer(const Duration(milliseconds: 1500), () {
+          if (!isMoving && mounted) {
+            _rollDice(); // Lanzar automáticamente para CPU
+          }
+        });
+      } else {
+        // 👤 PARA HUMANOS: Iniciar timer normal si cae en "LANCE DE NUEVO"
+        Timer(const Duration(milliseconds: 500), () {
+          if (!isMoving && mounted) {
+            _startPlayerTimer(); // Iniciar timer para jugador humano
+          }
+        });
+      }
     }
   }
 
@@ -3385,8 +3473,15 @@ void _continueWithDiceResult(int finalResult) {
 
   // Ejecutar la colisión después de que la ficha llegó al destino
   void _executeCollision(GamePiece attacker, GamePiece victim) {
-    // ¡SONIDO DRAMÁTICO DE COLISIÓN! 💥
-    _playCollisionSound();
+    // 🎵 ACTIVAR FLAG PARA EVITAR SONIDOS DUPLICADOS
+    _isPlayingCollisionAudio = true;
+    
+    // 🎵 SONIDO ÚNICO DE CAPTURA ÉPICA (sin duplicaciones)
+    AudioService().playCaptureSequence();
+    
+    // Vibración táctil dramática
+    HapticFeedback.heavyImpact();
+    Timer(const Duration(milliseconds: 100), () => HapticFeedback.heavyImpact());
     
     String attackerColor = _getColorName(attacker.color);
     String victimColor = _getColorName(victim.color);
@@ -3409,14 +3504,16 @@ void _continueWithDiceResult(int finalResult) {
       lastMessage = selectedMessage;
     });
     
-    // 🎵 Secuencia de sonidos para captura épica
-    AudioService().playCaptureSequence();
-    
     // Mostrar mensaje por 3 segundos
     _messageTimer?.cancel();
     _messageTimer = Timer(const Duration(seconds: 3), () {
       setState(() {
         lastMessage = null;
+      });
+      
+      // 🎵 DESACTIVAR FLAG DESPUÉS DE QUE TERMINA EL AUDIO
+      Timer(const Duration(milliseconds: 500), () {
+        _isPlayingCollisionAudio = false;
       });
     });
   }
@@ -3457,6 +3554,16 @@ void _continueWithDiceResult(int finalResult) {
           "$playerName pegó en la casilla mágica!",
           "¡Tira otra vez como todo un CAMPEÓN! 🎲✨"
         ];
+        
+        // ✅ AGREGAR OTRO TURNO EXTRA POR LA CASILLA "LANCE DE NUEVO"
+        extraTurnsRemaining++;
+        print("🍀 DEBUG: Casilla 'LANCE DE NUEVO' agregó turno extra. Total: $extraTurnsRemaining");
+        
+        // 🎯 MENSAJE ESPECIAL SI HAY DOBLE SUERTE (dado 6 + casilla)
+        if (diceValue == 6) {
+          messages.add("¡DOBLE SUERTE! Dado 6 + Lance de Nuevo = $extraTurnsRemaining turnos extra! 🎲✨🍀");
+        }
+        
         rollAgain = true;
         break;
         
@@ -3544,12 +3651,11 @@ void _continueWithDiceResult(int finalResult) {
         break;
     }
     
-    // ¡MOSTRAR MENSAJES CON DRAMA! 🎭
+    // ¡MOSTRAR MENSAJES CON DRAMA! 🎭 - TIEMPO AUMENTADO PARA LEER BIEN
     for (String message in messages) {
-      setState(() {
-        currentMessage = message;
-      });
-      await Future.delayed(const Duration(seconds: 2));
+      // 📬 USAR SISTEMA DE COLA PARA MENSAJES ESPECIALES
+      _showMessage(message, priority: MessagePriority.special, durationSeconds: 4);
+      await Future.delayed(const Duration(seconds: 4)); // Aumentado de 2 a 4 segundos
     }
     
     // ¡EJECUTAR EFECTOS! ✨
@@ -3562,6 +3668,18 @@ void _continueWithDiceResult(int finalResult) {
         piece.position = newPosition!;
       });
       
+      // 🎵 SONIDO SINCRONIZADO: Reproducir cuando la ficha llega visualmente a su destino
+      // EVITAR AUDIO DURANTE COLISIONES PARA PREVENIR DUPLICACIÓN
+      if (!_isPlayingCollisionAudio) {
+        if (newPosition.row == 9 && newPosition.col == 0) {
+          // Ficha llegó a SALIDA - sonido de bajar ficha
+          AudioService().playPieceDown();
+        } else {
+          // Ficha llegó a otra posición (teleportación) - sonido de subir ficha
+          AudioService().playPieceUp();
+        }
+      }
+      
       await _jumpController.reverse();
       await Future.delayed(const Duration(milliseconds: 500));
     }
@@ -3573,18 +3691,33 @@ void _continueWithDiceResult(int finalResult) {
     
     // ¡EFECTOS ESPECIALES CON PRIORIDAD SOBRE DADOS! 🎯
     if (skipNextTurn) {
-      // 🚨 PRIORIDAD: Casilla especial cancela beneficio de dado 6
-      if (diceValue == 6) {
-        setState(() {
-          consecutiveSixes = 0; // Resetear contador porque se pierde el turno extra
-        });
+      // 🚨 PRIORIDAD ALTA: Casilla "1 TURNO SIN JUGAR" anula TODOS los beneficios
+      setState(() {
+        if (diceValue == 6) {
+          consecutiveSixes = 0; // Resetear contador porque se pierde el turno extra del 6
+        }
         
-        // Mensaje de alta prioridad para informar sobre anulación
-        _showMessage("¡Casilla especial anula el turno extra del 6! 😱",
-            priority: MessagePriority.high, durationSeconds: 3);
-        
-        // El mensaje se limpia automáticamente por _showMessage
+        // 🚨 CRÍTICO: Anular TODOS los turnos extra acumulados
+        if (extraTurnsRemaining > 0) {
+          extraTurnsRemaining = 0;
+          print("🚨 DEBUG: '1 TURNO SIN JUGAR' anuló $extraTurnsRemaining turnos extra");
+        }
+      });
+      
+      // Mensaje de alta prioridad para informar sobre anulación
+      String message = "¡Casilla especial anula ";
+      if (diceValue == 6 && extraTurnsRemaining > 0) {
+        message += "el 6 y los turnos extra";
+      } else if (diceValue == 6) {
+        message += "el turno extra del 6";
+      } else if (extraTurnsRemaining > 0) {
+        message += "los turnos extra";
+      } else {
+        message += "beneficios";
       }
+      message += "! 😱";
+      
+      _showMessage(message, priority: MessagePriority.high, durationSeconds: 3);
       
       // TODO: Implementar skip de siguiente turno cuando sea el turno de este jugador
       print("$playerName debe saltar el próximo turno");
