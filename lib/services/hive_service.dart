@@ -114,6 +114,61 @@ class HiveService {
     return _statsBox?.get(key) as T?;
   }
 
+  /// 📚 GESTIÓN DE PREFERENCIAS DE TUTORIAL
+
+  /// Verificar si es la primera vez del usuario
+  static bool isFirstTime() {
+    return _statsBox?.get('is_first_time', defaultValue: true) ?? true;
+  }
+
+  /// Marcar que ya no es la primera vez
+  static Future<void> setNotFirstTime() async {
+    await _statsBox?.put('is_first_time', false);
+    print('✅ Marcado como usuario experimentado');
+  }
+
+  /// Obtener configuración de mostrar tutorial
+  static bool getShowTutorial() {
+    return _statsBox?.get('show_tutorial', defaultValue: true) ?? true;
+  }
+
+  /// Establecer si mostrar tutorial
+  static Future<void> setShowTutorial(bool show) async {
+    await _statsBox?.put('show_tutorial', show);
+    print('✅ Configuración tutorial: ${show ? 'Mostrar' : 'Ocultar'}');
+  }
+
+  /// Obtener configuración de mostrar tips en juego
+  static bool getShowGameTips() {
+    return _statsBox?.get('show_game_tips', defaultValue: true) ?? true;
+  }
+
+  /// Establecer si mostrar tips en juego
+  static Future<void> setShowGameTips(bool show) async {
+    await _statsBox?.put('show_game_tips', show);
+    print('✅ Tips en juego: ${show ? 'Activados' : 'Desactivados'}');
+  }
+
+  /// Obtener configuración de mostrar pantalla de bienvenida
+  static bool getShowWelcomeScreen() {
+    return _statsBox?.get('show_welcome_screen', defaultValue: true) ?? true;
+  }
+
+  /// Establecer si mostrar pantalla de bienvenida
+  static Future<void> setShowWelcomeScreen(bool show) async {
+    await _statsBox?.put('show_welcome_screen', show);
+    print('✅ Pantalla bienvenida: ${show ? 'Activada' : 'Desactivada'}');
+  }
+
+  /// Resetear todas las configuraciones de tutorial (para configuraciones)
+  static Future<void> resetTutorialSettings() async {
+    await _statsBox?.put('is_first_time', true);
+    await _statsBox?.put('show_tutorial', true);
+    await _statsBox?.put('show_game_tips', true);
+    await _statsBox?.put('show_welcome_screen', true);
+    print('🔄 Configuraciones de tutorial reseteadas');
+  }
+
   /// 🧹 LIMPIEZA Y MANTENIMIENTO
 
   /// Limpiar datos de usuario (mantener configuraciones)

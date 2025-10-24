@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/hive_service.dart';
 import '../services/auth_service.dart';
 import '../models/game_settings.dart';
+import 'instructions_screen.dart';
 
 /// ⚙️ PANTALLA DE CONFIGURACIONES
 /// 
@@ -156,6 +157,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _settings.vibrationEnabled,
                   (value) => setState(() => _settings.toggleVibration()),
                 ),
+              ],
+            ),
+            
+            const SizedBox(height: 24),
+            
+            // 📚 SECCIÓN TUTORIALES Y AYUDA
+            _buildSection(
+              icon: Icons.help_outline,
+              title: 'Tutoriales y Ayuda',
+              children: [
+                _buildSwitchTile(
+                  'Mostrar pantalla de bienvenida',
+                  Icons.waving_hand,
+                  HiveService.getShowWelcomeScreen(),
+                  (value) {
+                    setState(() {
+                      HiveService.setShowWelcomeScreen(value);
+                    });
+                  },
+                ),
+                _buildSwitchTile(
+                  'Mostrar botón de ayuda en juego',
+                  Icons.help_outline,
+                  HiveService.getShowGameTips(),
+                  (value) {
+                    setState(() {
+                      HiveService.setShowGameTips(value);
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                _buildTutorialButtons(),
               ],
             ),
             
@@ -474,7 +507,100 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// �📊 Información de debug
+  /// 📚 Botones de tutorial
+  Widget _buildTutorialButtons() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Botón ver instrucciones
+        ElevatedButton.icon(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const InstructionsScreen(),
+              ),
+            );
+          },
+          icon: const Icon(Icons.help_outline),
+          label: const Text('Ver Instrucciones'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Botón resetear configuraciones
+        OutlinedButton.icon(
+          onPressed: () => _showResetTutorialDialog(),
+          icon: const Icon(Icons.refresh),
+          label: const Text('Resetear Tutoriales'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.orange,
+            side: BorderSide(color: Colors.orange.shade300),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 🔄 Mostrar diálogo para resetear tutoriales
+  void _showResetTutorialDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: const Row(
+          children: [
+            Icon(Icons.refresh, color: Colors.orange),
+            SizedBox(width: 12),
+            Text('Resetear Tutoriales'),
+          ],
+        ),
+        content: const Text(
+          'Esto restaurará todas las configuraciones de tutorial a sus valores predeterminados:\n\n'
+          '• Pantalla de bienvenida: Activada\n'
+          '• Botón de ayuda en juego: Activado\n'
+          '• Tutorial para nuevos usuarios: Activado\n\n'
+          '¿Deseas continuar?'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              HiveService.resetTutorialSettings();
+              Navigator.pop(context);
+              setState(() {}); // Refresh UI
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('✅ Configuraciones de tutorial reseteadas'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Resetear'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 📊 Información de debug
   Widget _buildDebugInfo() {
     return Card(
       color: Colors.grey.shade100,

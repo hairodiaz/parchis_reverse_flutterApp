@@ -9,6 +9,7 @@ import 'services/audio_service.dart';
 import 'screens/settings_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/intro_screen.dart'; // 🎬 NUEVA PANTALLA DE INTRO
+import 'screens/instructions_screen.dart'; // 📚 PANTALLA DE INSTRUCCIONES
 
 // Enum para prioridades de mensajes
 enum MessagePriority {
@@ -235,6 +236,11 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
     ));
     
     _startAnimations();
+    
+    // 📚 VERIFICAR SI MOSTRAR TUTORIAL DE BIENVENIDA
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkFirstTimeUser();
+    });
   }
   
   void _startAnimations() async {
@@ -243,6 +249,168 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
     _buttonsController.forward();
     await Future.delayed(const Duration(milliseconds: 800));
     _floatingController.repeat(reverse: true);
+  }
+  
+  // 📚 VERIFICAR SI ES PRIMERA VEZ DEL USUARIO
+  void _checkFirstTimeUser() {
+    if (HiveService.isFirstTime() && HiveService.getShowWelcomeScreen()) {
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        _showWelcomeTutorial();
+      });
+    }
+  }
+  
+  // 🎉 MOSTRAR DIÁLOGO DE BIENVENIDA
+  void _showWelcomeTutorial() {
+    bool dontShowAgain = false;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: const Color(0xFF1a237e),
+          title: const Row(
+            children: [
+              Icon(Icons.waving_hand, color: Colors.amber, size: 28),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  '¡Bienvenido al Parchís Reverse!',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '🎯 Esta es una versión moderna del clásico juego dominicano con nuevas mecánicas y efectos especiales.',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                '¿Te gustaría ver las instrucciones antes de empezar tu primera partida?',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Checkbox "No mostrar más"
+              InkWell(
+                onTap: () {
+                  setDialogState(() {
+                    dontShowAgain = !dontShowAgain;
+                  });
+                },
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: Checkbox(
+                        value: dontShowAgain,
+                        onChanged: (value) {
+                          setDialogState(() {
+                            dontShowAgain = value ?? false;
+                          });
+                        },
+                        activeColor: Colors.amber,
+                        side: const BorderSide(color: Colors.white),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'No mostrar esta bienvenida nuevamente',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      _handleWelcomeChoice(false, dontShowAgain);
+                      Navigator.pop(context);
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.white),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text('Empezar Jugando'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      _handleWelcomeChoice(true, dontShowAgain);
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const InstructionsScreen(showAsFirstTime: true),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.amber,
+                      foregroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text(
+                      'Ver Tutorial',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  // 🎯 MANEJAR ELECCIÓN DEL USUARIO EN BIENVENIDA
+  void _handleWelcomeChoice(bool viewedTutorial, bool dontShowAgain) {
+    // Marcar como usuario experimentado
+    HiveService.setNotFirstTime();
+    
+    // Si eligió no mostrar más, guardar preferencia
+    if (dontShowAgain) {
+      HiveService.setShowWelcomeScreen(false);
+    }
+    
+    print('📚 Bienvenida procesada - Tutorial: $viewedTutorial, No mostrar: $dontShowAgain');
   }
 
   @override
@@ -716,89 +884,234 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
             ),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Parchís Reverse Dominicano',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Versión 1.0.0',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF6A1B9A).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0xFF6A1B9A).withOpacity(0.3),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header del juego
+              const Text(
+                '🎲 Parchís Reverse Dominicano',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black87,
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              const SizedBox(height: 4),
+              Text(
+                'Versión 1.0.0 • Primera Release',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              
+              const SizedBox(height: 20),
+              
+              // Información del desarrollador
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6A1B9A).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: const Color(0xFF6A1B9A).withOpacity(0.3),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Text(
+                          '👨‍💻',
+                          style: TextStyle(fontSize: 20),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Desarrollado por:',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF6A1B9A),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Ing. Hairo Díaz',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '� Ingeniero en Sistemas de Información',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Historia personal
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: Colors.blue.withOpacity(0.2),
+                          width: 1,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Text('🌟', style: TextStyle(fontSize: 16)),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Mi Historia:',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue[800],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '💻 Adicto a la programación desde siempre\n'
+                            '🎮 Fanático de los videojuegos\n'
+                            '🌟 El desarrollo de videojuegos es mi sueño\n'
+                            '🇩🇴 Dominicano viviendo en Estados Unidos\n'
+                            '🆕 ¡Este es mi primer videojuego!',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[700],
+                              height: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 12),
+                    
+                    // Tecnología
+                    Text(
+                      '🛠️ Tecnología:',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange[800],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Desarrollado con Flutter & Dart\nOptimizado para iOS y Android',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey[600],
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(height: 16),
+              
+              // Visión del proyecto
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.amber.withOpacity(0.3),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Text('🎯', style: TextStyle(fontSize: 16)),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Visión del Proyecto:',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.amber[800],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Preservar y modernizar el tradicional juego dominicano del Parchís, '
+                      'llevando nuestra cultura al mundo digital con una experiencia '
+                      'inmersiva y divertida para todas las edades.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey[700],
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(height: 16),
+              
+              // Footer con corazón
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text(
-                    '👨‍💻 Desarrollado por:',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF6A1B9A),
-                    ),
+                  Icon(
+                    Icons.favorite,
+                    color: Colors.red[400],
+                    size: 16,
                   ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Ing. Hairo Díaz',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
+                  const SizedBox(width: 6),
                   Text(
-                    '🎯 Una versión moderna del clásico juego de mesa dominicano con mecánicas únicas y experiencia inmersiva.',
+                    'Hecho con pasión y orgullo dominicano 🇩🇴',
                     style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[700],
-                      height: 1.4,
+                      fontSize: 11,
+                      color: Colors.grey[600],
+                      fontStyle: FontStyle.italic,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Icon(
-                  Icons.favorite,
-                  color: Colors.red[400],
-                  size: 16,
+              
+              const SizedBox(height: 8),
+              
+              // Agradecimientos
+              Text(
+                '✨ Gracias por jugar y apoyar mi primer videojuego',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.grey[500],
+                  fontStyle: FontStyle.italic,
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  'Hecho con pasión en República Dominicana',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-              ],
-            ),
-          ],
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -1069,6 +1382,42 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
                               color: Colors.white,
                               fontWeight: FontWeight.w600,
                             ),
+                          ),
+                        ),
+                      ],
+                      
+                      // 📚 BOTÓN DE INSTRUCCIONES SOLO EN MODO CLÁSICO
+                      if (available && title == 'CLÁSICO') ...[
+                        const SizedBox(height: 16),
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const InstructionsScreen(),
+                              ),
+                            );
+                          },
+                          icon: const Icon(
+                            Icons.help_outline,
+                            size: 18,
+                            color: Colors.white,
+                          ),
+                          label: const Text(
+                            '¿Cómo Jugar?',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: Colors.white.withOpacity(0.1),
+                            side: const BorderSide(color: Colors.white, width: 1),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           ),
                         ),
                       ],
@@ -3919,6 +4268,31 @@ void _continueWithDiceResult(int finalResult) {
         elevation: 4,
         automaticallyImplyLeading: false, // Quitar botón atrás de la pantalla de juego
         actions: [
+          // 📚 Botón de ayuda contextual (solo si está habilitado)
+          if (HiveService.getShowGameTips())
+            Container(
+              margin: const EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                color: Colors.amber.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: IconButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const InstructionsScreen(),
+                    ),
+                  );
+                },
+                icon: const Icon(
+                  Icons.help_outline,
+                  color: Colors.amber,
+                  size: 24,
+                ),
+                tooltip: '¿Cómo Jugar?',
+              ),
+            ),
           // Botón de configuración
           Container(
             margin: const EdgeInsets.only(right: 8),
