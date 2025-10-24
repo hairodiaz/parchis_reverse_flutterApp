@@ -223,6 +223,54 @@ class HiveService {
     };
   }
 
+  // 🎨 MÉTODOS PARA COLORES DE JUGADORES
+  
+  /// Guardar colores preferidos de jugadores
+  static Future<void> savePlayerColors(List<int> colorIndices) async {
+    try {
+      await _statsBox?.put('player_colors', colorIndices);
+      print('🎨 Colores de jugadores guardados: $colorIndices');
+    } catch (e) {
+      print('❌ Error guardando colores: $e');
+    }
+  }
+  
+  /// Obtener colores preferidos de jugadores
+  static List<int> getPlayerColors() {
+    try {
+      final colors = _statsBox?.get('player_colors', defaultValue: [0, 1, 2, 3]) as List<dynamic>?;
+      final result = colors?.cast<int>() ?? [0, 1, 2, 3]; // Rojo, Azul, Verde, Amarillo por defecto
+      print('🎨 Colores de jugadores recuperados: $result');
+      return result;
+    } catch (e) {
+      print('❌ Error recuperando colores: $e');
+      return [0, 1, 2, 3]; // Valores por defecto
+    }
+  }
+  
+  /// Guardar orden de turnos aleatorio
+  static Future<void> saveTurnOrder(List<int> turnOrder) async {
+    try {
+      await _statsBox?.put('turn_order', turnOrder);
+      print('🎲 Orden de turnos guardado: $turnOrder');
+    } catch (e) {
+      print('❌ Error guardando orden de turnos: $e');
+    }
+  }
+  
+  /// Obtener orden de turnos
+  static List<int> getTurnOrder() {
+    try {
+      final order = _statsBox?.get('turn_order', defaultValue: [0, 1, 2, 3]) as List<dynamic>?;
+      final result = order?.cast<int>() ?? [0, 1, 2, 3];
+      print('🎲 Orden de turnos recuperado: $result');
+      return result;
+    } catch (e) {
+      print('❌ Error recuperando orden de turnos: $e');
+      return [0, 1, 2, 3];
+    }
+  }
+
   /// 🔄 CERRAR HIVE (para testing)
   static Future<void> close() async {
     await _userBox?.close();

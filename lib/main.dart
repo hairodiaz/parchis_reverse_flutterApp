@@ -1695,15 +1695,17 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
   int numPlayers = 4;
   List<String> playerNames = ['Jugador 1', 'Jugador 2', 'Jugador 3', 'Jugador 4'];
   List<bool> isHuman = [true, true, true, true]; // true = humano, false = CPU
-  List<Color> playerColors = [Colors.red, Colors.blue, Colors.green, Colors.yellow];
+  List<Color> availableColors = [Colors.red, Colors.blue, Colors.green, Colors.yellow];
   List<String> colorNames = ['Rojo', 'Azul', 'Verde', 'Amarillo'];
+  List<int> selectedColorIndices = [0, 1, 2, 3]; // Índices de colores seleccionados por cada jugador
 
   @override
   void initState() {
     super.initState();
     
-    // Configurar nombre del usuario actual después de initState
+    // Cargar configuraciones guardadas
     _loadUserName();
+    _loadPlayerColors();
   }
   
   void _loadUserName() {
@@ -1713,6 +1715,139 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
         playerNames[0] = user.name;
       });
     }
+  }
+  
+  void _loadPlayerColors() {
+    final savedColors = HiveService.getPlayerColors();
+    if (mounted) {
+      setState(() {
+        selectedColorIndices = savedColors;
+      });
+    }
+  }
+  
+  void _showColorPicker(int playerIndex) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: Text(
+          '🎨 Color para ${playerNames[playerIndex]}',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        content: SizedBox(
+          width: 200,
+          height: 100,
+          child: GridView.builder(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+            ),
+            itemCount: availableColors.length,
+            itemBuilder: (context, colorIndex) {
+              final isSelected = selectedColorIndices[playerIndex] == colorIndex;
+              final isUsedByOther = selectedColorIndices.contains(colorIndex) && 
+                                   selectedColorIndices[playerIndex] != colorIndex;
+              
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    if (isUsedByOther) {
+                      // 🔄 INTERCAMBIO AUTOMÁTICO DE COLORES
+                      int otherPlayerIndex = selectedColorIndices.indexOf(colorIndex);
+                      int myCurrentColor = selectedColorIndices[playerIndex];
+                      
+                      // Hacer el intercambio
+                      selectedColorIndices[playerIndex] = colorIndex;
+                      selectedColorIndices[otherPlayerIndex] = myCurrentColor;
+                      
+                      // Mostrar mensaje de intercambio
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            '🔄 Intercambio: ${playerNames[playerIndex]} ↔ ${playerNames[otherPlayerIndex]}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          backgroundColor: Colors.blue,
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    } else {
+                      // Selección normal
+                      selectedColorIndices[playerIndex] = colorIndex;
+                    }
+                  });
+                  
+                  HiveService.savePlayerColors(selectedColorIndices);
+                  Navigator.pop(context);
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: availableColors[colorIndex],
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isSelected 
+                          ? Colors.white
+                          : Colors.black54,
+                      width: isSelected ? 3 : 2,
+                    ),
+                    boxShadow: isSelected ? [
+                      BoxShadow(
+                        color: availableColors[colorIndex].withOpacity(0.4),
+                        spreadRadius: 1,
+                        blurRadius: 6,
+                      ),
+                    ] : null,
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          isSelected 
+                              ? Icons.check_circle
+                              : (isUsedByOther ? Icons.swap_horiz : Icons.circle),
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          colorNames[colorIndex],
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (isUsedByOther)
+                          const Text(
+                            'Intercambiar',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 7,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Cancelar',
+              style: TextStyle(fontSize: 14),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -1895,7 +2030,7 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                               width: 40,
                               height: 40,
                               decoration: BoxDecoration(
-                                color: playerColors[index],
+                                color: availableColors[selectedColorIndices[index]],
                                 shape: BoxShape.circle,
                                 border: Border.all(color: Colors.white, width: 3),
                               ),
@@ -1955,9 +2090,9 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                               ),
                             ),
                             
-                            // Selector CPU/Humano
+                            // Selector CPU/Humano (Jugador 1 siempre es humano)
                             GestureDetector(
-                              onTap: () {
+                              onTap: index == 0 ? null : () { // Bloquear tap para Jugador 1
                                 setState(() {
                                   isHuman[index] = !isHuman[index];
                                   if (!isHuman[index]) {
@@ -1971,14 +2106,18 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                                   vertical: 8
                                 ),
                                 decoration: BoxDecoration(
-                                  color: isHuman[index] 
-                                      ? Colors.green[100]
-                                      : Colors.orange[100],
+                                  color: index == 0 
+                                      ? Colors.blue[50] // Color especial para Jugador 1
+                                      : (isHuman[index] 
+                                          ? Colors.green[100]
+                                          : Colors.orange[100]),
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
-                                    color: isHuman[index] 
-                                        ? Colors.green
-                                        : Colors.orange,
+                                    color: index == 0 
+                                        ? Colors.blue[300]! // Borde especial para Jugador 1
+                                        : (isHuman[index] 
+                                            ? Colors.green
+                                            : Colors.orange),
                                     width: 2,
                                   ),
                                 ),
@@ -1986,26 +2125,66 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Icon(
-                                      isHuman[index] 
-                                          ? Icons.person 
-                                          : Icons.smart_toy,
+                                      index == 0 
+                                          ? Icons.account_circle // Icono especial para Jugador 1
+                                          : (isHuman[index] 
+                                              ? Icons.person 
+                                              : Icons.smart_toy),
                                       size: 20,
-                                      color: isHuman[index] 
-                                          ? Colors.green[700]
-                                          : Colors.orange[700],
+                                      color: index == 0 
+                                          ? Colors.blue[700] // Color especial para Jugador 1
+                                          : (isHuman[index] 
+                                              ? Colors.green[700]
+                                              : Colors.orange[700]),
                                     ),
                                     const SizedBox(width: 5),
                                     Text(
-                                      isHuman[index] ? 'HUMANO' : 'CPU',
+                                      index == 0 
+                                          ? 'TÚ' // Texto especial para Jugador 1
+                                          : (isHuman[index] ? 'HUMANO' : 'CPU'),
                                       style: TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold,
-                                        color: isHuman[index] 
-                                            ? Colors.green[700]
-                                            : Colors.orange[700],
+                                        color: index == 0 
+                                            ? Colors.blue[700] // Color especial para Jugador 1
+                                            : (isHuman[index] 
+                                                ? Colors.green[700]
+                                                : Colors.orange[700]),
                                       ),
                                     ),
                                   ],
+                                ),
+                              ),
+                            ),
+                            
+                            const SizedBox(width: 10),
+                            
+                            // Selector de Color
+                            GestureDetector(
+                              onTap: () => _showColorPicker(index),
+                              child: Container(
+                                width: 50,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: availableColors[selectedColorIndices[index]],
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 3,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.2),
+                                      spreadRadius: 1,
+                                      blurRadius: 3,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.palette,
+                                  color: Colors.white,
+                                  size: 20,
                                 ),
                               ),
                             ),
@@ -2023,6 +2202,14 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                   margin: const EdgeInsets.only(top: 20),
                   child: ElevatedButton(
                     onPressed: () {
+                      // Generar orden aleatorio de turnos
+                      List<int> turnOrder = List.generate(numPlayers, (index) => index);
+                      turnOrder.shuffle(); // Mezclar aleatoriamente
+                      
+                      // Guardar configuraciones
+                      HiveService.savePlayerColors(selectedColorIndices);
+                      HiveService.saveTurnOrder(turnOrder);
+                      
                       // Navegar al juego con la configuración
                       Navigator.of(context).pushReplacement(
                         MaterialPageRoute(
@@ -2030,6 +2217,8 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                             numPlayers: numPlayers,
                             playerNames: playerNames.take(numPlayers).toList(),
                             isHuman: isHuman.take(numPlayers).toList(),
+                            playerColorIndices: selectedColorIndices.take(numPlayers).toList(),
+                            turnOrder: turnOrder,
                           ),
                         ),
                       );
@@ -2065,12 +2254,16 @@ class ParchisBoard extends StatefulWidget {
   final int numPlayers;
   final List<String> playerNames;
   final List<bool> isHuman;
+  final List<int> playerColorIndices;
+  final List<int> turnOrder;
   
   const ParchisBoard({
     super.key,
     this.numPlayers = 4,
     this.playerNames = const ['Rojo', 'Azul', 'Verde', 'Amarillo'],
     this.isHuman = const [true, true, true, true],
+    this.playerColorIndices = const [0, 1, 2, 3],
+    this.turnOrder = const [0, 1, 2, 3],
   });
 
   @override
@@ -2091,10 +2284,12 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   List<GamePiece> gamePieces = [];
   
   // Variables para control de turnos
-  int currentPlayerIndex = 0; // 0=rojo, 1=azul, 2=verde, 3=amarillo
+  int currentPlayerIndex = 0; // Se inicializará con el primer jugador del turnOrder
   List<Color> playerColors = [Colors.red, Colors.blue, Colors.green, Colors.yellow];
   List<String> playerNames = ['Rojo', 'Azul', 'Verde', 'Amarillo'];
   List<String?> customPlayerNames = [null, null, null, null]; // Nombres personalizados (null = usar color)
+  late List<int> turnOrder; // Orden de turnos aleatorio
+  int currentTurnIndex = 0; // Índice actual en el turnOrder
   
   // 🎲 REGLAS CLÁSICAS DEL PARCHÍS
   int consecutiveSixes = 0; // Contador de seises consecutivos
@@ -2605,15 +2800,18 @@ void _continueWithDiceResult(int finalResult) {
     // 📱 ACTIVAR WAKELOCK - MANTENER PANTALLA ENCENDIDA
     _enableWakelock();
     
-    // Configurar jugadores según la pantalla de configuración
+    // Configurar orden de turnos y colores
+    turnOrder = widget.turnOrder;
+    currentTurnIndex = 0;
+    currentPlayerIndex = turnOrder[currentTurnIndex]; // Empezar con el primer jugador del orden aleatorio
+    
+    // Configurar colores personalizados de jugadores
     for (int i = 0; i < widget.numPlayers; i++) {
       customPlayerNames[i] = widget.playerNames[i];
-    }
-    
-    // Si el jugador 1 es humano, usar el nombre del usuario actual
-    if (widget.isHuman[0]) {
-      // Usar el nombre que ya se configuró desde la pantalla anterior
-      customPlayerNames[0] = widget.playerNames[0];
+      // Actualizar colores según la selección del usuario
+      if (i < widget.playerColorIndices.length) {
+        playerColors[i] = [Colors.red, Colors.blue, Colors.green, Colors.yellow][widget.playerColorIndices[i]];
+      }
     }
     
     // 🎮 AUTO-INICIAR SI EL PRIMER JUGADOR ES CPU / ⏰ TIMER SI ES HUMANO
@@ -3562,11 +3760,12 @@ void _continueWithDiceResult(int finalResult) {
     return analysisMessages[random.nextInt(analysisMessages.length)];
   }
 
-  // 🔄 SISTEMA INTELIGENTE DE TURNOS - Solo jugadores activos
+  // 🔄 SISTEMA INTELIGENTE DE TURNOS - Orden aleatorio y solo jugadores activos
   void _nextActivePlayer() {
-    // ✅ CICLO CORRECTO: Solo entre jugadores activos (SALTAR ELIMINADOS)
+    // ✅ CICLO CON ORDEN ALEATORIO: Avanzar al siguiente jugador según turnOrder
     do {
-      currentPlayerIndex = (currentPlayerIndex + 1) % widget.numPlayers;
+      currentTurnIndex = (currentTurnIndex + 1) % widget.numPlayers;
+      currentPlayerIndex = turnOrder[currentTurnIndex];
     } while (playerEliminated[currentPlayerIndex]); // Saltar jugadores eliminados
     
     // Resetear contador de auto-lanzamientos si fue el jugador cambiado
