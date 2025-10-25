@@ -54,6 +54,30 @@ class AudioService {
     print('   Habilitado: $_soundEnabled');
   }
 
+  // 🔄 RECARGAR CONFIGURACIONES INMEDIATAMENTE
+  Future<void> reloadSettings() async {
+    print('🔄 Recargando configuraciones de audio...');
+    
+    // Cargar nuevas configuraciones desde Hive
+    final settings = HiveService.getSettings();
+    _effectsVolume = settings.effectsVolume;
+    _musicVolume = settings.musicVolume;
+    _soundEnabled = settings.soundEnabled;
+    
+    // Aplicar inmediatamente a reproductores activos
+    try {
+      await _effectsPlayer.setVolume(_effectsVolume);
+      await _musicPlayer.setVolume(_musicVolume * 0.6); // 60% para música de fondo
+      
+      print('✅ Configuraciones aplicadas inmediatamente:');
+      print('   Efectos: ${(_effectsVolume * 100).toInt()}%');
+      print('   Música: ${(_musicVolume * 100).toInt()}%');
+      print('   Habilitado: $_soundEnabled');
+    } catch (e) {
+      print('❌ Error aplicando configuraciones: $e');
+    }
+  }
+
   // 🎲 EFECTOS DE SONIDO DEL JUEGO
 
   /// Sonido del dado rodando

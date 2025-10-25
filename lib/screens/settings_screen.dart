@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/hive_service.dart';
 import '../services/auth_service.dart';
+import '../services/audio_service.dart'; // 🎵 IMPORTAR AUDIOSERVICE
 import '../models/game_settings.dart';
 import 'instructions_screen.dart';
 
@@ -70,6 +71,88 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  // 🔊 MÉTODOS DE AUDIO CON APLICACIÓN INMEDIATA
+
+  /// 🎵 Actualizar volumen de música
+  Future<void> _updateMusicVolume(double value) async {
+    setState(() {
+      _settings.updateMusicVolume(value);
+    });
+    
+    await _saveSettings();
+    
+    // 🔄 APLICAR CAMBIOS INMEDIATAMENTE
+    try {
+      await AudioService().reloadSettings();
+      print('🎵 Volumen de música aplicado inmediatamente: ${(value * 100).toInt()}%');
+    } catch (e) {
+      print('❌ Error aplicando volumen de música: $e');
+    }
+  }
+
+  /// 🔊 Actualizar volumen de efectos
+  Future<void> _updateEffectsVolume(double value) async {
+    setState(() {
+      _settings.updateEffectsVolume(value);
+    });
+    
+    await _saveSettings();
+    
+    // 🔄 APLICAR CAMBIOS INMEDIATAMENTE + SONIDO DE PRUEBA
+    try {
+      await AudioService().reloadSettings();
+      
+      // 🎲 Reproducir sonido de prueba con el nuevo volumen
+      await Future.delayed(const Duration(milliseconds: 100));
+      AudioService().playDiceRoll();
+      
+      print('🔊 Volumen de efectos aplicado inmediatamente: ${(value * 100).toInt()}%');
+    } catch (e) {
+      print('❌ Error aplicando volumen de efectos: $e');
+    }
+  }
+
+  /// 🎵 Activar/desactivar música
+  Future<void> _toggleMusic(bool enabled) async {
+    setState(() {
+      _settings.toggleMusic();
+    });
+    
+    await _saveSettings();
+    
+    // 🔄 APLICAR CAMBIOS INMEDIATAMENTE
+    try {
+      await AudioService().reloadSettings();
+      print('🎵 Música ${enabled ? "activada" : "desactivada"} inmediatamente');
+    } catch (e) {
+      print('❌ Error toggling música: $e');
+    }
+  }
+
+  /// 🔊 Activar/desactivar efectos
+  Future<void> _toggleSound(bool enabled) async {
+    setState(() {
+      _settings.toggleSound();
+    });
+    
+    await _saveSettings();
+    
+    // 🔄 APLICAR CAMBIOS INMEDIATAMENTE + SONIDO DE PRUEBA
+    try {
+      await AudioService().reloadSettings();
+      
+      if (enabled) {
+        // 🎲 Reproducir sonido de prueba cuando se activa
+        await Future.delayed(const Duration(milliseconds: 100));
+        AudioService().playDiceRoll();
+      }
+      
+      print('🔊 Efectos ${enabled ? "activados" : "desactivados"} inmediatamente');
+    } catch (e) {
+      print('❌ Error toggling efectos: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -118,20 +201,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: 'Audio',
               children: [
                 _buildVolumeSlider(
-                  'Música',
+                  'Música de fondo',
                   Icons.music_note,
                   _settings.musicVolume,
                   _settings.musicEnabled,
-                  (value) => setState(() => _settings.updateMusicVolume(value)),
-                  (enabled) => setState(() => _settings.toggleMusic()),
+                  (value) => _updateMusicVolume(value),
+                  (enabled) => _toggleMusic(enabled),
                 ),
                 _buildVolumeSlider(
                   'Efectos de sonido',
                   Icons.volume_up,
                   _settings.effectsVolume,
                   _settings.soundEnabled,
-                  (value) => setState(() => _settings.updateEffectsVolume(value)),
-                  (enabled) => setState(() => _settings.toggleSound()),
+                  (value) => _updateEffectsVolume(value),
+                  (enabled) => _toggleSound(enabled),
                 ),
                 _buildVolumeSlider(
                   'Notificaciones',
