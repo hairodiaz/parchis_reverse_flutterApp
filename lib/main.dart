@@ -1730,19 +1730,21 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          '🎨 Color para ${playerNames[playerIndex]}',
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          '🎨 Seleccionar Color para ${playerNames[playerIndex]}',
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          textAlign: TextAlign.center,
         ),
         content: SizedBox(
-          width: 200,
-          height: 100,
+          width: 320, // Aumentado de 200 a 320
+          height: 200, // Aumentado de 100 a 200
           child: GridView.builder(
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
-              mainAxisSpacing: 8,
-              crossAxisSpacing: 8,
+              mainAxisSpacing: 16, // Aumentado de 8 a 16
+              crossAxisSpacing: 16, // Aumentado de 8 a 16
+              childAspectRatio: 1.1, // Hacer los elementos un poco más altos
             ),
             itemCount: availableColors.length,
             itemBuilder: (context, colorIndex) {
@@ -1785,20 +1787,27 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                 child: Container(
                   decoration: BoxDecoration(
                     color: availableColors[colorIndex],
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(15), // Aumentado de 10 a 15
                     border: Border.all(
                       color: isSelected 
                           ? Colors.white
                           : Colors.black54,
-                      width: isSelected ? 3 : 2,
+                      width: isSelected ? 4 : 3, // Aumentado el grosor del borde
                     ),
                     boxShadow: isSelected ? [
                       BoxShadow(
-                        color: availableColors[colorIndex].withOpacity(0.4),
-                        spreadRadius: 1,
-                        blurRadius: 6,
+                        color: availableColors[colorIndex].withOpacity(0.6), // Más opacidad
+                        spreadRadius: 2, // Aumentado de 1 a 2
+                        blurRadius: 8, // Aumentado de 6 a 8
                       ),
-                    ] : null,
+                    ] : [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        spreadRadius: 1,
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Center(
                     child: Column(
@@ -1809,15 +1818,22 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                               ? Icons.check_circle
                               : (isUsedByOther ? Icons.swap_horiz : Icons.circle),
                           color: Colors.white,
-                          size: 20,
+                          size: 28, // Aumentado de 20 a 28
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 4), // Aumentado de 2 a 4
                         Text(
                           colorNames[colorIndex],
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 9,
+                            fontSize: 12, // Aumentado de 9 a 12
                             fontWeight: FontWeight.bold,
+                            shadows: [
+                              Shadow(
+                                offset: Offset(1, 1),
+                                blurRadius: 2,
+                                color: Colors.black45,
+                              ),
+                            ],
                           ),
                         ),
                         if (isUsedByOther)
@@ -1825,8 +1841,15 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                             'Intercambiar',
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: 7,
+                              fontSize: 9, // Aumentado de 7 a 9
                               fontStyle: FontStyle.italic,
+                              shadows: [
+                                Shadow(
+                                  offset: Offset(1, 1),
+                                  blurRadius: 2,
+                                  color: Colors.black45,
+                                ),
+                              ],
                             ),
                           ),
                       ],
@@ -1838,11 +1861,24 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Cancelar',
-              style: TextStyle(fontSize: 14),
+          Center(
+            child: TextButton(
+              onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                backgroundColor: Colors.grey.shade200,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text(
+                '❌ Cancelar',
+                style: TextStyle(
+                  fontSize: 16, // Aumentado de 14 a 16
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
             ),
           ),
         ],
