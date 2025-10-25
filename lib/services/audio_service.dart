@@ -159,7 +159,7 @@ class AudioService {
   // 🎶 MÚSICA DE FONDO
 
   /// Reproducir música de fondo
-  Future<void> playBackgroundMusic(String filename) async {
+  Future<void> playBackgroundMusic(String filename, {double? volumeMultiplier}) async {
     if (!_isInitialized || !_soundEnabled || _musicVolume == 0.0) {
       return;
     }
@@ -169,11 +169,13 @@ class AudioService {
       await _musicPlayer.stop();
       
       // 🎵 CONFIGURAR VOLUMEN Y LOOP PARA MÚSICA DE FONDO
-      await _musicPlayer.setVolume(_musicVolume * 0.8); // 80% del volumen configurado
+      // Usar volumeMultiplier personalizado o el por defecto (0.8)
+      double finalVolumeMultiplier = volumeMultiplier ?? 0.8;
+      await _musicPlayer.setVolume(_musicVolume * finalVolumeMultiplier);
       await _musicPlayer.setReleaseMode(ReleaseMode.loop); // Loop infinito
       await _musicPlayer.play(AssetSource('audio/music/$filename'));
       
-      print('🎶 Reproduciendo música en loop: $filename (volumen: ${(_musicVolume * 0.8).toStringAsFixed(2)})');
+      print('🎶 Reproduciendo música en loop: $filename (volumen: ${(_musicVolume * finalVolumeMultiplier).toStringAsFixed(2)})');
     } catch (e) {
       print('❌ Error reproduciendo música $filename: $e');
     }

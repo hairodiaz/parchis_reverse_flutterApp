@@ -2399,7 +2399,6 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
 
   // 🎵 SISTEMA DE MÚSICA DRAMÁTICA
   bool isDramaticMusicPlaying = false; // Control de música dramática
-  static const int dramaticZoneThreshold = 80; // Casilla 80 o superior activa música dramática
 
   // �👤 SISTEMA DE PERFILES DE JUGADORES
   
@@ -3219,7 +3218,7 @@ void _continueWithDiceResult(int finalResult) {
 
   // 🎵 REVISAR Y ACTIVAR MÚSICA DRAMÁTICA
   void _checkAndActivateDramaticMusic() async {
-    // Verificar si hay fichas en la zona dramática (posición 80+)
+    // Verificar si hay fichas en las últimas 5 casillas antes de META
     bool hasPiecesInDramaticZone = false;
     
     for (int i = 0; i < gamePieces.length; i++) {
@@ -3228,6 +3227,7 @@ void _continueWithDiceResult(int finalResult) {
       // Saltear fichas eliminadas o en posiciones especiales
       if (piece.position.row == -1 && piece.position.col == -1) continue;
       if (piece.position.row == 9 && piece.position.col == 0) continue; // En salida
+      if (piece.position.row == 0 && piece.position.col == 0) continue; // Ya en META
       
       // Encontrar el índice de la ficha en boardPath
       int currentPathIndex = -1;
@@ -3239,9 +3239,14 @@ void _continueWithDiceResult(int finalResult) {
         }
       }
       
-      // Verificar si está en zona dramática
-      if (currentPathIndex >= dramaticZoneThreshold) {
+      // ✅ NUEVA LÓGICA: Verificar si está en las últimas 5 casillas
+      // META está en último índice, entonces últimas 5 son: metaIndex-4 hasta metaIndex
+      int metaIndex = boardPath.length - 1; // Último índice (META)
+      int dramaticZoneStart = metaIndex - 4; // 5 casillas antes
+      
+      if (currentPathIndex >= dramaticZoneStart && currentPathIndex <= metaIndex) {
         hasPiecesInDramaticZone = true;
+        print("🎭 DEBUG: Ficha en zona dramática - Índice: $currentPathIndex, Zona: $dramaticZoneStart-$metaIndex");
         break;
       }
     }
@@ -3249,9 +3254,9 @@ void _continueWithDiceResult(int finalResult) {
     // Activar música dramática si hay fichas en zona y no está ya sonando
     if (hasPiecesInDramaticZone && !isDramaticMusicPlaying) {
       try {
-        await AudioService().playBackgroundMusic('Dramatic.mp3');
+        await AudioService().playBackgroundMusic('Dramatic.mp3', volumeMultiplier: 0.5);
         isDramaticMusicPlaying = true;
-        print('🎭 Música dramática activada - Fichas en la zona final');
+        print('🎭 Música dramática activada - Fichas en últimas 5 casillas (volumen reducido)');
       } catch (e) {
         print('❌ Error al activar música dramática: $e');
       }
@@ -4091,6 +4096,15 @@ void _continueWithDiceResult(int finalResult) {
             lastMessage = "¡Tocaste la META! Ahora rebotando... 🔄";
           });
           
+          // ⏰ Timer para limpiar mensaje de rebote después de 3 segundos
+          Timer(const Duration(milliseconds: 3000), () {
+            if (mounted) {
+              setState(() {
+                lastMessage = null;
+              });
+            }
+          });
+          
           // 🎵 Sonido de rebote al tocar la META
           AudioService().playBounceEffect();
         }
@@ -4323,21 +4337,17 @@ void _continueWithDiceResult(int finalResult) {
           "¡Tira otra vez como todo un CAMPEÓN! 🎲✨"
         ];
         
-          // 🍀 CORRECCIÓN: Solo incrementar si NO fue por un dado 6
-  if (diceValue != 6) {
-    extraTurnsRemaining++;
-    print("🍀 DEBUG: Casilla 'LANCE DE NUEVO' agregó turno extra. Total: $extraTurnsRemaining");
-  } else {
-    print("🎲 DEBUG: Casilla 'LANCE DE NUEVO' no incrementa (ya hay turno extra por dado 6)");
-  }
-  
-  // 🎯 MENSAJE ESPECIAL SI HAY DOBLE SUERTE (6 + Lance de Nuevo)
-  if (diceValue == 6) {
-    messages.add("¡DOBLE SUERTE! Dado 6 + Lance de Nuevo = 2 turnos extra total! 🎲✨🍀");
-  }
-  
-  rollAgain = true;
-  break;
+        // 🍀 CORRECCIÓN: SIEMPRE agregar 1 turno extra por la casilla especial
+        extraTurnsRemaining++;
+        print("🍀 DEBUG: Casilla 'LANCE DE NUEVO' agregó turno extra. Total: $extraTurnsRemaining");
+        
+        // 🎯 MENSAJE ESPECIAL SI HAY DOBLE SUERTE (6 + Lance de Nuevo)
+        if (diceValue == 6) {
+          messages.add("¡DOBLE SUERTE! Dado 6 + Lance de Nuevo = 2 turnos extra total! 🎲✨🍀");
+        }
+        
+        rollAgain = true;
+        break;
         
       case 'VUELVE\nA LA\nSALIDA':
         messages = [
