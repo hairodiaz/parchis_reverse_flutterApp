@@ -3521,6 +3521,7 @@ void _continueWithDiceResult(int finalResult) {
     autoLaunchCount[currentPlayerIndex]++;
     
     setState(() {
+      lastMessage = "⏰ ¡Tiempo agotado! Lanzamiento automático (${autoLaunchCount[currentPlayerIndex]}/$maxAutoLaunches)";
       isTimerFlashing = false;
     });
     
@@ -4891,31 +4892,6 @@ void _continueWithDiceResult(int finalResult) {
         elevation: 4,
         automaticallyImplyLeading: false, // Quitar botón atrás de la pantalla de juego
         actions: [
-          // 📚 Botón de ayuda contextual (solo si está habilitado)
-          if (HiveService.getShowGameTips())
-            Container(
-              margin: const EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(
-                color: Colors.amber.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: IconButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const InstructionsScreen(),
-                    ),
-                  );
-                },
-                icon: const Icon(
-                  Icons.help_outline,
-                  color: Colors.amber,
-                  size: 24,
-                ),
-                tooltip: '¿Cómo Jugar?',
-              ),
-            ),
           // 🆕 BOTÓN DE PAUSA
           Container(
             margin: const EdgeInsets.only(right: 8),
