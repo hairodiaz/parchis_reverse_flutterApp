@@ -2408,6 +2408,8 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   bool wasDiceAnimating = false; // Si el dado estaba animándose cuando se pausó
   bool wasInDecisionPeriod = false; // Si estaba en período de decisión cuando se pausó
   int pausedDiceResult = 0; // Resultado del dado cuando se pausó
+  bool wasPlayerTimerActive = false; // Si el timer del jugador estaba activo cuando se pausó
+  int pausedTimerCountdown = 10; // Tiempo restante del timer cuando se pausó
 
   // �👤 SISTEMA DE PERFILES DE JUGADORES
   
@@ -3335,6 +3337,8 @@ void _continueWithDiceResult(int finalResult) {
     wasDiceAnimating = (_timer != null && _timer!.isActive);
     wasInDecisionPeriod = isDecisionTime;
     pausedDiceResult = diceValue;
+    wasPlayerTimerActive = (_playerTimer != null && _playerTimer!.isActive);
+    pausedTimerCountdown = timerCountdown; // Guardar tiempo restante
     
     // Pausar timers
     _playerTimer?.cancel();
@@ -3352,6 +3356,7 @@ void _continueWithDiceResult(int finalResult) {
     
     print('⏸️ Todos los sistemas del juego pausados');
     print('🔄 Estado guardado: dado=${wasDiceAnimating}, decisión=${wasInDecisionPeriod}, resultado=${pausedDiceResult}');
+    print('⏰ Timer guardado: activo=${wasPlayerTimerActive}, tiempo=${pausedTimerCountdown}s');
   }
 
   // ▶️ REANUDAR TODOS LOS SISTEMAS DEL JUEGO
@@ -3385,9 +3390,14 @@ void _continueWithDiceResult(int finalResult) {
           _cpuMakeChangeDecision();
         }
         
+      } else if (wasPlayerTimerActive && widget.isHuman[currentPlayerIndex] && !isMoving) {
+        // Timer del jugador humano estaba activo, restaurar con tiempo restante
+        print('🔄 Restaurando: timer del jugador con ${pausedTimerCountdown}s restantes');
+        _resumePlayerTimerWithTime(pausedTimerCountdown);
+        
       } else if (widget.isHuman[currentPlayerIndex] && !isMoving) {
-        // Jugador humano esperando lanzar dado
-        print('🔄 Restaurando: jugador humano esperando');
+        // Jugador humano esperando lanzar dado (timer no estaba activo)
+        print('🔄 Restaurando: jugador humano esperando (nuevo timer)');
         _startPlayerTimer();
         
       } else if (_isCurrentPlayerCPU() && !isMoving) {
@@ -3401,6 +3411,8 @@ void _continueWithDiceResult(int finalResult) {
     wasDiceAnimating = false;
     wasInDecisionPeriod = false;
     pausedDiceResult = 0;
+    wasPlayerTimerActive = false;
+    pausedTimerCountdown = 10;
     
     print('▶️ Todos los sistemas del juego reanudados');
   }
@@ -3583,6 +3595,44 @@ void _continueWithDiceResult(int finalResult) {
       timerCountdown = 10;
       isTimerFlashing = false;
     });
+    
+    _playerTimer?.cancel(); // Cancelar timer anterior
+    _playerTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        timerCountdown--;
+        
+        // Activar parpadeo a los 5 segundos
+        if (timerCountdown <= 5) {
+          isTimerFlashing = true;
+        }
+      });
+      
+      // 🎵 Sonido de urgencia a los 5 segundos
+      if (timerCountdown == 5) {
+        AudioService().playTimer();
+      } else if (timerCountdown <= 3 && timerCountdown > 0) {
+        AudioService().playTimer(); // Sonido cada segundo en los últimos 3
+      }
+      
+      // ⏰ TIEMPO AGOTADO - LANZAMIENTO AUTOMÁTICO
+      if (timerCountdown <= 0) {
+        timer.cancel();
+        _handlePlayerTimeout();
+      }
+    });
+  }
+
+  // 🔄 REANUDAR TIMER DEL JUGADOR CON TIEMPO ESPECÍFICO
+  void _resumePlayerTimerWithTime(int remainingTime) {
+    // Solo para jugadores humanos
+    if (!widget.isHuman[currentPlayerIndex] || isMoving || isPaused) return;
+    
+    setState(() {
+      timerCountdown = remainingTime;
+      isTimerFlashing = remainingTime <= 5; // Mantener parpadeo si ya estaba
+    });
+    
+    print('⏰ Reanudando timer del jugador con ${remainingTime}s restantes');
     
     _playerTimer?.cancel(); // Cancelar timer anterior
     _playerTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
