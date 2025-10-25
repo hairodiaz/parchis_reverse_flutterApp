@@ -2408,6 +2408,8 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   bool wasDiceAnimating = false; // Si el dado estaba animándose cuando se pausó
   bool wasInDecisionPeriod = false; // Si estaba en período de decisión cuando se pausó
   int pausedDiceResult = 0; // Resultado del dado cuando se pausó
+  Timer? pausedDiceTimer; // Timer de animación que estaba activo
+  bool shouldCompleteDiceAnimation = false; // Si debe completar la animación al reanudar
   bool wasPlayerTimerActive = false; // Si el timer del jugador estaba activo cuando se pausó
   int pausedTimerCountdown = 10; // Tiempo restante del timer cuando se pausó
 
@@ -2623,7 +2625,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     );
     
     // 🎵 Sonido de confirmación
-    AudioService().playPieceUp();
+    if (!isPaused) AudioService().playPieceUp(); // 🚫 NO sonar durante pausa
   }
 
   // Widget auxiliar para filas del perfil
@@ -2759,6 +2761,8 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     _animationController.forward();
     
     Timer? newDiceTimer = Timer.periodic(const Duration(milliseconds: 80), (timer) {
+      if (isPaused) return; // 🚫 NO animar durante la pausa
+      
       setState(() {
         currentDiceResult = Random().nextInt(6) + 1; // Animación aleatoria
       });
@@ -2830,7 +2834,7 @@ void _continueWithDiceResult(int finalResult) {
           priority: MessagePriority.critical, durationSeconds: 4);
       
       // 🎵 Sonido de penalización
-      AudioService().playLoseTurn();
+      if (!isPaused) AudioService().playLoseTurn(); // 🚫 NO sonar durante pausa
       
       // Cambiar turno después del mensaje
       Timer(const Duration(milliseconds: 2500), () {
@@ -3199,18 +3203,18 @@ void _continueWithDiceResult(int finalResult) {
         case 'SUBE\nAL\n63':
         case 'SUBE\nAL\n70':
           // 🚀 Sonido de subir para casillas que te llevan hacia arriba
-          AudioService().playPieceUp();
+          if (!isPaused) AudioService().playPieceUp(); // 🚫 NO sonar durante pausa
           break;
         case 'VUELVE\nA LA\nSALIDA':
           // 📉 Sonido de bajar cuando llegas a la SALIDA
-          AudioService().playPieceDown();
+          if (!isPaused) AudioService().playPieceDown(); // 🚫 NO sonar durante pausa
           break;
         case 'BAJA\nAL\n24':
         case 'BAJA\nAL\n30':
         case 'BAJA\nAL\n40':
         case 'BAJA\nAL\n50':
           // ⬇️ Sonido de bajar para casillas que te llevan hacia abajo
-          AudioService().playPieceDown();
+          if (!isPaused) AudioService().playPieceDown(); // 🚫 NO sonar durante pausa
           break;
         default:
           // No reproducir sonido para otras casillas
@@ -3368,6 +3372,12 @@ void _continueWithDiceResult(int finalResult) {
     wasPlayerTimerActive = (_playerTimer != null && _playerTimer!.isActive);
     pausedTimerCountdown = timerCountdown; // Guardar tiempo restante
     
+    // 🎲 DETECTAR SI EL DADO ESTÁ EN ANIMACIÓN ACTIVA
+    if (_animationController.isAnimating) {
+      shouldCompleteDiceAnimation = true;
+      print('🎲 Dado en animación detectado - será completado al reanudar');
+    }
+    
     // Pausar timers
     _playerTimer?.cancel();
     _cpuTimer?.cancel();
@@ -3394,7 +3404,25 @@ void _continueWithDiceResult(int finalResult) {
     
     // 🔄 RESTAURAR ESTADO SEGÚN LO QUE ESTABA PASANDO CUANDO SE PAUSÓ
     if (!gameEnded) {
-      if (wasDiceAnimating) {
+      if (shouldCompleteDiceAnimation) {
+        // El dado estaba en animación, completarla con el resultado correcto
+        print('🎲 Completando animación del dado interrumpida por pausa');
+        setState(() {
+          currentDiceResult = pausedDiceResult;
+        });
+        
+        // Completar animación rápidamente
+        Timer(const Duration(milliseconds: 500), () {
+          if (!isPaused) {
+            setState(() {
+              diceValue = pausedDiceResult;
+              isMoving = true;
+            });
+            _startDecisionPeriod(pausedDiceResult);
+          }
+        });
+        
+      } else if (wasDiceAnimating) {
         // El dado estaba animándose, continuar inmediatamente con el resultado
         print('🔄 Restaurando: el dado estaba animándose, continuando con resultado ${pausedDiceResult}');
         setState(() {
@@ -3440,6 +3468,7 @@ void _continueWithDiceResult(int finalResult) {
     wasInDecisionPeriod = false;
     pausedDiceResult = 0;
     wasPlayerTimerActive = false;
+    shouldCompleteDiceAnimation = false; // Limpiar flag de animación
     pausedTimerCountdown = 10;
     
     print('▶️ Todos los sistemas del juego reanudados');
@@ -3711,7 +3740,7 @@ void _continueWithDiceResult(int finalResult) {
     });
     
     // 🎵 Sonido de timeout
-    AudioService().playLoseTurn();
+    if (!isPaused) AudioService().playLoseTurn(); // 🚫 NO sonar durante pausa
     
     // Verificar si debe ser eliminado
     if (autoLaunchCount[currentPlayerIndex] >= maxAutoLaunches) {
@@ -3743,7 +3772,7 @@ void _continueWithDiceResult(int finalResult) {
         priority: MessagePriority.critical, durationSeconds: 5);
     
     // 🎵 Sonido de eliminación
-    AudioService().playLoseTurn();
+    if (!isPaused) AudioService().playLoseTurn(); // 🚫 NO sonar durante pausa
     
     // Verificar si el juego debe terminar
     Timer(const Duration(milliseconds: 2000), () {
@@ -3817,9 +3846,9 @@ void _continueWithDiceResult(int finalResult) {
       
       // Sonido según la posición
       if (position == 1) {
-        AudioService().playPieceUp(); // Sonido épico de victoria (usamos el sonido de subir)
+        if (!isPaused) AudioService().playPieceUp(); // 🚫 NO sonar durante pausa
       } else {
-        AudioService().playNewTurn(); // Sonido de logro
+        if (!isPaused) AudioService().playNewTurn(); // 🚫 NO sonar durante pausa
       }
       
       // Verificar si el juego debe terminar
@@ -4503,7 +4532,7 @@ void _continueWithDiceResult(int finalResult) {
           });
           
           // 🎵 Sonido de rebote al tocar la META
-          AudioService().playBounceEffect();
+          if (!isPaused) AudioService().playBounceEffect(); // 🚫 NO sonar durante pausa
         }
       } else if (targetIndex >= metaIndex) {
         // Si llega exactamente a la META
