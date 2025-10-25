@@ -4250,11 +4250,13 @@ void _rollDice() {
     _animationController.reset();
     _animationController.forward();
     
-    // Animación del dado
-    Timer? changeTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
-      setState(() {
-        diceValue = random.nextInt(6) + 1;
-      });
+    // 🎲 ANIMACIÓN NATURAL DEL DADO (MISMO SISTEMA QUE HUMANOS)
+    _timer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      if (mounted) {
+        setState(() {
+          diceValue = random.nextInt(6) + 1;
+        });
+      }
     });
 
     // ⏱️ SINCRONIZAR CON DURACIÓN DEL SONIDO DICE.MP3 + 1.5s adicionales para coordinación perfecta
