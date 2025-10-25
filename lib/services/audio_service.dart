@@ -169,11 +169,11 @@ class AudioService {
       await _musicPlayer.stop();
       
       // 🎵 CONFIGURAR VOLUMEN Y LOOP PARA MÚSICA DE FONDO
-      await _musicPlayer.setVolume(_musicVolume * 0.6); // 60% del volumen configurado
+      await _musicPlayer.setVolume(_musicVolume * 0.8); // 80% del volumen configurado
       await _musicPlayer.setReleaseMode(ReleaseMode.loop); // Loop infinito
       await _musicPlayer.play(AssetSource('audio/music/$filename'));
       
-      print('🎶 Reproduciendo música en loop: $filename (volumen: ${(_musicVolume * 0.6).toStringAsFixed(2)})');
+      print('🎶 Reproduciendo música en loop: $filename (volumen: ${(_musicVolume * 0.8).toStringAsFixed(2)})');
     } catch (e) {
       print('❌ Error reproduciendo música $filename: $e');
     }

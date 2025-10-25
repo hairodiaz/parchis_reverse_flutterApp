@@ -2397,6 +2397,10 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   // 💀 SISTEMA DE ELIMINACIÓN
   List<bool> playerEliminated = [false, false, false, false]; // Jugadores eliminados
 
+  // 🎵 SISTEMA DE MÚSICA DRAMÁTICA
+  bool isDramaticMusicPlaying = false; // Control de música dramática
+  static const int dramaticZoneThreshold = 80; // Casilla 80 o superior activa música dramática
+
   // �👤 SISTEMA DE PERFILES DE JUGADORES
   
   // Obtener nombre del jugador con formato correcto
@@ -2953,6 +2957,9 @@ void _continueWithDiceResult(int finalResult) {
         priorityMessage = null;
       });
     };
+
+    // 🎵 ASEGURAR QUE NO HAY MÚSICA DRAMÁTICA AL INICIO
+    isDramaticMusicPlaying = false;
   }
 
   void _initializeGamePieces() {
@@ -3193,6 +3200,57 @@ void _continueWithDiceResult(int finalResult) {
       print('🔇 Música de fondo detenida durante el juego');
     } catch (e) {
       print('❌ Error al detener música de fondo en el juego: $e');
+    }
+  }
+
+  // 🎵 REVISAR Y ACTIVAR MÚSICA DRAMÁTICA
+  void _checkAndActivateDramaticMusic() async {
+    // Verificar si hay fichas en la zona dramática (posición 80+)
+    bool hasPiecesInDramaticZone = false;
+    
+    for (int i = 0; i < gamePieces.length; i++) {
+      GamePiece piece = gamePieces[i];
+      
+      // Saltear fichas eliminadas o en posiciones especiales
+      if (piece.position.row == -1 && piece.position.col == -1) continue;
+      if (piece.position.row == 9 && piece.position.col == 0) continue; // En salida
+      
+      // Encontrar el índice de la ficha en boardPath
+      int currentPathIndex = -1;
+      for (int j = 0; j < boardPath.length; j++) {
+        if (boardPath[j].row == piece.position.row && 
+            boardPath[j].col == piece.position.col) {
+          currentPathIndex = j;
+          break;
+        }
+      }
+      
+      // Verificar si está en zona dramática
+      if (currentPathIndex >= dramaticZoneThreshold) {
+        hasPiecesInDramaticZone = true;
+        break;
+      }
+    }
+
+    // Activar música dramática si hay fichas en zona y no está ya sonando
+    if (hasPiecesInDramaticZone && !isDramaticMusicPlaying) {
+      try {
+        await AudioService().playBackgroundMusic('Dramatic.mp3');
+        isDramaticMusicPlaying = true;
+        print('🎭 Música dramática activada - Fichas en la zona final');
+      } catch (e) {
+        print('❌ Error al activar música dramática: $e');
+      }
+    }
+    // Desactivar música dramática si no hay fichas en zona y está sonando
+    else if (!hasPiecesInDramaticZone && isDramaticMusicPlaying) {
+      try {
+        await AudioService().stopBackgroundMusic();
+        isDramaticMusicPlaying = false;
+        print('🔇 Música dramática desactivada - No hay fichas en zona final');
+      } catch (e) {
+        print('❌ Error al desactivar música dramática: $e');
+      }
     }
   }
 
@@ -4070,6 +4128,9 @@ void _continueWithDiceResult(int finalResult) {
       jumpingPiece = null; // Ya no hay ficha saltando
     });
 
+    // 🎵 VERIFICAR MÚSICA DRAMÁTICA después de cada movimiento
+    _checkAndActivateDramaticMusic();
+
     // Si el juego terminó, no continuar con la lógica de dados
     if (gameEnded) {
       return;
@@ -4239,18 +4300,21 @@ void _continueWithDiceResult(int finalResult) {
           "¡Tira otra vez como todo un CAMPEÓN! 🎲✨"
         ];
         
-        // 🍀 LANCE DE NUEVO: Incrementar turnos extra para acumulación correcta
-        extraTurnsRemaining++;
-        print("🍀 DEBUG: Casilla 'LANCE DE NUEVO' agregó turno extra. Total: $extraTurnsRemaining");
-        
-        // 🎯 MENSAJE ESPECIAL SI HAY DOBLE SUERTE (6 + Lance de Nuevo)
-        if (diceValue == 6) {
-          messages.add("¡DOBLE SUERTE! Dado 6 + Lance de Nuevo = $extraTurnsRemaining turnos extra! 🎲✨🍀");
-        }
-        print("� DEBUG: Casilla 'LANCE DE NUEVO' activada. Solo rollAgain=true");
-        
-        rollAgain = true;
-        break;
+          // 🍀 CORRECCIÓN: Solo incrementar si NO fue por un dado 6
+  if (diceValue != 6) {
+    extraTurnsRemaining++;
+    print("🍀 DEBUG: Casilla 'LANCE DE NUEVO' agregó turno extra. Total: $extraTurnsRemaining");
+  } else {
+    print("🎲 DEBUG: Casilla 'LANCE DE NUEVO' no incrementa (ya hay turno extra por dado 6)");
+  }
+  
+  // 🎯 MENSAJE ESPECIAL SI HAY DOBLE SUERTE (6 + Lance de Nuevo)
+  if (diceValue == 6) {
+    messages.add("¡DOBLE SUERTE! Dado 6 + Lance de Nuevo = 2 turnos extra total! 🎲✨🍀");
+  }
+  
+  rollAgain = true;
+  break;
         
       case 'VUELVE\nA LA\nSALIDA':
         messages = [
