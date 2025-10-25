@@ -3015,14 +3015,14 @@ void _continueWithDiceResult(int finalResult) {
 
     // 📱 VIBRACIÓN INICIAL SI EL PRIMER JUGADOR ES HUMANO
     Timer(const Duration(milliseconds: 1000), () {
-      if (widget.isHuman[currentPlayerIndex] && !isMoving) {
+      if (widget.isHuman[currentPlayerIndex] && !isMoving && !isPaused) {
         // Vibración de bienvenida para el primer jugador humano
         HapticFeedback.heavyImpact();
         Timer(const Duration(milliseconds: 150), () {
-          HapticFeedback.lightImpact();
+          if (!isPaused) HapticFeedback.lightImpact();
         });
         Timer(const Duration(milliseconds: 300), () {
-          HapticFeedback.lightImpact();
+          if (!isPaused) HapticFeedback.lightImpact();
         });
       }
     });
@@ -3092,6 +3092,8 @@ void _continueWithDiceResult(int finalResult) {
 
   // ¡FUNCIONES DE SONIDO! 🎵🎲
   void _playDiceSound() {
+    if (isPaused) return; // 🚫 NO reproducir sonidos ni vibraciones durante la pausa
+    
     // 🎲 Reproducir sonido del dado
     AudioService().playDiceRoll();
     
@@ -3099,11 +3101,21 @@ void _continueWithDiceResult(int finalResult) {
     HapticFeedback.heavyImpact();
     
     // Secuencia de vibraciones cortas para simular el dado rebotando
-    Timer(const Duration(milliseconds: 100), () => HapticFeedback.mediumImpact());
-    Timer(const Duration(milliseconds: 200), () => HapticFeedback.lightImpact());
-    Timer(const Duration(milliseconds: 300), () => HapticFeedback.mediumImpact());
-    Timer(const Duration(milliseconds: 400), () => HapticFeedback.lightImpact());
-    Timer(const Duration(milliseconds: 600), () => HapticFeedback.heavyImpact()); // Final del dado
+    Timer(const Duration(milliseconds: 100), () {
+      if (!isPaused) HapticFeedback.mediumImpact();
+    });
+    Timer(const Duration(milliseconds: 200), () {
+      if (!isPaused) HapticFeedback.lightImpact();
+    });
+    Timer(const Duration(milliseconds: 300), () {
+      if (!isPaused) HapticFeedback.mediumImpact();
+    });
+    Timer(const Duration(milliseconds: 400), () {
+      if (!isPaused) HapticFeedback.lightImpact();
+    });
+    Timer(const Duration(milliseconds: 600), () {
+      if (!isPaused) HapticFeedback.heavyImpact(); // Final del dado
+    });
   }
   
 
@@ -3112,30 +3124,46 @@ void _continueWithDiceResult(int finalResult) {
     // 🎵 NO REPRODUCIR SONIDOS DURANTE COLISIONES PARA EVITAR DUPLICACIÓN
     if (_isPlayingCollisionAudio) {
       // Solo vibración durante colisiones, sin audio
-      HapticFeedback.lightImpact();
+      if (!isPaused) HapticFeedback.lightImpact();
       return;
     }
     
     switch (cellType) {
       case 'LANCE\nDE\nNUEVO':
         // 🎯 Sonido de nuevo turno
-        AudioService().playNewTurn();
-        HapticFeedback.lightImpact();
-        Timer(const Duration(milliseconds: 100), () => HapticFeedback.lightImpact());
-        Timer(const Duration(milliseconds: 200), () => HapticFeedback.mediumImpact());
+        if (!isPaused) {
+          AudioService().playNewTurn();
+          HapticFeedback.lightImpact();
+          Timer(const Duration(milliseconds: 100), () {
+            if (!isPaused) HapticFeedback.lightImpact();
+          });
+          Timer(const Duration(milliseconds: 200), () {
+            if (!isPaused) HapticFeedback.mediumImpact();
+          });
+        }
         break;
       case 'VUELVE\nA LA\nSALIDA':
-        // � SONIDO MOVIDO: Se reproducirá cuando la ficha llegue a SALIDA visualmente
+        // 🔃 SONIDO MOVIDO: Se reproducirá cuando la ficha llegue a SALIDA visualmente
         // Solo vibración inmediata para feedback de casilla especial
-        HapticFeedback.heavyImpact();
-        Timer(const Duration(milliseconds: 200), () => HapticFeedback.heavyImpact());
-        Timer(const Duration(milliseconds: 400), () => HapticFeedback.heavyImpact());
+        if (!isPaused) {
+          HapticFeedback.heavyImpact();
+          Timer(const Duration(milliseconds: 200), () {
+            if (!isPaused) HapticFeedback.heavyImpact();
+          });
+          Timer(const Duration(milliseconds: 400), () {
+            if (!isPaused) HapticFeedback.heavyImpact();
+          });
+        }
         break;
       case '1 TURNO\nSIN\nJUGAR':
         // 😴 Sonido de perder turno
-        AudioService().playLoseTurn();
-        HapticFeedback.mediumImpact();
-        Timer(const Duration(milliseconds: 300), () => HapticFeedback.lightImpact());
+        if (!isPaused) {
+          AudioService().playLoseTurn();
+          HapticFeedback.mediumImpact();
+          Timer(const Duration(milliseconds: 300), () {
+            if (!isPaused) HapticFeedback.lightImpact();
+          });
+        }
         break;
       default:
         // 📈 SONIDO MOVIDO: Se reproducirá cuando la ficha llegue a la nueva posición
@@ -3583,13 +3611,15 @@ void _continueWithDiceResult(int finalResult) {
     if (!widget.isHuman[currentPlayerIndex] || isMoving || isPaused) return;
     
     // 📱 VIBRACIÓN PARA ALERTAR TURNO HUMANO
-    HapticFeedback.mediumImpact();
-    Timer(const Duration(milliseconds: 200), () {
-      HapticFeedback.lightImpact();
-    });
-    Timer(const Duration(milliseconds: 400), () {
+    if (!isPaused) {
       HapticFeedback.mediumImpact();
-    });
+      Timer(const Duration(milliseconds: 200), () {
+        if (!isPaused) HapticFeedback.lightImpact();
+      });
+      Timer(const Duration(milliseconds: 400), () {
+        if (!isPaused) HapticFeedback.mediumImpact();
+      });
+    }
     
     setState(() {
       timerCountdown = 10;
@@ -3598,6 +3628,8 @@ void _continueWithDiceResult(int finalResult) {
     
     _playerTimer?.cancel(); // Cancelar timer anterior
     _playerTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (isPaused) return; // 🚫 NO ejecutar durante la pausa
+      
       setState(() {
         timerCountdown--;
         
@@ -3609,9 +3641,9 @@ void _continueWithDiceResult(int finalResult) {
       
       // 🎵 Sonido de urgencia a los 5 segundos
       if (timerCountdown == 5) {
-        AudioService().playTimer();
+        if (!isPaused) AudioService().playTimer(); // 🚫 NO sonar durante la pausa
       } else if (timerCountdown <= 3 && timerCountdown > 0) {
-        AudioService().playTimer(); // Sonido cada segundo en los últimos 3
+        if (!isPaused) AudioService().playTimer(); // 🚫 NO sonar durante la pausa
       }
       
       // ⏰ TIEMPO AGOTADO - LANZAMIENTO AUTOMÁTICO
@@ -3636,6 +3668,8 @@ void _continueWithDiceResult(int finalResult) {
     
     _playerTimer?.cancel(); // Cancelar timer anterior
     _playerTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (isPaused) return; // 🚫 NO ejecutar durante la pausa
+      
       setState(() {
         timerCountdown--;
         
@@ -3647,9 +3681,9 @@ void _continueWithDiceResult(int finalResult) {
       
       // 🎵 Sonido de urgencia a los 5 segundos
       if (timerCountdown == 5) {
-        AudioService().playTimer();
+        if (!isPaused) AudioService().playTimer(); // 🚫 NO sonar durante la pausa
       } else if (timerCountdown <= 3 && timerCountdown > 0) {
-        AudioService().playTimer(); // Sonido cada segundo en los últimos 3
+        if (!isPaused) AudioService().playTimer(); // 🚫 NO sonar durante la pausa
       }
       
       // ⏰ TIEMPO AGOTADO - LANZAMIENTO AUTOMÁTICO
