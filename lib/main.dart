@@ -237,6 +237,9 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
     
     _startAnimations();
     
+    // 🎵 INICIAR MÚSICA DE FONDO DEL MENÚ
+    _startBackgroundMusic();
+    
     // 📚 VERIFICAR SI MOSTRAR TUTORIAL DE BIENVENIDA
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkFirstTimeUser();
@@ -249,6 +252,18 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
     _buttonsController.forward();
     await Future.delayed(const Duration(milliseconds: 800));
     _floatingController.repeat(reverse: true);
+  }
+  
+  // 🎵 INICIAR MÚSICA DE FONDO DEL MENÚ
+  void _startBackgroundMusic() async {
+    try {
+      // Esperar un poco para que se carguen las animaciones
+      await Future.delayed(const Duration(milliseconds: 1000));
+      await AudioService().playBackgroundMusic('background.mp3');
+      print('🎵 Música de fondo iniciada en el menú principal');
+    } catch (e) {
+      print('❌ Error iniciando música de fondo: $e');
+    }
   }
   
   // 📚 VERIFICAR SI ES PRIMERA VEZ DEL USUARIO
@@ -2237,7 +2252,7 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                   height: 60,
                   margin: const EdgeInsets.only(top: 20),
                   child: ElevatedButton(
-                    onPressed: () {
+                    onPressed: () async {
                       // Generar orden aleatorio de turnos
                       List<int> turnOrder = List.generate(numPlayers, (index) => index);
                       turnOrder.shuffle(); // Mezclar aleatoriamente
@@ -2245,6 +2260,10 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                       // Guardar configuraciones
                       HiveService.savePlayerColors(selectedColorIndices);
                       HiveService.saveTurnOrder(turnOrder);
+                      
+                      // 🔇 DETENER MÚSICA DE FONDO ANTES DE ENTRAR AL JUEGO
+                      await AudioService().stopBackgroundMusic();
+                      print('🔇 Música de fondo detenida al iniciar partida');
                       
                       // Navegar al juego con la configuración
                       Navigator.of(context).pushReplacement(
@@ -2837,6 +2856,9 @@ void _continueWithDiceResult(int finalResult) {
     // 📱 ACTIVAR WAKELOCK - MANTENER PANTALLA ENCENDIDA
     _enableWakelock();
     
+    // 🔇 ASEGURAR QUE LA MÚSICA DE FONDO ESTÉ DETENIDA DURANTE EL JUEGO
+    _stopBackgroundMusicInGame();
+    
     // Configurar orden de turnos y colores
     turnOrder = widget.turnOrder;
     currentTurnIndex = 0;
@@ -3161,6 +3183,16 @@ void _continueWithDiceResult(int finalResult) {
       print('✅ Wakelock desactivado - Pantalla volverá a comportamiento normal');
     } catch (e) {
       print('❌ Error al desactivar wakelock: $e');
+    }
+  }
+
+  // 🔇 DETENER MÚSICA DE FONDO EN EL JUEGO
+  void _stopBackgroundMusicInGame() async {
+    try {
+      await AudioService().stopBackgroundMusic();
+      print('🔇 Música de fondo detenida durante el juego');
+    } catch (e) {
+      print('❌ Error al detener música de fondo en el juego: $e');
     }
   }
 
@@ -3566,9 +3598,18 @@ void _continueWithDiceResult(int finalResult) {
                 SizedBox(
                   width: double.infinity,
                   child: TextButton(
-                    onPressed: () {
+                    onPressed: () async {
                       Navigator.of(context).pop(); // Cerrar diálogo
                       Navigator.of(context).pop(); // Volver al menú principal
+                      
+                      // 🎵 REANUDAR MÚSICA DE FONDO AL VOLVER AL MENÚ
+                      try {
+                        await Future.delayed(const Duration(milliseconds: 500));
+                        await AudioService().playBackgroundMusic('background.mp3');
+                        print('🎵 Música de fondo reanudada al volver al menú');
+                      } catch (e) {
+                        print('❌ Error reanudando música de fondo: $e');
+                      }
                     },
                     style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
