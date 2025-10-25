@@ -2403,6 +2403,11 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   // ⏸️ SISTEMA DE PAUSA
   bool isPaused = false; // Estado de pausa
   bool wasAutoPaused = false; // Para distinguir pausa manual vs automática
+  
+  // 🔄 ESTADO DURANTE PAUSA (para restaurar correctamente)
+  bool wasDiceAnimating = false; // Si el dado estaba animándose cuando se pausó
+  bool wasInDecisionPeriod = false; // Si estaba en período de decisión cuando se pausó
+  int pausedDiceResult = 0; // Resultado del dado cuando se pausó
 
   // �👤 SISTEMA DE PERFILES DE JUGADORES
   
@@ -2669,6 +2674,12 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   // Countdown para decisión del humano
   void _startDecisionCountdown() {
     _decisionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      // ⏸️ VERIFICAR PAUSA ANTES DE CONTINUAR
+      if (isPaused) {
+        timer.cancel();
+        return;
+      }
+      
       setState(() {
         decisionCountdown--;
       });
@@ -2688,6 +2699,9 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   // CPU decide inteligentemente si cambiar
   void _cpuMakeChangeDecision() {
     Timer(const Duration(milliseconds: 1500), () {
+      // ⏸️ VERIFICAR PAUSA ANTES DE CONTINUAR
+      if (isPaused) return;
+      
       bool shouldChange = _cpuShouldChange(currentDiceResult);
       
       if (shouldChange && remainingChanges[currentPlayerIndex] > 0) {
@@ -3317,6 +3331,11 @@ void _continueWithDiceResult(int finalResult) {
 
   // ⏸️ PAUSAR TODOS LOS SISTEMAS DEL JUEGO
   void _pauseGameSystems() {
+    // 💾 GUARDAR ESTADO ANTES DE PAUSAR
+    wasDiceAnimating = (_timer != null && _timer!.isActive);
+    wasInDecisionPeriod = isDecisionTime;
+    pausedDiceResult = diceValue;
+    
     // Pausar timers
     _playerTimer?.cancel();
     _cpuTimer?.cancel();
@@ -3332,6 +3351,7 @@ void _continueWithDiceResult(int finalResult) {
     AudioService().pauseBackgroundMusic();
     
     print('⏸️ Todos los sistemas del juego pausados');
+    print('🔄 Estado guardado: dado=${wasDiceAnimating}, decisión=${wasInDecisionPeriod}, resultado=${pausedDiceResult}');
   }
 
   // ▶️ REANUDAR TODOS LOS SISTEMAS DEL JUEGO
@@ -3339,14 +3359,48 @@ void _continueWithDiceResult(int finalResult) {
     // Reanudar audio
     AudioService().resumeBackgroundMusic();
     
-    // Reanudar timers según el estado del juego
+    // 🔄 RESTAURAR ESTADO SEGÚN LO QUE ESTABA PASANDO CUANDO SE PAUSÓ
     if (!gameEnded) {
-      if (widget.isHuman[currentPlayerIndex] && !isMoving) {
-        _startPlayerTimer(); // Reiniciar timer si es humano
+      if (wasDiceAnimating) {
+        // El dado estaba animándose, continuar inmediatamente con el resultado
+        print('🔄 Restaurando: el dado estaba animándose, continuando con resultado ${pausedDiceResult}');
+        setState(() {
+          diceValue = pausedDiceResult;
+          isMoving = true;
+        });
+        _startDecisionPeriod(pausedDiceResult);
+        
+      } else if (wasInDecisionPeriod) {
+        // Estaba en período de decisión, restaurar countdown
+        print('🔄 Restaurando: estaba en período de decisión');
+        setState(() {
+          isDecisionTime = true;
+          currentDiceResult = pausedDiceResult;
+          decisionCountdown = 3; // Reiniciar countdown
+        });
+        
+        if (widget.isHuman[currentPlayerIndex]) {
+          _startDecisionCountdown();
+        } else {
+          _cpuMakeChangeDecision();
+        }
+        
+      } else if (widget.isHuman[currentPlayerIndex] && !isMoving) {
+        // Jugador humano esperando lanzar dado
+        print('🔄 Restaurando: jugador humano esperando');
+        _startPlayerTimer();
+        
       } else if (_isCurrentPlayerCPU() && !isMoving) {
+        // CPU esperando lanzar dado
+        print('🔄 Restaurando: CPU esperando');
         _cpuTimer = Timer(const Duration(milliseconds: 1000), () => _rollDice());
       }
     }
+    
+    // 🧹 LIMPIAR VARIABLES DE ESTADO DE PAUSA
+    wasDiceAnimating = false;
+    wasInDecisionPeriod = false;
+    pausedDiceResult = 0;
     
     print('▶️ Todos los sistemas del juego reanudados');
   }
@@ -4017,6 +4071,9 @@ void _continueWithDiceResult(int finalResult) {
 
     // ⏱️ SINCRONIZAR CON DURACIÓN DEL SONIDO DICE.MP3 + 1.5s adicionales para coordinación perfecta
     Timer(const Duration(milliseconds: 2500), () { // Aumentado de 1000ms a 2500ms (+ 1.5s)
+      // ⏸️ VERIFICAR PAUSA ANTES DE CONTINUAR
+      if (isPaused) return;
+      
       _timer?.cancel();
       setState(() {
         diceValue = finalDiceResult; // Asignar el resultado final SIN cambio brusco
