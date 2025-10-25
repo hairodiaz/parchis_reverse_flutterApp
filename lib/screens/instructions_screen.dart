@@ -96,18 +96,17 @@ class _InstructionsScreenState extends State<InstructionsScreen>
           _buildSectionTitle('🎲 Reglas Básicas'),
           
           _buildRuleCard(
-            '• Lanza el dado tocándolo\n'
-            '• Mueve tus fichas según el número que salga\n'
-            '• Si sacas 6, tienes un turno extra\n'
-            '• Si sacas 3 seises seguidos, pierdes el turno',
+            '• Lanza el dado tocándolo.\n'
+            '• Mueve tus fichas según el número que salga.\n'
+            '• Si sacas 6, tienes un turno extra.\n'
+            '• Si sacas 3 seis seguidos, pierdes el turno.',
             Icons.casino,
             Colors.blue,
           ),
           
           _buildRuleCard(
-            '• Puedes "comerte" fichas de otros jugadores\n'
-            '• La ficha comida regresa a la SALIDA\n'
-            '• Solo puedes salir de la SALIDA con 5 o 6',
+            '• Puedes "comerte" fichas de otros jugadores.\n'
+            '• La ficha comida regresa a la SALIDA.\n',
             Icons.sports_kabaddi,
             Colors.orange,
           ),
@@ -153,7 +152,7 @@ class _InstructionsScreenState extends State<InstructionsScreen>
             '🏠 VUELVE A LA SALIDA',
             'Tu ficha regresa automáticamente a la casilla de salida.',
             Colors.blue,
-            'Como si te hubieran comido',
+            'Como si te hubieran comido.',
           ),
           
           _buildSpecialCellCard(
@@ -213,21 +212,21 @@ class _InstructionsScreenState extends State<InstructionsScreen>
           
           _buildControlCard(
             '🎲 Lanzar Dado',
-            'Toca el dado para lanzarlo',
+            'Toca el dado para lanzarlo.',
             Icons.touch_app,
             Colors.blue,
           ),
           
           _buildControlCard(
             '🔄 Cambiar Jugada',
-            'Si el resultado no te conviene, puedes cambiarlo (3 veces por partida)',
+            'Si el resultado no te conviene, puedes cambiarlo (3 veces por partida).',
             Icons.refresh,
             Colors.orange,
           ),
           
           _buildControlCard(
             '👆 Mover Ficha',
-            'Toca tu ficha para moverla automáticamente',
+            'Toca tu ficha para moverla automáticamente.',
             Icons.pan_tool,
             Colors.green,
           ),
@@ -268,9 +267,9 @@ class _InstructionsScreenState extends State<InstructionsScreen>
           
           _buildTipCard(
             '🎯 Prioridades',
-            '1. Protege tus fichas cerca de la META\n'
-            '2. Bloquea a tus oponentes cuando puedas\n'
-            '3. Usa las casillas especiales tácticamente',
+            '1. Protege tus fichas cerca de la META.\n'
+            '2. Bloquea a tus oponentes cuando puedas.\n'
+            '3. Usa las casillas especiales tácticamente.',
             Colors.green,
           ),
         ],

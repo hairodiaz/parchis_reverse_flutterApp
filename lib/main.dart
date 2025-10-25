@@ -900,7 +900,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
               ),
               const SizedBox(height: 4),
               Text(
-                'Versión 1.0.0 • Primera Release',
+                'Versión 1.0.0',
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.grey[600],
@@ -991,10 +991,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            '💻 Adicto a la programación desde siempre\n'
-                            '🎮 Fanático de los videojuegos\n'
-                            '🌟 El desarrollo de videojuegos es mi sueño\n'
-                            '🇩🇴 Dominicano viviendo en Estados Unidos\n'
+                            '💻 Adicto a la programación.\n'
+                            '🎮 Fanático de los videojuegos.\n'
+                            '🌟 El desarrollo de videojuegos es mi sueño.\n'
+                            '🇩🇴 Dominicano viviendo en Estados Unidos.\n'
                             '🆕 ¡Este es mi primer videojuego!',
                             style: TextStyle(
                               fontSize: 12,
@@ -1738,7 +1738,7 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
         ),
         content: SizedBox(
           width: 320, // Aumentado de 200 a 320
-          height: 200, // Aumentado de 100 a 200
+          height: 260, // Aumentado de 100 a 200
           child: GridView.builder(
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
