@@ -2755,11 +2755,12 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     // 🎯 GENERAR NUEVO RESULTADO ANTES de la animación
     int newFinalResult = debugMode ? 6 : Random().nextInt(6) + 1;
 
-    // Nuevo lanzamiento de dado
+    // Usar la nueva animación mejorada
     _playDiceSound();
     _animationController.reset();
     _animationController.forward();
     
+    // 🎲 FASE 1: ANIMACIÓN RÁPIDA INICIAL (1700ms)
     Timer? newDiceTimer = Timer.periodic(const Duration(milliseconds: 80), (timer) {
       if (isPaused) return; // 🚫 NO animar durante la pausa
       
@@ -2768,29 +2769,81 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       });
     });
 
-    // ⏱️ SINCRONIZAR CON DURACIÓN DEL SONIDO DICE.MP3 + 1.5s adicionales para coordinación perfecta
-    Timer(const Duration(milliseconds: 2500), () { // Aumentado de 1000ms a 2500ms (+ 1.5s)
-      // ⏸️ VERIFICAR PAUSA ANTES DE CONTINUAR
+    // 🌊 FASE 2: DESACELERACIÓN GRADUAL (800ms)
+    Timer(const Duration(milliseconds: 1700), () {
       if (isPaused) return;
-      
       newDiceTimer.cancel();
       
-      setState(() {
-        currentDiceResult = newFinalResult; // Asignar resultado final SIN cambio brusco
-        _showMessage("🎲 Nuevo resultado: $newFinalResult",
-            priority: MessagePriority.normal, durationSeconds: 2);
-      });
-
-      Timer(const Duration(milliseconds: 400), () { // Reducido delay para movimiento más rápido
-        // ⏸️ VERIFICAR PAUSA ANTES DE CONTINUAR
+      // Desaceleración: 150ms → 200ms → 300ms
+      int currentDelay = 150;
+      int steps = 0;
+      
+      void _gradualSlowdown() {
         if (isPaused) return;
         
+        steps++;
         setState(() {
-          lastMessage = null;
+          // 70% probabilidad de mostrar resultado final, 30% aleatorio
+          currentDiceResult = (Random().nextDouble() < 0.7) 
+              ? newFinalResult 
+              : Random().nextInt(6) + 1;
         });
-        _continueWithDiceResult(newFinalResult); // Usar el resultado final correcto
-      });
+        
+        if (steps < 4) {
+          currentDelay += 50; // Aumentar delay gradualmente
+          Timer(Duration(milliseconds: currentDelay), _gradualSlowdown);
+        } else {
+          // 🎯 FASE 3: REBOTES FINALES
+          _finalBouncesForChange(newFinalResult);
+        }
+      }
+      
+      _gradualSlowdown();
     });
+  }
+
+  // 🎭 REBOTES FINALES PARA CAMBIO DE RESULTADO
+  void _finalBouncesForChange(int finalResult) {
+    int bounceCount = 0;
+    
+    void _doBounce() {
+      if (isPaused) return;
+      
+      bounceCount++;
+      
+      // Mostrar número aleatorio brevemente
+      setState(() {
+        currentDiceResult = Random().nextInt(6) + 1;
+      });
+      
+      Timer(const Duration(milliseconds: 150), () {
+        if (isPaused) return;
+        
+        // Mostrar resultado final
+        setState(() {
+          currentDiceResult = finalResult;
+          _showMessage("🎲 Nuevo resultado: $finalResult",
+              priority: MessagePriority.normal, durationSeconds: 2);
+        });
+        
+        if (bounceCount < 3) {
+          // Hacer otro rebote
+          Timer(const Duration(milliseconds: 200), _doBounce);
+        } else {
+          // 🎉 ANIMACIÓN COMPLETADA - Continuar con el juego
+          Timer(const Duration(milliseconds: 400), () {
+            if (isPaused) return;
+            
+            setState(() {
+              lastMessage = null;
+            });
+            _continueWithDiceResult(finalResult);
+          });
+        }
+      });
+    }
+    
+    _doBounce();
   }
 
   // Continuar con resultado actual (sin cambio)
@@ -2875,32 +2928,13 @@ void _continueWithDiceResult(int finalResult) {
       // ⏸️ VERIFICAR PAUSA ANTES DE CONTINUAR
       if (isPaused) return;
       
-      bool hasThreats = _checkAndShowThreatMessage(finalResult);
-      
-      if (hasThreats) {
-        Timer(const Duration(milliseconds: 1200), () {
-          // ⏸️ VERIFICAR PAUSA ANTES DE CONTINUAR
-          if (isPaused) return;
+      // Continuar directamente con el movimiento
+      Timer(const Duration(milliseconds: 200), () {
+        // ⏸️ VERIFICAR PAUSA ANTES DE CONTINUAR
+        if (isPaused) return;
           
-          setState(() {
-            lastMessage = null;
-          });
-          
-          Timer(const Duration(milliseconds: 200), () {
-            // ⏸️ VERIFICAR PAUSA ANTES DE CONTINUAR
-            if (isPaused) return;
-            
-            _moveCurrentPlayerPiece(finalResult);
-          });
-        });
-      } else {
-        Timer(const Duration(milliseconds: 200), () {
-          // ⏸️ VERIFICAR PAUSA ANTES DE CONTINUAR
-          if (isPaused) return;
-          
-          _moveCurrentPlayerPiece(finalResult);
-        });
-      }
+        _moveCurrentPlayerPiece(finalResult);
+      });
     });
   });
 }
@@ -4150,89 +4184,112 @@ void _continueWithDiceResult(int finalResult) {
     });
   }
 
-  void _rollDice() {
-    if (_timer != null && _timer!.isActive) return;
-    if (isMoving) return; // No permitir lanzar dado mientras se mueve una ficha
-    if (isPaused) return; // ⏸️ No permitir lanzar dado si el juego está pausado
-    
-    // ⏰ DETENER TIMER AL LANZAR DADO
-    _stopPlayerTimer();
-    
-    // 🔄 RESETEAR CONTADOR DE TIMEOUTS (lanzamiento manual)
-    autoLaunchCount[currentPlayerIndex] = 0;
-    
-    // 🤖 SISTEMA CPU INTELIGENTE - ¡ÉPICO!
-    if (_isCurrentPlayerCPU()) {
-      _executeCPUTurn();
-      return;
-    }
-    
-    // ¡SONIDO DEL DADO! 🎵
-    _playDiceSound();
-    
-    // 🎯 GENERAR RESULTADO FINAL ANTES de la animación
-    int finalDiceResult = debugMode ? 6 : random.nextInt(6) + 1;
-    
-    _animationController.reset();
-    _animationController.forward();
-    
-    _timer = Timer.periodic(const Duration(milliseconds: 80), (timer) {
-      setState(() {
-        diceValue = random.nextInt(6) + 1; // Animación aleatoria
-      });
-    });
+ // 1. MOVER LA FUNCIÓN _finalBounces FUERA DE _rollDice
+// Agregar esta función como método independiente de la clase, después de _rollDice():
 
-    // ⏱️ SINCRONIZAR CON DURACIÓN DEL SONIDO DICE.MP3 + 1.5s adicionales para coordinación perfecta
-    Timer(const Duration(milliseconds: 2500), () { // Aumentado de 1000ms a 2500ms (+ 1.5s)
-      // ⏸️ VERIFICAR PAUSA ANTES DE CONTINUAR
+// 🎭 FUNCIÓN INDEPENDIENTE: Rebotes finales dramáticos
+void _finalBounces(int finalResult) {
+  int bounceCount = 0;
+  
+  void _doBounce() {
+    if (isPaused) return;
+    
+    bounceCount++;
+    
+    // Mostrar número aleatorio brevemente
+    setState(() {
+      diceValue = random.nextInt(6) + 1;
+    });
+    
+    Timer(const Duration(milliseconds: 150), () {
       if (isPaused) return;
       
-      _timer?.cancel();
+      // Mostrar resultado final
       setState(() {
-        diceValue = finalDiceResult; // Asignar el resultado final SIN cambio brusco
-        isMoving = true; // Bloquear el dado
+        diceValue = finalResult;
       });
       
-      // 🔄 NUEVO: Iniciar período de decisión para cambio de jugada
-      _startDecisionPeriod(finalDiceResult);
+      if (bounceCount < 3) {
+        // Hacer otro rebote
+        Timer(const Duration(milliseconds: 200), _doBounce);
+      } else {
+        // 🎉 ANIMACIÓN COMPLETADA - Continuar con el juego
+        Timer(const Duration(milliseconds: 400), () {
+          if (isPaused) return;
+          setState(() {
+            isMoving = true;
+          });
+          _startDecisionPeriod(finalResult);
+        });
+      }
     });
   }
+  
+  _doBounce();
+}
 
-  // Nueva función para verificar y mostrar mensaje de amenaza
-  bool _checkAndShowThreatMessage(int steps) {
-    GamePiece currentPiece = gamePieces[currentPlayerIndex];
-    
-    // Calcular la posición final después del movimiento
-    int currentPathIndex = -1;
-    
-    if (currentPiece.position.row == 9 && currentPiece.position.col == 0) {
-      currentPathIndex = -1;
-    } else {
-      for (int i = 0; i < boardPath.length; i++) {
-        if (boardPath[i].row == currentPiece.position.row && 
-            boardPath[i].col == currentPiece.position.col) {
-          currentPathIndex = i;
-          break;
-        }
-      }
-    }
-    
-    int finalPathIndex = currentPathIndex + steps;
-    if (finalPathIndex < boardPath.length) {
-      Position finalPosition = boardPath[finalPathIndex];
-      
-      // Buscar si hay una ficha en la posición final
-      for (int i = 0; i < gamePieces.length; i++) {
-        if (i != currentPlayerIndex && 
-            gamePieces[i].position.row == finalPosition.row &&
-            gamePieces[i].position.col == finalPosition.col) {
-          _showThreatMessage(currentPiece, gamePieces[i]);
-          return true; // Hay amenaza
-        }
-      }
-    }
-    return false; // No hay amenaza
+// 2. CORREGIR LA FUNCIÓN _rollDice (reemplazar completamente):
+void _rollDice() {
+  if (_timer != null && _timer!.isActive) return;
+  if (isMoving) return;
+  if (isPaused) return;
+  
+  _stopPlayerTimer();
+  autoLaunchCount[currentPlayerIndex] = 0;
+  
+  if (_isCurrentPlayerCPU()) {
+    _executeCPUTurn();
+    return;
   }
+  
+  _playDiceSound();
+  
+  // 🎯 GENERAR RESULTADO FINAL ANTES de la animación
+  int finalDiceResult = debugMode ? 6 : random.nextInt(6) + 1;
+  
+  _animationController.reset();
+  _animationController.forward();
+  
+  // 🎲 FASE 1: ANIMACIÓN RÁPIDA INICIAL (1700ms)
+  _timer = Timer.periodic(const Duration(milliseconds: 80), (timer) {
+    if (isPaused) return;
+    setState(() {
+      diceValue = random.nextInt(6) + 1;
+    });
+  });
+  
+  // 🌊 FASE 2: DESACELERACIÓN GRADUAL (800ms)
+  Timer(const Duration(milliseconds: 1700), () {
+    if (isPaused) return;
+    _timer?.cancel();
+    
+    // Desaceleración: 150ms → 200ms → 300ms
+    int currentDelay = 150;
+    int steps = 0;
+    
+    void _gradualSlowdown() {
+      if (isPaused) return;
+      
+      steps++;
+      setState(() {
+        // 70% probabilidad de mostrar resultado final, 30% aleatorio
+        diceValue = (Random().nextDouble() < 0.7) 
+            ? finalDiceResult 
+            : random.nextInt(6) + 1;
+      });
+      
+      if (steps < 4) {
+        currentDelay += 50; // Aumentar delay gradualmente
+        Timer(Duration(milliseconds: currentDelay), _gradualSlowdown);
+      } else {
+        // 🎯 FASE 3: REBOTES FINALES
+        _finalBounces(finalDiceResult);
+      }
+    }
+    
+    _gradualSlowdown();
+  });
+}
 
   void _moveCurrentPlayerPiece(int steps) {
     // Obtener la ficha del jugador actual
@@ -4650,27 +4707,6 @@ void _continueWithDiceResult(int finalResult) {
     }
     
     return null; // No hay víctima
-  }
-
-  // Mostrar mensaje de amenaza
-  void _showThreatMessage(GamePiece attacker, GamePiece victim) {
-    String attackerColor = _getColorName(attacker.color);
-    String victimColor = _getColorName(victim.color);
-    
-    List<String> threatMessages = [
-      "¡$attackerColor: 'Voy por ti $victimColor!' 😈",
-      "¡$attackerColor se acerca a $victimColor! 👀",
-      "¡$attackerColor: 'Prepárate $victimColor!' ⚔️",
-      "¡$victimColor está en peligro! 🚨",
-      "¡$attackerColor: '$victimColor, tu casilla será mía!' 💀",
-      "¡$attackerColor apunta a $victimColor! 🎯",
-    ];
-    
-    String selectedMessage = threatMessages[Random().nextInt(threatMessages.length)];
-    
-    setState(() {
-      lastMessage = selectedMessage;
-    });
   }
 
   // Ejecutar la colisión después de que la ficha llegó al destino
