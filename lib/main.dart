@@ -2752,98 +2752,46 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
           priority: MessagePriority.normal, durationSeconds: 2);
     });
 
-    // 🎯 GENERAR NUEVO RESULTADO ANTES de la animación
-    int newFinalResult = debugMode ? 6 : Random().nextInt(6) + 1;
-
-    // Usar la nueva animación mejorada
+    // � ANIMACIÓN NATURAL - Sin resultado predeterminado
     _playDiceSound();
     _animationController.reset();
     _animationController.forward();
     
-    // 🎲 FASE 1: ANIMACIÓN RÁPIDA INICIAL (1700ms)
-    Timer? newDiceTimer = Timer.periodic(const Duration(milliseconds: 80), (timer) {
-      if (isPaused) return; // 🚫 NO animar durante la pausa
-      
+    _timer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      if (isPaused) return;
       setState(() {
-        currentDiceResult = Random().nextInt(6) + 1; // Animación aleatoria
+        // 🎯 ANIMAR AMBAS VARIABLES para asegurar que se vea en la UI
+        int newValue = random.nextInt(6) + 1;
+        currentDiceResult = newValue;
+        diceValue = newValue; // También animar diceValue para que se vea en la UI
       });
     });
 
-    // 🌊 FASE 2: DESACELERACIÓN GRADUAL (800ms)
-    Timer(const Duration(milliseconds: 1700), () {
+    // � SIMPLE: Parar después de 2 segundos y usar lo que salga
+    Timer(const Duration(milliseconds: 2500), () {
       if (isPaused) return;
-      newDiceTimer.cancel();
+      _timer?.cancel();
       
-      // Desaceleración: 150ms → 200ms → 300ms
-      int currentDelay = 150;
-      int steps = 0;
+      // � ASEGURAR que el resultado final sea diferente al anterior
+      final int finalResult = debugMode ? 6 : currentDiceResult;
       
-      void _gradualSlowdown() {
-        if (isPaused) return;
-        
-        steps++;
-        setState(() {
-          // 70% probabilidad de mostrar resultado final, 30% aleatorio
-          currentDiceResult = (Random().nextDouble() < 0.7) 
-              ? newFinalResult 
-              : Random().nextInt(6) + 1;
-        });
-        
-        if (steps < 4) {
-          currentDelay += 50; // Aumentar delay gradualmente
-          Timer(Duration(milliseconds: currentDelay), _gradualSlowdown);
-        } else {
-          // 🎯 FASE 3: REBOTES FINALES
-          _finalBouncesForChange(newFinalResult);
-        }
-      }
-      
-      _gradualSlowdown();
-    });
-  }
-
-  // 🎭 REBOTES FINALES PARA CAMBIO DE RESULTADO
-  void _finalBouncesForChange(int finalResult) {
-    int bounceCount = 0;
-    
-    void _doBounce() {
-      if (isPaused) return;
-      
-      bounceCount++;
-      
-      // Mostrar número aleatorio brevemente
       setState(() {
-        currentDiceResult = Random().nextInt(6) + 1;
+        // 🎯 ACTUALIZAR AMBAS VARIABLES para consistencia
+        currentDiceResult = finalResult;
+        diceValue = finalResult;
+        _showMessage("🎲 Nuevo resultado: $finalResult",
+            priority: MessagePriority.normal, durationSeconds: 2);
       });
       
-      Timer(const Duration(milliseconds: 150), () {
+      // 🎉 Continuar con el resultado
+      Timer(const Duration(milliseconds: 600), () {
         if (isPaused) return;
-        
-        // Mostrar resultado final
         setState(() {
-          currentDiceResult = finalResult;
-          _showMessage("🎲 Nuevo resultado: $finalResult",
-              priority: MessagePriority.normal, durationSeconds: 2);
+          lastMessage = null;
         });
-        
-        if (bounceCount < 3) {
-          // Hacer otro rebote
-          Timer(const Duration(milliseconds: 200), _doBounce);
-        } else {
-          // 🎉 ANIMACIÓN COMPLETADA - Continuar con el juego
-          Timer(const Duration(milliseconds: 400), () {
-            if (isPaused) return;
-            
-            setState(() {
-              lastMessage = null;
-            });
-            _continueWithDiceResult(finalResult);
-          });
-        }
+        _continueWithDiceResult(finalResult);
       });
-    }
-    
-    _doBounce();
+    });
   }
 
   // Continuar con resultado actual (sin cambio)
@@ -3760,7 +3708,7 @@ void _continueWithDiceResult(int finalResult) {
   void _stopPlayerTimer() {
     _playerTimer?.cancel();
     setState(() {
-      timerCountdown = 10;
+      timerCountdown = 10; // Resetear a 10 para ocultar el contador visual
       isTimerFlashing = false;
     });
   }
@@ -4184,110 +4132,59 @@ void _continueWithDiceResult(int finalResult) {
     });
   }
 
- // 1. MOVER LA FUNCIÓN _finalBounces FUERA DE _rollDice
-// Agregar esta función como método independiente de la clase, después de _rollDice():
-
-// 🎭 FUNCIÓN INDEPENDIENTE: Rebotes finales dramáticos
-void _finalBounces(int finalResult) {
-  int bounceCount = 0;
-  
-  void _doBounce() {
-    if (isPaused) return;
-    
-    bounceCount++;
-    
-    // Mostrar número aleatorio brevemente
-    setState(() {
-      diceValue = random.nextInt(6) + 1;
-    });
-    
-    Timer(const Duration(milliseconds: 150), () {
-      if (isPaused) return;
-      
-      // Mostrar resultado final
-      setState(() {
-        diceValue = finalResult;
-      });
-      
-      if (bounceCount < 3) {
-        // Hacer otro rebote
-        Timer(const Duration(milliseconds: 200), _doBounce);
-      } else {
-        // 🎉 ANIMACIÓN COMPLETADA - Continuar con el juego
-        Timer(const Duration(milliseconds: 400), () {
-          if (isPaused) return;
-          setState(() {
-            isMoving = true;
-          });
-          _startDecisionPeriod(finalResult);
-        });
-      }
-    });
-  }
-  
-  _doBounce();
-}
-
-// 2. CORREGIR LA FUNCIÓN _rollDice (reemplazar completamente):
+ // FUNCIÓN _rollDice SIMPLIFICADA PARA ANIMACIÓN NATURAL:
 void _rollDice() {
   if (_timer != null && _timer!.isActive) return;
   if (isMoving) return;
   if (isPaused) return;
   
+  // 🎯 CANCELAR TIMER INMEDIATAMENTE Y ACTUALIZAR ESTADO VISUAL
   _stopPlayerTimer();
-  autoLaunchCount[currentPlayerIndex] = 0;
+  
+  setState(() {
+    autoLaunchCount[currentPlayerIndex] = 0;
+    isMoving = true; // ⚡ Marcar inmediatamente como "en movimiento" para ocultar el timer
+  });
   
   if (_isCurrentPlayerCPU()) {
+    setState(() {
+      isMoving = false; // Restaurar para CPU
+    });
     _executeCPUTurn();
     return;
   }
   
   _playDiceSound();
   
-  // 🎯 GENERAR RESULTADO FINAL ANTES de la animación
-  int finalDiceResult = debugMode ? 6 : random.nextInt(6) + 1;
-  
   _animationController.reset();
   _animationController.forward();
   
-  // 🎲 FASE 1: ANIMACIÓN RÁPIDA INICIAL (1700ms)
-  _timer = Timer.periodic(const Duration(milliseconds: 80), (timer) {
+  // 🎲 ANIMACIÓN COMPLETAMENTE NATURAL - Sin resultado predeterminado
+  _timer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
     if (isPaused) return;
     setState(() {
-      diceValue = random.nextInt(6) + 1;
+      diceValue = random.nextInt(6) + 1; // Siempre aleatorio
     });
   });
   
-  // 🌊 FASE 2: DESACELERACIÓN GRADUAL (800ms)
-  Timer(const Duration(milliseconds: 1700), () {
+  // � SIMPLE: Parar después de 2.5 segundos y usar lo que salga
+  Timer(const Duration(milliseconds: 2500), () {
     if (isPaused) return;
     _timer?.cancel();
     
-    // Desaceleración: 150ms → 200ms → 300ms
-    int currentDelay = 150;
-    int steps = 0;
+    // 🎲 EL RESULTADO ES LO QUE ESTÁ MOSTRANDO EN ESE MOMENTO
+    final int finalResult = debugMode ? 6 : diceValue;
     
-    void _gradualSlowdown() {
+    setState(() {
+      diceValue = finalResult;
+      isMoving = true;
+    });
+    
+    // 🎉 Continuar inmediatamente con el resultado
+    Timer(const Duration(milliseconds: 300), () {
       if (isPaused) return;
-      
-      steps++;
-      setState(() {
-        // 70% probabilidad de mostrar resultado final, 30% aleatorio
-        diceValue = (Random().nextDouble() < 0.7) 
-            ? finalDiceResult 
-            : random.nextInt(6) + 1;
-      });
-      
-      if (steps < 4) {
-        currentDelay += 50; // Aumentar delay gradualmente
-        Timer(Duration(milliseconds: currentDelay), _gradualSlowdown);
-      } else {
-        // 🎯 FASE 3: REBOTES FINALES
-        _finalBounces(finalDiceResult);
-      }
-    }
-    
-    _gradualSlowdown();
+      _startDecisionPeriod(finalResult);
+    });
   });
 }
 
@@ -4354,7 +4251,7 @@ void _rollDice() {
     _animationController.forward();
     
     // Animación del dado
-    _timer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+    Timer? changeTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
       setState(() {
         diceValue = random.nextInt(6) + 1;
       });
