@@ -3521,7 +3521,6 @@ void _continueWithDiceResult(int finalResult) {
     autoLaunchCount[currentPlayerIndex]++;
     
     setState(() {
-      lastMessage = "⏰ ¡Tiempo agotado! Lanzamiento automático (${autoLaunchCount[currentPlayerIndex]}/$maxAutoLaunches)";
       isTimerFlashing = false;
     });
     
