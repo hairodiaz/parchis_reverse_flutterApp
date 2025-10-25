@@ -2750,6 +2750,9 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
 
     // ⏱️ SINCRONIZAR CON DURACIÓN DEL SONIDO DICE.MP3 + 1.5s adicionales para coordinación perfecta
     Timer(const Duration(milliseconds: 2500), () { // Aumentado de 1000ms a 2500ms (+ 1.5s)
+      // ⏸️ VERIFICAR PAUSA ANTES DE CONTINUAR
+      if (isPaused) return;
+      
       newDiceTimer.cancel();
       
       setState(() {
@@ -2759,6 +2762,9 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       });
 
       Timer(const Duration(milliseconds: 400), () { // Reducido delay para movimiento más rápido
+        // ⏸️ VERIFICAR PAUSA ANTES DE CONTINUAR
+        if (isPaused) return;
+        
         setState(() {
           lastMessage = null;
         });
@@ -2777,6 +2783,9 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   }
 
 void _continueWithDiceResult(int finalResult) {
+  // ⏸️ VERIFICAR SI EL JUEGO ESTÁ PAUSADO ANTES DE CONTINUAR
+  if (isPaused) return;
+  
   setState(() {
     diceValue = finalResult;
     isMoving = true; 
@@ -2809,10 +2818,16 @@ void _continueWithDiceResult(int finalResult) {
       
       // Cambiar turno después del mensaje
       Timer(const Duration(milliseconds: 2500), () {
+        // ⏸️ VERIFICAR PAUSA ANTES DE CONTINUAR
+        if (isPaused) return;
+        
         _nextActivePlayer();
         
         // Continuar con el siguiente jugador
         Timer(const Duration(milliseconds: 500), () {
+          // ⏸️ VERIFICAR PAUSA ANTES DE CONTINUAR
+          if (isPaused) return;
+          
           if (_isCurrentPlayerCPU() && !isMoving) {
             _rollDice();
           } else if (widget.isHuman[currentPlayerIndex] && !isMoving) {
@@ -4049,6 +4064,9 @@ void _continueWithDiceResult(int finalResult) {
 
   // 🎭 SISTEMA CPU ÉPICO CON PERSONALIDAD
   void _executeCPUTurn() async {
+    // ⏸️ VERIFICAR SI EL JUEGO ESTÁ PAUSADO ANTES DE EJECUTAR
+    if (isPaused) return;
+    
     setState(() {
       isMoving = true;
     });
@@ -4085,6 +4103,9 @@ void _continueWithDiceResult(int finalResult) {
 
     // ⏱️ SINCRONIZAR CON DURACIÓN DEL SONIDO DICE.MP3 + 1.5s adicionales para coordinación perfecta
     Timer(const Duration(milliseconds: 2500), () { // Aumentado de 1000ms a 2500ms (+ 1.5s)
+      // ⏸️ VERIFICAR PAUSA ANTES DE CONTINUAR
+      if (isPaused) return;
+      
       _timer?.cancel();
       
       // 🧠 CPU ANALIZA EL RESULTADO
@@ -4098,6 +4119,9 @@ void _continueWithDiceResult(int finalResult) {
       
       // ⏱️ PAUSA PARA ANÁLISIS - TIEMPO AUMENTADO PARA LEER BIEN
       _cpuTimer = Timer(const Duration(milliseconds: 2500), () {
+        // ⏸️ VERIFICAR PAUSA ANTES DE CONTINUAR
+        if (isPaused) return;
+        
         if (mounted) {
           setState(() {
             lastMessage = null;
@@ -4106,6 +4130,9 @@ void _continueWithDiceResult(int finalResult) {
         
         // 🚀 EJECUTAR MOVIMIENTO CON VERIFICACIÓN DE 3 SEISES
         _cpuTimer = Timer(const Duration(milliseconds: 600), () {
+          // ⏸️ VERIFICAR PAUSA ANTES DE CONTINUAR
+          if (isPaused) return;
+          
           if (mounted) {
             _continueWithDiceResult(finalDiceValue);
           }
@@ -4907,23 +4934,6 @@ void _continueWithDiceResult(int finalResult) {
                 size: 24,
               ),
               tooltip: isPaused ? 'Reanudar' : 'Pausar',
-            ),
-          ),
-          // Botón de configuración
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: IconButton(
-              onPressed: _showExitDialog,
-              icon: const Icon(
-                Icons.settings,
-                color: Colors.white,
-                size: 24,
-              ),
-              tooltip: 'Configuración',
             ),
           ),
         ],
