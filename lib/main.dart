@@ -2960,6 +2960,20 @@ void _continueWithDiceResult(int finalResult) {
 
     // 🎵 ASEGURAR QUE NO HAY MÚSICA DRAMÁTICA AL INICIO
     isDramaticMusicPlaying = false;
+
+    // 📱 VIBRACIÓN INICIAL SI EL PRIMER JUGADOR ES HUMANO
+    Timer(const Duration(milliseconds: 1000), () {
+      if (widget.isHuman[currentPlayerIndex] && !isMoving) {
+        // Vibración de bienvenida para el primer jugador humano
+        HapticFeedback.heavyImpact();
+        Timer(const Duration(milliseconds: 150), () {
+          HapticFeedback.lightImpact();
+        });
+        Timer(const Duration(milliseconds: 300), () {
+          HapticFeedback.lightImpact();
+        });
+      }
+    });
   }
 
   void _initializeGamePieces() {
@@ -3259,6 +3273,15 @@ void _continueWithDiceResult(int finalResult) {
   void _startPlayerTimer() {
     // Solo para jugadores humanos
     if (!widget.isHuman[currentPlayerIndex] || isMoving) return;
+    
+    // 📱 VIBRACIÓN PARA ALERTAR TURNO HUMANO
+    HapticFeedback.mediumImpact();
+    Timer(const Duration(milliseconds: 200), () {
+      HapticFeedback.lightImpact();
+    });
+    Timer(const Duration(milliseconds: 400), () {
+      HapticFeedback.mediumImpact();
+    });
     
     setState(() {
       timerCountdown = 10;
