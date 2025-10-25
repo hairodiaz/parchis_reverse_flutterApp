@@ -2325,7 +2325,7 @@ class ParchisBoard extends StatefulWidget {
   State<ParchisBoard> createState() => _ParchisBoardState();
 }
 
-class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMixin {
+class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMixin, WidgetsBindingObserver {
   int diceValue = 1;
   Random random = Random();
   Timer? _timer;
@@ -2399,6 +2399,10 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
 
   // 🎵 SISTEMA DE MÚSICA DRAMÁTICA
   bool isDramaticMusicPlaying = false; // Control de música dramática
+
+  // ⏸️ SISTEMA DE PAUSA
+  bool isPaused = false; // Estado de pausa
+  bool wasAutoPaused = false; // Para distinguir pausa manual vs automática
 
   // �👤 SISTEMA DE PERFILES DE JUGADORES
   
@@ -2856,6 +2860,9 @@ void _continueWithDiceResult(int finalResult) {
   void initState() {
     super.initState();
     
+    // 📱 OBSERVER PARA CICLO DE VIDA DE LA APP (pausa automática)
+    WidgetsBinding.instance.addObserver(this);
+    
     // 📱 ACTIVAR WAKELOCK - MANTENER PANTALLA ENCENDIDA
     _enableWakelock();
     
@@ -3150,7 +3157,10 @@ void _continueWithDiceResult(int finalResult) {
 
   @override
   void dispose() {
-    // 🔐 DESACTIVAR WAKELOCK AL SALIR DEL JUEGO
+    // � REMOVER OBSERVER DEL CICLO DE VIDA DE LA APP
+    WidgetsBinding.instance.removeObserver(this);
+    
+    // �🔐 DESACTIVAR WAKELOCK AL SALIR DEL JUEGO
     _disableWakelock();
     
     // 🛑 CANCELAR TODOS LOS TIMERS ACTIVOS
@@ -3182,6 +3192,186 @@ void _continueWithDiceResult(int finalResult) {
     priorityMessage = null;
     
     super.dispose();
+  }
+
+  // ⏸️ SISTEMA DE PAUSA AUTOMÁTICA Y MANUAL
+
+  // 📱 DETECTAR CAMBIOS EN EL CICLO DE VIDA DE LA APP
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+        // App se fue a segundo plano - PAUSA AUTOMÁTICA
+        if (!isPaused && !gameEnded) {
+          _pauseGameAutomatically();
+        }
+        break;
+      case AppLifecycleState.resumed:
+        // App volvió al primer plano - REANUDAR SI FUE PAUSA AUTOMÁTICA
+        if (wasAutoPaused && isPaused) {
+          _resumeGameAutomatically();
+        }
+        break;
+      case AppLifecycleState.detached:
+        // App se está cerrando - no hacer nada especial
+        break;
+      case AppLifecycleState.hidden:
+        // App está oculta - tratarlo como pausa
+        if (!isPaused && !gameEnded) {
+          _pauseGameAutomatically();
+        }
+        break;
+    }
+  }
+
+  // 🎯 PAUSA MANUAL (botón)
+  void _togglePauseManually() {
+    if (gameEnded) return; // No pausar si el juego terminó
+    
+    setState(() {
+      isPaused = !isPaused;
+      wasAutoPaused = false; // Es pausa manual
+    });
+    
+    if (isPaused) {
+      _pauseGameSystems();
+      _showPauseDialog(); // Solo mostrar diálogo en pausa manual
+    } else {
+      _resumeGameSystems();
+    }
+  }
+
+  // 🔄 PAUSA AUTOMÁTICA (cuando sales de la app)
+  void _pauseGameAutomatically() {
+    setState(() {
+      isPaused = true;
+      wasAutoPaused = true; // Marcar como pausa automática
+    });
+    
+    _pauseGameSystems(); // Pausar todos los sistemas
+    
+    print('⏸️ Juego pausado automáticamente (app en segundo plano)');
+  }
+
+  // ▶️ REANUDACIÓN AUTOMÁTICA (cuando vuelves a la app)
+  void _resumeGameAutomatically() {
+    setState(() {
+      isPaused = false;
+      wasAutoPaused = false;
+    });
+    
+    _resumeGameSystems(); // Reanudar sistemas
+    
+    print('▶️ Juego reanudado automáticamente (app en primer plano)');
+  }
+
+  // ⏸️ PAUSAR TODOS LOS SISTEMAS DEL JUEGO
+  void _pauseGameSystems() {
+    // Pausar timers
+    _playerTimer?.cancel();
+    _cpuTimer?.cancel();
+    _decisionTimer?.cancel();
+    _timer?.cancel();
+    _messageTimer?.cancel();
+    
+    // Pausar animaciones
+    _animationController.stop();
+    _jumpController.stop();
+    
+    // Pausar audio
+    AudioService().pauseBackgroundMusic();
+    
+    print('⏸️ Todos los sistemas del juego pausados');
+  }
+
+  // ▶️ REANUDAR TODOS LOS SISTEMAS DEL JUEGO
+  void _resumeGameSystems() {
+    // Reanudar audio
+    AudioService().resumeBackgroundMusic();
+    
+    // Reanudar timers según el estado del juego
+    if (!gameEnded) {
+      if (widget.isHuman[currentPlayerIndex] && !isMoving) {
+        _startPlayerTimer(); // Reiniciar timer si es humano
+      } else if (_isCurrentPlayerCPU() && !isMoving) {
+        _cpuTimer = Timer(const Duration(milliseconds: 1000), () => _rollDice());
+      }
+    }
+    
+    print('▶️ Todos los sistemas del juego reanudados');
+  }
+
+  // 📋 DIÁLOGO DE PAUSA (solo para pausa manual)
+  void _showPauseDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Icon(Icons.pause_circle, color: Colors.orange, size: 32),
+            SizedBox(width: 12),
+            Text('⏸️ JUEGO PAUSADO', style: TextStyle(color: Colors.orange, fontSize: 18)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('El juego está pausado. ¿Qué quieres hacer?', 
+                style: TextStyle(fontSize: 16)),
+            SizedBox(height: 20),
+            // Estado actual del juego
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                children: [
+                  Text('🎮 Turno actual: ${_getPlayerDisplayName(currentPlayerIndex)}',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  SizedBox(height: 4),
+                  Text('🎲 Último dado: $diceValue'),
+                  if (extraTurnsRemaining > 0)
+                    Text('✨ Turnos extra: $extraTurnsRemaining'),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _showExitDialog(); // Usar función existente
+                  },
+                  child: Text('🏠 Salir al Menú'),
+                ),
+              ),
+              SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _togglePauseManually(); // Reanudar
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                  child: Text('▶️ Continuar'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   // 📱 WAKELOCK - MANTENER PANTALLA ACTIVA
@@ -3277,7 +3467,7 @@ void _continueWithDiceResult(int finalResult) {
   
   void _startPlayerTimer() {
     // Solo para jugadores humanos
-    if (!widget.isHuman[currentPlayerIndex] || isMoving) return;
+    if (!widget.isHuman[currentPlayerIndex] || isMoving || isPaused) return;
     
     // 📱 VIBRACIÓN PARA ALERTAR TURNO HUMANO
     HapticFeedback.mediumImpact();
@@ -3749,6 +3939,7 @@ void _continueWithDiceResult(int finalResult) {
   void _rollDice() {
     if (_timer != null && _timer!.isActive) return;
     if (isMoving) return; // No permitir lanzar dado mientras se mueve una ficha
+    if (isPaused) return; // ⏸️ No permitir lanzar dado si el juego está pausado
     
     // ⏰ DETENER TIMER AL LANZAR DADO
     _stopPlayerTimer();
@@ -4726,6 +4917,23 @@ void _continueWithDiceResult(int finalResult) {
                 tooltip: '¿Cómo Jugar?',
               ),
             ),
+          // 🆕 BOTÓN DE PAUSA
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: isPaused ? Colors.green.withOpacity(0.2) : Colors.orange.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: IconButton(
+              onPressed: _togglePauseManually,
+              icon: Icon(
+                isPaused ? Icons.play_arrow : Icons.pause,
+                color: isPaused ? Colors.green : Colors.orange,
+                size: 24,
+              ),
+              tooltip: isPaused ? 'Reanudar' : 'Pausar',
+            ),
+          ),
           // Botón de configuración
           Container(
             margin: const EdgeInsets.only(right: 8),
