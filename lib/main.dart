@@ -2848,21 +2848,36 @@ void _continueWithDiceResult(int finalResult) {
   
   // CONTINUAR CON MOVIMIENTO NORMAL
   Timer(const Duration(milliseconds: 300), () {
+    // ⏸️ VERIFICAR PAUSA ANTES DE CONTINUAR
+    if (isPaused) return;
+    
     Timer(const Duration(milliseconds: 100), () {
+      // ⏸️ VERIFICAR PAUSA ANTES DE CONTINUAR
+      if (isPaused) return;
+      
       bool hasThreats = _checkAndShowThreatMessage(finalResult);
       
       if (hasThreats) {
         Timer(const Duration(milliseconds: 1200), () {
+          // ⏸️ VERIFICAR PAUSA ANTES DE CONTINUAR
+          if (isPaused) return;
+          
           setState(() {
             lastMessage = null;
           });
           
           Timer(const Duration(milliseconds: 200), () {
+            // ⏸️ VERIFICAR PAUSA ANTES DE CONTINUAR
+            if (isPaused) return;
+            
             _moveCurrentPlayerPiece(finalResult);
           });
         });
       } else {
         Timer(const Duration(milliseconds: 200), () {
+          // ⏸️ VERIFICAR PAUSA ANTES DE CONTINUAR
+          if (isPaused) return;
+          
           _moveCurrentPlayerPiece(finalResult);
         });
       }
@@ -3246,17 +3261,34 @@ void _continueWithDiceResult(int finalResult) {
   void _togglePauseManually() {
     if (gameEnded) return; // No pausar si el juego terminó
     
+    if (isPaused) {
+      // Si está pausado, reanudar
+      _resumeGame();
+    } else {
+      // Si no está pausado, pausar
+      _pauseGame();
+    }
+  }
+
+  // ⏸️ PAUSAR JUEGO (función específica)
+  void _pauseGame() {
     setState(() {
-      isPaused = !isPaused;
+      isPaused = true;
       wasAutoPaused = false; // Es pausa manual
     });
     
-    if (isPaused) {
-      _pauseGameSystems();
-      _showPauseDialog(); // Solo mostrar diálogo en pausa manual
-    } else {
-      _resumeGameSystems();
-    }
+    _pauseGameSystems();
+    _showPauseDialog(); // Solo mostrar diálogo en pausa manual
+  }
+
+  // ▶️ REANUDAR JUEGO (función específica)  
+  void _resumeGame() {
+    setState(() {
+      isPaused = false;
+      wasAutoPaused = false;
+    });
+    
+    _resumeGameSystems();
   }
 
   // 🔄 PAUSA AUTOMÁTICA (cuando sales de la app)
@@ -3376,7 +3408,7 @@ void _continueWithDiceResult(int finalResult) {
                 child: ElevatedButton(
                   onPressed: () {
                     Navigator.pop(context);
-                    _togglePauseManually(); // Reanudar
+                    _resumeGame(); // Usar función específica para reanudar
                   },
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
                   child: Text('▶️ Continuar'),
@@ -4208,6 +4240,9 @@ void _continueWithDiceResult(int finalResult) {
     
     // 🤖 AUTO-EJECUTAR TURNO SI ES CPU / ⏰ INICIAR TIMER SI ES HUMANO
     Timer(const Duration(milliseconds: 500), () {
+      // ⏸️ VERIFICAR PAUSA ANTES DE CONTINUAR
+      if (isPaused) return;
+      
       if (_isCurrentPlayerCPU() && !isMoving) {
         _rollDice();
       } else if (widget.isHuman[currentPlayerIndex] && !isMoving) {
@@ -4234,6 +4269,9 @@ void _continueWithDiceResult(int finalResult) {
       
       // Continuar con el mismo jugador
       Timer(const Duration(milliseconds: 1500), () {
+        // ⏸️ VERIFICAR PAUSA ANTES DE CONTINUAR
+        if (isPaused) return;
+        
         if (_isCurrentPlayerCPU() && !isMoving) {
           _rollDice(); // CPU lanza automáticamente
         } else if (widget.isHuman[currentPlayerIndex] && !isMoving) {
