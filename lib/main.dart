@@ -2875,7 +2875,7 @@ void _continueWithDiceResult(int finalResult) {
       });
       
       // Mensaje crítico
-      _showMessage("¡3 seises consecutivos! ¡${_getPlayerName(currentPlayerIndex)} vuelve a la salida! 😱💥",
+      _showMessage("¡Ayyy no! ¡3 seises! ¡${_getPlayerName(currentPlayerIndex)} pal' teteo! 😱🇩🇴",
           priority: MessagePriority.critical, durationSeconds: 4);
       
       // 🎵 Sonido de penalización
@@ -3767,7 +3767,7 @@ void _continueWithDiceResult(int finalResult) {
     autoLaunchCount[currentPlayerIndex]++;
     
     setState(() {
-      lastMessage = "⏰ ¡Tiempo agotado! Lanzamiento automático (${autoLaunchCount[currentPlayerIndex]}/$maxAutoLaunches)";
+      lastMessage = "⏰ ¡Se acabó la chercha! Te tiro yo (${autoLaunchCount[currentPlayerIndex]}/$maxAutoLaunches)";
       isTimerFlashing = false;
     });
     
@@ -3873,7 +3873,7 @@ void _continueWithDiceResult(int finalResult) {
       String positionText = _getPositionText(position);
       
       // Mensaje de alta prioridad para victoria
-      _showMessage("🏆 ¡$playerName llega en $positionText lugar! 🎉",
+      _showMessage("🏆 ¡$playerName llegó de $positionText! ¡Jevi manito! 🎉🇩🇴",
           priority: MessagePriority.high, durationSeconds: 4);
       
       // Sonido según la posición
@@ -4367,17 +4367,17 @@ void _rollDice() {
     });
   }
 
-  // 🎭 MENSAJES ÉPICOS DE PENSAMIENTO CPU - ¡VERSIÓN MEJORADA!
+  // 🎭 MENSAJES ÉPICOS DE PENSAMIENTO CPU - ¡VERSIÓN DOMINICANA!
   String _getEpicCPUThinkingMessage() {
     List<String> epicMessages = [
-      "🧠 Calculando estrategia maestra...",
-      "🎯 Analizando todas las posibilidades...", 
-      "⚡ Procesando movimiento perfecto...",
-      "🔮 Consultando la matriz del destino...",
-      "🎪 Preparando jugada espectacular...",
-      "🏆 Diseñando victoria inevitable...",
-      "🌟 Activando modo GENIO...",
-      "🎭 Tejiendo plan magistral...",
+      "🧠 A ver qué hago aquí...",
+      "🎯 Analizando como un loco...", 
+      "⚡ Vamo' a ver qué sale...",
+      "🔮 Dejame pensar esto bien...",
+      "🎪 Se va a formar la cosa...",
+      "🏆 Aquí viene la buena...",
+      "🌟 Modo jevi activado...",
+      "🎭 Preparando la jugada...",
       "⚔️ Forjando estrategia letal...",
       "🎨 Creando obra maestra táctica...",
       "🤖 Iniciando secuencia de dominación...",
@@ -4394,20 +4394,20 @@ void _rollDice() {
     return epicMessages[random.nextInt(epicMessages.length)];
   }
 
-  // 📊 MENSAJES DE ANÁLISIS CPU - ¡DRAMÁTICOS Y ÉPICOS!
+  // 📊 MENSAJES DE ANÁLISIS CPU - ¡VERSIÓN DOMINICANA!
   String _getCPUAnalysisMessage(int diceValue) {
     List<String> analysisMessages = [
-      "🎯 ¡Perfecto! Exactamente lo que necesitaba: $diceValue",
-      "⚡ ¡Excelente! Este $diceValue encaja en mi plan",  
-      "🎪 ¡Magnífico! Un $diceValue estratégico",
-      "🔥 ¡Brillante! Este $diceValue es clave",
-      "🌟 ¡Fantástico! $diceValue puntos de pura genialidad",
-      "🎭 ¡Espectacular! Un $diceValue muy calculado",
-      "⚔️ ¡Letal! Este $diceValue será devastador",
-      "🏆 ¡Perfección! $diceValue pasos hacia la gloria",
-      "🚀 ¡Increíble! Un $diceValue cósmico",
-      "💎 ¡Diamante puro! $diceValue de elegancia",
-      "🎼 ¡Sinfonía! $diceValue notas perfectas",
+      "🎯 ¡Ayyy sí! Justo lo que quería: $diceValue",
+      "⚡ ¡Jevi! Este $diceValue me viene brutal",  
+      "🎪 ¡Que bueno! Un $diceValue perfecto",
+      "🔥 ¡Eso sí! Este $diceValue es la clave",
+      "🌟 ¡Brutal! $diceValue de pura suerte",
+      "🎭 ¡Eyyy! Un $diceValue bien calculado",
+      "⚔️ ¡Se formó! Este $diceValue es mortal",
+      "🏆 ¡Jevi manito! $diceValue pal' triunfo",
+      "🚀 ¡Que cosa! Un $diceValue de otro mundo",
+      "💎 ¡Oro puro! $diceValue de elegancia",
+      "🎼 ¡Música! $diceValue notas perfectas",
       "🌊 ¡Tsunami! $diceValue olas de poder",
       "🦅 ¡Majestuoso! $diceValue vuelos de águila",
       "🌪️ ¡Tormenta! $diceValue rayos de furia",
@@ -4706,12 +4706,12 @@ void _rollDice() {
     
     // Mensajes de victoria
     List<String> victoryMessages = [
-      "¡$attackerColor se comió a $victimColor! 🍽️",
-      "¡$victimColor fue enviado de vuelta a casa! 🏠",
-      "¡$attackerColor conquistó la casilla! 👑",
-      "¡$victimColor tuvo que regresar a SALIDA! 😅",
-      "¡$attackerColor ganó la batalla! ⚔️",
-      "¡$victimColor regresa a la base! ↩️",
+      "¡$attackerColor le cayó a $victimColor! 😂🔥",
+      "¡$victimColor pal' teteo! 🏠",
+      "¡$attackerColor ganó esa vuelta! 👑",
+      "¡$victimColor de vuelta a casa! 😅",
+      "¡$attackerColor se la llevó! ⚔️",
+      "¡$victimColor a empezar de nuevo! ↩️",
     ];
     
     String selectedMessage = victoryMessages[Random().nextInt(victoryMessages.length)];
@@ -4779,9 +4779,9 @@ void _rollDice() {
         
         // 🎯 MENSAJE ÚNICO - diferentes según si hay doble suerte o no
         if (diceValue == 6) {
-          messages = ["¡DOBLE SUERTE! Dado 6 + Lance de Nuevo = 2 turnos extra! 🎲✨🍀"];
+          messages = ["¡DOBLE JEVI! Dado 6 + Tira de nuevo = 2 turnos! 🎲✨🇩�"];
         } else {
-          messages = ["¡Lance de Nuevo! $playerName tira otra vez 🎲✨"];
+          messages = ["¡Tira de nuevo! $playerName otra vez manito 🎲✨"];
         }
         
         rollAgain = true;
