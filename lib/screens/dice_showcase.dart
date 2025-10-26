@@ -302,7 +302,7 @@ class _Dice3DState extends State<Dice3D> with TickerProviderStateMixin {
         ..rotateX(rotationX)
         ..rotateY(rotationY)
         ..rotateZ(rotationZ),
-      child: Container(
+      child: SizedBox(
         width: 100,
         height: 100,
         child: Stack(

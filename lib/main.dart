@@ -2389,6 +2389,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   int consecutiveSixes = 0; // Contador de seises consecutivos  
   int extraTurnsRemaining = 0; // Sistema de turnos extra acumulables
   bool isMoving = false; // Para bloquear el dado mientras se mueve una ficha
+  bool hadBounceInLastMove = false; // Para rastrear si el último movimiento tuvo rebote
   GamePiece? jumpingPiece; // Para saber qué ficha está saltando
   String? pendingSpecialCellSound; // Para reproducir sonido de casilla especial al final de animación
   
@@ -3231,8 +3232,13 @@ void _continueWithDiceResult(int finalResult) {
           if (!isPaused) AudioService().playPieceUp(); // 🚫 NO sonar durante pausa
           break;
         case 'VUELVE\nA LA\nSALIDA':
-          // 📉 Sonido de bajar cuando llegas a la SALIDA
-          if (!isPaused) AudioService().playPieceDown(); // 🚫 NO sonar durante pausa
+          // 📉 Sonido de bajar cuando llegas a la SALIDA - CORREGIDO
+          if (!isPaused) {
+            AudioService().playPieceDown().then((_) {
+              // ✅ LIMPIAR ESTADO DEL AUDIO DESPUÉS DE REPRODUCIR
+              print("🎵 DEBUG: Audio PieceDown (Vuelve a Salida) completado y limpiado");
+            });
+          }
           break;
         case 'BAJA\nAL\n24':
         case 'BAJA\nAL\n30':
@@ -3246,8 +3252,9 @@ void _continueWithDiceResult(int finalResult) {
           break;
       }
       
-      // Limpiar el sonido pendiente
+      // ✅ LIMPIAR EL SONIDO PENDIENTE INMEDIATAMENTE
       pendingSpecialCellSound = null;
+      print("🧹 DEBUG: pendingSpecialCellSound limpiado");
     }
   }
 
@@ -4181,6 +4188,12 @@ void _rollDice() {
   if (isMoving) return;
   if (isPaused) return;
   
+  // 🏁 EVITAR QUE JUGADORES TERMINADOS LANCEN DADOS
+  if (playerFinished[currentPlayerIndex]) {
+    print("🎯 DEBUG: Jugador ${currentPlayerIndex + 1} ya terminó, no puede lanzar dados");
+    return;
+  }
+  
   // 🎯 NUEVA LÓGICA: Consumir turno extra al EMPEZAR el lanzamiento (si aplica)
   if (extraTurnsRemaining > 0) {
     extraTurnsRemaining--;
@@ -4238,6 +4251,12 @@ void _rollDice() {
 }
 
   void _moveCurrentPlayerPiece(int steps) {
+    // 🏁 EVITAR MOVIMIENTOS DE JUGADORES QUE YA TERMINARON
+    if (playerFinished[currentPlayerIndex]) {
+      print("🎯 DEBUG: Jugador ${currentPlayerIndex + 1} ya terminó, no puede moverse");
+      return;
+    }
+    
     // Obtener la ficha del jugador actual
     GamePiece currentPiece = gamePieces[currentPlayerIndex];
     
@@ -4404,7 +4423,7 @@ void _rollDice() {
     do {
       currentTurnIndex = (currentTurnIndex + 1) % widget.numPlayers;
       currentPlayerIndex = turnOrder[currentTurnIndex];
-    } while (playerEliminated[currentPlayerIndex]); // Saltar jugadores eliminados
+    } while (playerEliminated[currentPlayerIndex] || playerFinished[currentPlayerIndex]); // Saltar eliminados Y terminados
     
     // Resetear contador de auto-lanzamientos si fue el jugador cambiado
     // (no se resetea si el mismo jugador sigue jugando por turnos extra)
@@ -4482,10 +4501,16 @@ void _rollDice() {
     int finalIndex = startIndex + steps;
     int metaIndex = boardPath.length - 1; // Índice de la META (posición 83)
     
+    // ✅ RESETEAR VARIABLE DE REBOTE
+    hadBounceInLastMove = false;
+    
     // Si se pasa de la META, implementar efecto rebote
     if (finalIndex > metaIndex) {
       int exceso = finalIndex - metaIndex;
       finalIndex = metaIndex - exceso; // Rebotar hacia atrás
+      
+      // ✅ MARCAR QUE HUBO REBOTE
+      hadBounceInLastMove = true;
       
       // Asegurarse de que no rebote más allá del inicio
       if (finalIndex < 0) {
@@ -4496,6 +4521,8 @@ void _rollDice() {
       setState(() {
         lastMessage = "¡Efecto rebote! Te pasaste por $exceso casillas 🔄";
       });
+      
+      print("🔄 DEBUG: Rebote detectado - finalIndex: $finalIndex, metaIndex: $metaIndex, exceso: $exceso");
     }
     
     Position finalPosition = boardPath[finalIndex];
@@ -4575,18 +4602,25 @@ void _rollDice() {
     }
 
   // ¡NUEVA FUNCIONALIDAD! Verificar casillas especiales con prioridad sobre dados
-  bool shouldChangeTurn = await _checkSpecialCell(piece, diceValue);    // � VERIFICAR FINALIZACIÓN: Comprobar si el jugador llegó a la META
-    int pieceIndex = boardPath.indexWhere((pos) => 
-        pos.row == piece.position.row && pos.col == piece.position.col);
-    
-    if (pieceIndex == metaIndex) {
-      // La ficha llegó exactamente a la META
-      // Determinar jugador por color de la ficha
-      int playerIndex = piece.color == Colors.red ? 0 :
-                       piece.color == Colors.green ? 1 :  
-                       piece.color == Colors.yellow ? 2 : 3;
-      _checkPlayerFinished(playerIndex);
-    }
+  bool shouldChangeTurn = await _checkSpecialCell(piece, diceValue);    
+  
+  // 🏁 VERIFICAR FINALIZACIÓN: Comprobar si el jugador llegó a la META (SOLO SI NO ES REBOTE)
+  int pieceIndex = boardPath.indexWhere((pos) => 
+      pos.row == piece.position.row && pos.col == piece.position.col);
+  
+  // ✅ CORRECCIÓN: Solo verificar victoria si llegó EXACTAMENTE a la META sin rebotar
+  if (pieceIndex == metaIndex && !hadBounceInLastMove) {
+    // La ficha llegó exactamente a la META SIN REBOTAR
+    // Determinar jugador por color de la ficha
+    int playerIndex = piece.color == Colors.red ? 0 :
+                     piece.color == Colors.green ? 1 :  
+                     piece.color == Colors.yellow ? 2 : 3;
+    print("🏆 DEBUG: Jugador $playerIndex llegó EXACTO a META - reproducir audio de victoria");
+    _checkPlayerFinished(playerIndex);
+  } else if (pieceIndex == metaIndex && hadBounceInLastMove) {
+    // La ficha tocó la META pero rebotó - NO es victoria
+    print("🔄 DEBUG: Jugador tocó META pero rebotó - NO reproducir audio de victoria");
+  }
 
     // �🎲 LÓGICA DE SEISES CONSECUTIVOS: Manejar el resultado después del movimiento
     setState(() {
