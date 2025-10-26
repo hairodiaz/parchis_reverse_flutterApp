@@ -10,6 +10,7 @@ import 'screens/settings_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/intro_screen.dart'; // 🎬 NUEVA PANTALLA DE INTRO
 import 'screens/instructions_screen.dart'; // 📚 PANTALLA DE INSTRUCCIONES
+// 🎲 PANTALLA DE PRUEBA DE DADOS
 
 // Enum para prioridades de mensajes
 enum MessagePriority {
@@ -3375,8 +3376,8 @@ void _continueWithDiceResult(int finalResult) {
     AudioService().pauseBackgroundMusic();
     
     print('⏸️ Todos los sistemas del juego pausados');
-    print('🔄 Estado guardado: dado=${wasDiceAnimating}, decisión=${wasInDecisionPeriod}, resultado=${pausedDiceResult}');
-    print('⏰ Timer guardado: activo=${wasPlayerTimerActive}, tiempo=${pausedTimerCountdown}s');
+    print('🔄 Estado guardado: dado=$wasDiceAnimating, decisión=$wasInDecisionPeriod, resultado=$pausedDiceResult');
+    print('⏰ Timer guardado: activo=$wasPlayerTimerActive, tiempo=${pausedTimerCountdown}s');
   }
 
   // ▶️ REANUDAR TODOS LOS SISTEMAS DEL JUEGO
@@ -3406,7 +3407,7 @@ void _continueWithDiceResult(int finalResult) {
         
       } else if (wasDiceAnimating) {
         // El dado estaba animándose, continuar inmediatamente con el resultado
-        print('🔄 Restaurando: el dado estaba animándose, continuando con resultado ${pausedDiceResult}');
+        print('🔄 Restaurando: el dado estaba animándose, continuando con resultado $pausedDiceResult');
         setState(() {
           diceValue = pausedDiceResult;
           isMoving = true;
@@ -3931,7 +3932,7 @@ void _continueWithDiceResult(int finalResult) {
               ),
             ],
           ),
-          content: Container(
+          content: SizedBox(
             width: double.maxFinite,
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -4040,7 +4041,7 @@ void _continueWithDiceResult(int finalResult) {
                       ],
                     ),
                   );
-                }).toList(),
+                }),
               ],
             ),
           ),

@@ -5,9 +5,9 @@ class InstructionsScreen extends StatefulWidget {
   final bool showAsFirstTime;
   
   const InstructionsScreen({
-    Key? key, 
+    super.key, 
     this.showAsFirstTime = false
-  }) : super(key: key);
+  });
 
   @override
   State<InstructionsScreen> createState() => _InstructionsScreenState();
