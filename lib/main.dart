@@ -2553,10 +2553,12 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
     );
   }
   
-  // 🏷️ EDITOR DE APODOS DINÁMICO
+  // 🏷️ EDITOR DE APODOS DINÁMICO - CORREGIDO
   void _showEditNicknameDialog(int playerIndex) {
     String currentName = _getPlayerName(playerIndex);
-    String newName = currentName;
+    
+    // ✅ CREAR CONTROLADOR PARA MANEJAR EL TEXTO CORRECTAMENTE
+    TextEditingController textController = TextEditingController(text: currentName);
     
     showDialog(
       context: context,
@@ -2593,7 +2595,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
               ),
               const SizedBox(height: 12),
               TextField(
-                controller: TextEditingController(text: currentName),
+                controller: textController, // ✅ USAR CONTROLADOR EN LUGAR DE VALOR INICIAL
                 decoration: InputDecoration(
                   hintText: 'Escribe el nuevo apodo...',
                   border: OutlineInputBorder(
@@ -2602,13 +2604,12 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
                   prefixIcon: const Icon(Icons.person_outline),
                 ),
                 maxLength: 15,
-                onChanged: (value) {
-                  newName = value.trim();
-                },
+                autofocus: true, // ✅ ENFOCAR AUTOMÁTICAMENTE
                 onSubmitted: (value) {
                   _updatePlayerNickname(playerIndex, value.trim());
                   Navigator.of(context).pop();
                 },
+                // ✅ REMOVER onChanged - No necesario con controlador
               ),
               const SizedBox(height: 8),
               Text(
@@ -2628,6 +2629,8 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
             ),
             ElevatedButton(
               onPressed: () {
+                // ✅ OBTENER TEXTO DEL CONTROLADOR
+                String newName = textController.text.trim();
                 _updatePlayerNickname(playerIndex, newName);
                 Navigator.of(context).pop();
               },
@@ -2640,7 +2643,10 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
           ],
         );
       },
-    );
+    ).then((_) {
+      // ✅ LIMPIAR CONTROLADOR CUANDO SE CIERRA EL DIÁLOGO
+      textController.dispose();
+    });
   }
 
   // 💾 ACTUALIZAR APODO DE JUGADOR
