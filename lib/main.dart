@@ -10,7 +10,7 @@ import 'screens/settings_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/intro_screen.dart'; // 🎬 NUEVA PANTALLA DE INTRO
 import 'screens/instructions_screen.dart'; // 📚 PANTALLA DE INSTRUCCIONES
-// 🎲 PANTALLA DE PRUEBA DE DADOS
+import 'screens/dice_showcase.dart'; // 🎲 PANTALLA DE PRUEBA DE DADOS
 
 // Enum para prioridades de mensajes
 enum MessagePriority {
@@ -1249,6 +1249,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
   Widget _buildGameModeCarousel() {
     final gameModes = [
       {'icon': Icons.play_arrow_rounded, 'title': 'CLÁSICO', 'subtitle': 'Modo tradicional', 'available': true},
+      {'icon': Icons.casino, 'title': 'PRUEBA DADOS', 'subtitle': 'Comparar animaciones', 'available': true, 'isTest': true},
       {'icon': Icons.emoji_events, 'title': 'RANKED', 'subtitle': 'Competitivo', 'available': false},
       {'icon': Icons.public, 'title': 'ONLINE', 'subtitle': 'Multijugador', 'available': false},
       {'icon': Icons.emoji_events_outlined, 'title': 'TORNEO', 'subtitle': 'Eliminación', 'available': false},
@@ -1274,6 +1275,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
                 subtitle: mode['subtitle'] as String,
                 available: mode['available'] as bool,
                 isActive: index == _currentGameMode,
+                isTest: mode['isTest'] as bool? ?? false,
               );
             },
           ),
@@ -1310,6 +1312,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
     required String subtitle,
     required bool available,
     required bool isActive,
+    bool isTest = false,
   }) {
     return AnimatedBuilder(
       animation: _buttonsAnimation,
@@ -1325,10 +1328,19 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
                 borderRadius: BorderRadius.circular(25),
                 onTap: () {
                   if (available) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const PlayerConfigScreen()),
-                    );
+                    if (isTest) {
+                      // Navegar a pantalla de prueba de dados
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const DiceShowcase()),
+                      );
+                    } else {
+                      // Navegar a configuración de jugadores normal
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const PlayerConfigScreen()),
+                      );
+                    }
                   } else {
                     _showComingSoonDialog(title);
                   }
@@ -1710,6 +1722,7 @@ class PlayerConfigScreen extends StatefulWidget {
 class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
   int numPlayers = 4;
   List<String> playerNames = ['Jugador 1', 'Jugador 2', 'Jugador 3', 'Jugador 4'];
+  List<String?> originalPlayerNames = [null, null, null, null]; // Para restaurar nombres cuando cambia de CPU a humano
   List<bool> isHuman = [true, true, true, true]; // true = humano, false = CPU
   List<Color> availableColors = [Colors.red, Colors.blue, Colors.green, Colors.yellow];
   List<String> colorNames = ['Rojo', 'Azul', 'Verde', 'Amarillo'];
@@ -2102,11 +2115,11 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                                     ),
                                   ),
                                   TextField(
-                                    enabled: false, // Siempre está el usuario en Jugador 1
+                                    enabled: index == 0 ? false : isHuman[index], // Solo editable si es humano y no es jugador 1
                                     decoration: InputDecoration(
                                       hintText: index == 0 
                                           ? '👤 Usuario logueado' 
-                                          : 'Nombre del jugador',
+                                          : (isHuman[index] ? 'Nombre del jugador' : 'CPU automático'),
                                       border: InputBorder.none,
                                       contentPadding: EdgeInsets.zero,
                                       suffixIcon: index == 0 
@@ -2115,25 +2128,39 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                                               color: Colors.grey[400],
                                               size: 16,
                                             )
-                                          : null,
+                                          : (!isHuman[index] 
+                                              ? Icon(
+                                                  Icons.smart_toy,
+                                                  color: Colors.orange[400],
+                                                  size: 16,
+                                                )
+                                              : Icon(
+                                                  Icons.edit,
+                                                  color: Colors.green[400],
+                                                  size: 16,
+                                                )),
                                     ),
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w600,
                                       color: index == 0 
                                           ? Colors.grey[600] 
-                                          : Colors.black,
+                                          : (!isHuman[index] 
+                                              ? Colors.orange[700]
+                                              : Colors.black),
                                     ),
                                     controller: TextEditingController(
                                       text: playerNames[index],
                                     ),
                                     onChanged: (value) {
-                                      // Solo permitir cambios si no es el usuario (index 0)
-                                      if (index != 0) {
+                                      // Solo permitir cambios si no es el usuario (index 0) y es humano
+                                      if (index != 0 && isHuman[index]) {
                                         setState(() {
                                           playerNames[index] = value.isEmpty 
                                               ? 'Jugador ${index + 1}' 
                                               : value;
+                                          // Actualizar también el nombre original para preservarlo
+                                          originalPlayerNames[index] = playerNames[index];
                                         });
                                       }
                                     },
@@ -2148,7 +2175,18 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                                 setState(() {
                                   isHuman[index] = !isHuman[index];
                                   if (!isHuman[index]) {
+                                    // Guardar nombre actual antes de cambiar a CPU
+                                    if (originalPlayerNames[index] == null) {
+                                      originalPlayerNames[index] = playerNames[index];
+                                    }
                                     playerNames[index] = 'CPU ${index + 1}';
+                                  } else {
+                                    // Restaurar nombre original cuando vuelve a ser humano
+                                    if (originalPlayerNames[index] != null) {
+                                      playerNames[index] = originalPlayerNames[index]!;
+                                    } else {
+                                      playerNames[index] = 'Jugador ${index + 1}';
+                                    }
                                   }
                                 });
                               },
@@ -2348,9 +2386,8 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   int currentTurnIndex = 0; // Índice actual en el turnOrder
   
   // 🎲 REGLAS CLÁSICAS DEL PARCHÍS
-  int consecutiveSixes = 0; // Contador de seises consecutivos
-  bool hasExtraTurn = false; // Indica si el jugador tiene turno extra por sacar 6
-  int extraTurnsRemaining = 0; // NUEVO: Sistema de turnos extra acumulables
+  int consecutiveSixes = 0; // Contador de seises consecutivos  
+  int extraTurnsRemaining = 0; // Sistema de turnos extra acumulables
   bool isMoving = false; // Para bloquear el dado mientras se mueve una ficha
   GamePiece? jumpingPiece; // Para saber qué ficha está saltando
   String? pendingSpecialCellSound; // Para reproducir sonido de casilla especial al final de animación
@@ -2434,7 +2471,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   // Obtener ícono del estado del jugador
   String _getPlayerStatusIcon(int playerIndex) {
     if (playerIndex == currentPlayerIndex) {
-      if (hasExtraTurn) return '🎲'; // Turno extra
+      if (extraTurnsRemaining > 0) return '🎲'; // Turno extra
       return '⭐'; // Turno actual
     }
     return '💤'; // Esperando
@@ -2477,7 +2514,7 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
               _buildProfileRow('🎨 Color:', _getColorName(_getPlayerColor(playerIndex))),
               _buildProfileRow('🤖 Tipo:', widget.isHuman[playerIndex] ? 'Humano' : 'CPU'),
               _buildProfileRow('🎯 Estado:', playerIndex == currentPlayerIndex ? 'En turno' : 'Esperando'),
-              if (playerIndex == currentPlayerIndex && hasExtraTurn)
+              if (playerIndex == currentPlayerIndex && extraTurnsRemaining > 0)
                 _buildProfileRow('✨ Extra:', 'Turno extra activo'),
               if (playerIndex == currentPlayerIndex && consecutiveSixes > 0)
                 _buildProfileRow('🎲 Seises:', '$consecutiveSixes consecutivos'),
@@ -2823,7 +2860,6 @@ void _continueWithDiceResult(int finalResult) {
       
       setState(() {
         consecutiveSixes = 0;
-        hasExtraTurn = false;
         extraTurnsRemaining = 0; // Resetear turnos extra acumulados
         isMoving = false;
         
@@ -4108,7 +4144,7 @@ void _continueWithDiceResult(int finalResult) {
       isMoving = false;
       currentPlayerIndex = 0;
       consecutiveSixes = 0;
-      hasExtraTurn = false;
+      extraTurnsRemaining = 0;
       lastMessage = null;
       
       // Reiniciar arrays
@@ -4138,6 +4174,12 @@ void _rollDice() {
   if (_timer != null && _timer!.isActive) return;
   if (isMoving) return;
   if (isPaused) return;
+  
+  // 🎯 NUEVA LÓGICA: Consumir turno extra al EMPEZAR el lanzamiento (si aplica)
+  if (extraTurnsRemaining > 0) {
+    extraTurnsRemaining--;
+    print("🎲 DEBUG: Consumiendo turno extra. Restantes: $extraTurnsRemaining");
+  }
   
   // 🎯 CANCELAR TIMER INMEDIATAMENTE Y ACTUALIZAR ESTADO VISUAL
   _stopPlayerTimer();
@@ -4379,22 +4421,21 @@ void _rollDice() {
     });
   }
 
-  // � NUEVA FUNCIÓN: Manejar turnos extra acumulados
+  // 🎯 NUEVA FUNCIÓN: Manejar turnos extra con lógica corregida
   void _handleExtraTurns() {
+    print("🎲 DEBUG: Al finalizar turno - Turnos extra disponibles: $extraTurnsRemaining");
+    
     if (extraTurnsRemaining > 0) {
-      print("🎲 DEBUG: Procesando turno extra. Quedan: $extraTurnsRemaining");
+      print("🎲 DEBUG: Continuando con mismo jugador - Turnos restantes: $extraTurnsRemaining");
       
       // Mostrar mensaje de turno extra
       String message = extraTurnsRemaining == 1 
-          ? "¡Turno extra! 🎲✨" 
+          ? "¡Turno extra restante! 🎲✨" 
           : "¡$extraTurnsRemaining turnos extra restantes! 🎲✨🎲";
       
       _showMessage(message, priority: MessagePriority.normal, durationSeconds: 2);
       
-      // Consumir un turno extra
-      extraTurnsRemaining--;
-      
-      // Continuar con el mismo jugador
+      // Continuar con el mismo jugador (NO reducir aquí, se reduce al empezar el próximo turno)
       Timer(const Duration(milliseconds: 1500), () {
         // ⏸️ VERIFICAR PAUSA ANTES DE CONTINUAR
         if (isPaused) return;
@@ -4421,7 +4462,6 @@ void _rollDice() {
       if (diceResult != 6) {
         // Si no es 6, resetear contador de seises consecutivos
         consecutiveSixes = 0;
-        hasExtraTurn = false;
       }
       
       // Usar el nuevo sistema de turnos extra acumulables
@@ -4693,113 +4733,72 @@ void _rollDice() {
     
     switch (specialText) {
       case 'LANCE\nDE\nNUEVO':
-        messages = [
-          "¡EYYY QUE SUERTE! 🍀",
-          "$playerName pegó en la casilla mágica!",
-          "¡Tira otra vez como todo un CAMPEÓN! 🎲✨"
-        ];
-        
         // 🍀 CORRECCIÓN: SIEMPRE agregar 1 turno extra por la casilla especial
         extraTurnsRemaining++;
         print("🍀 DEBUG: Casilla 'LANCE DE NUEVO' agregó turno extra. Total: $extraTurnsRemaining");
         
-        // 🎯 MENSAJE ESPECIAL SI HAY DOBLE SUERTE (6 + Lance de Nuevo)
+        // 🎯 MENSAJE ÚNICO - diferentes según si hay doble suerte o no
         if (diceValue == 6) {
-          messages.add("¡DOBLE SUERTE! Dado 6 + Lance de Nuevo = 2 turnos extra total! 🎲✨🍀");
+          messages = ["¡DOBLE SUERTE! Dado 6 + Lance de Nuevo = 2 turnos extra! 🎲✨🍀"];
+        } else {
+          messages = ["¡Lance de Nuevo! $playerName tira otra vez 🎲✨"];
         }
         
         rollAgain = true;
         break;
         
       case 'VUELVE\nA LA\nSALIDA':
-        messages = [
-          "¡AYAYAYAYYYY! 😱💥",
-          "$playerName cayó en la trampa!",
-          "¡De vuelta a la SALIDA como si nada! 🔄😅"
-        ];
+        messages = ["¡$playerName vuelve a la SALIDA! 😱🔄"];
         newPosition = const Position(9, 0);
         break;
         
       case '1 TURNO\nSIN\nJUGAR':
-        messages = [
-          "¡A DORMIR LA MONA! 😴💤",
-          "$playerName se quedó pegao!",
-          "¡Un turno descansando como un bebé! 👶"
-        ];
+        messages = ["¡$playerName pierde un turno! �"];
         skipNextTurn = true;
         break;
         
       case 'SUBE\nAL\n63':
-        messages = [
-          "¡COHETE ESPACIAL! 🚀🌟",
-          "$playerName encontró el ascensor!",
-          "¡VUELA directo al 63 como Superman! 💫"
-        ];
+        messages = ["¡$playerName salta al 63! �"];
         newPosition = _getPositionFromNumber(63);
         break;
         
       case 'SUBE\nAL\n70':
-        messages = [
-          "¡TURBOPROPULSADO! 🚀⚡",
-          "$playerName activó el jetpack!",
-          "¡ZOOM al 70 como Flash! ⚡💨"
-        ];
+        messages = ["¡$playerName salta al 70! �"];
         newPosition = _getPositionFromNumber(70);
         break;
         
       case 'BAJA\nAL\n24':
-        messages = [
-          "¡TOBOGÁN GIGANTE! 🛝😂",
-          "$playerName se resbaló feo!",
-          "¡Pa'bajo al 24 como un rayo! ⬇️💨"
-        ];
+        messages = ["¡$playerName baja al 24! �"];
         newPosition = _getPositionFromNumber(24);
         break;
         
       case 'BAJA\nAL\n30':
-        messages = [
-          "¡ESCALERA MECÁNICA ROTA! 🛝🔧",
-          "$playerName bajó de golpe!",
-          "¡Directo al 30 sin parar! ⬇️😵"
-        ];
+        messages = ["¡$playerName baja al 30! ⬇️"];
         newPosition = _getPositionFromNumber(30);
         break;
         
       case 'BAJA\nAL\n40':
-        messages = [
-          "¡HUECO EN EL PISO! 🕳️😱",
-          "$playerName se hundió!",
-          "¡Al 40 como por arte de magia! ⬇️✨"
-        ];
+        messages = ["¡$playerName baja al 40! 🕳️"];
         newPosition = _getPositionFromNumber(40);
         break;
         
       case 'BAJA\nAL\n50':
-        messages = [
-          "¡ASCENSOR ROTO! 🛗💥",
-          "$playerName cayó por el tubo!",
-          "¡Directo al 50 sin escalas! ⬇️⚡"
-        ];
+        messages = ["¡$playerName baja al 50! 🛗"];
         newPosition = _getPositionFromNumber(50);
         break;
         
       case 'META\nCAMPEON':
-        messages = [
-          "¡CAMPEONNNNN! 🏆🎉",
-          "$playerName llegó a la META!",
-          "¡GANASTE como todo un TIGUERRRR! 👑🎊"
-        ];
+        messages = ["¡$playerName llegó a la META! �"];
         
         // 🎵 Audio se maneja en _checkPlayerFinished() para evitar duplicación
         // No reproducir audio aquí para prevenir conflictos
         break;
     }
     
-    // ¡MOSTRAR MENSAJES CON DRAMA! 🎭 - TIEMPO AUMENTADO PARA LEER BIEN
-    for (String message in messages) {
-      // 📬 USAR SISTEMA DE COLA PARA MENSAJES ESPECIALES
-      _showMessage(message, priority: MessagePriority.special, durationSeconds: 4);
-      await Future.delayed(const Duration(seconds: 4)); // Aumentado de 2 a 4 segundos
+    // ¡MOSTRAR MENSAJE ÚNICO! 📬 - Simplificado para evitar spam de mensajes
+    if (messages.isNotEmpty) {
+      _showMessage(messages.first, priority: MessagePriority.special, durationSeconds: 3);
+      await Future.delayed(const Duration(milliseconds: 1500)); // Reducido para mejor fluidez
     }
     
     // ¡EJECUTAR EFECTOS! ✨
@@ -5193,23 +5192,23 @@ void _rollDice() {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          if (hasExtraTurn)
+                          if (extraTurnsRemaining > 0)
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
                                 color: Colors.orange,
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: const Text(
-                                '¡Turno Extra!',
-                                style: TextStyle(
+                              child: Text(
+                                'Extra: $extraTurnsRemaining',
+                                style: const TextStyle(
                                   fontSize: 9,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.white,
                                 ),
                               ),
                             ),
-                          if (hasExtraTurn && consecutiveSixes > 0)
+                          if (extraTurnsRemaining > 0 && consecutiveSixes > 0)
                             const SizedBox(width: 8),
                           if (consecutiveSixes > 0)
                             Container(
