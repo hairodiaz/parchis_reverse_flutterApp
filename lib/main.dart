@@ -5018,8 +5018,11 @@ void _rollDice() {
       // EVITAR AUDIO DURANTE COLISIONES PARA PREVENIR DUPLICACIÓN
       if (!_isPlayingCollisionAudio) {
         if (newPosition.row == 9 && newPosition.col == 0) {
-          // Ficha llegó a SALIDA - sonido de bajar ficha
-          AudioService().playPieceDown();
+          // 🔇 VERIFICAR: Solo reproducir si NO fue por casilla especial "VUELVE A LA SALIDA"
+          // (para evitar sonido duplicado)
+          if (pendingSpecialCellSound != 'VUELVE\nA LA\nSALIDA') {
+            AudioService().playPieceDown();
+          }
         } else {
           // Ficha llegó a otra posición (teleportación) - sonido de subir ficha
           AudioService().playPieceUp();
