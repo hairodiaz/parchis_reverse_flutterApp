@@ -3269,22 +3269,23 @@ void _continueWithDiceResult(int finalResult) {
     switch (state) {
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
-        // App se fue a segundo plano - PAUSA AUTOMÁTICA
+        // App se fue a segundo plano - PAUSA AUTOMÁTICA (solo si no está ya pausado manualmente)
         if (!isPaused && !gameEnded) {
           _pauseGameAutomatically();
         }
         break;
       case AppLifecycleState.resumed:
-        // App volvió al primer plano - REANUDAR SI FUE PAUSA AUTOMÁTICA
+        // App volvió al primer plano - REANUDAR SOLO SI FUE PAUSA AUTOMÁTICA
         if (wasAutoPaused && isPaused) {
           _resumeGameAutomatically();
         }
+        // Si está pausado manualmente (wasAutoPaused = false), NO reanudar automáticamente
         break;
       case AppLifecycleState.detached:
         // App se está cerrando - no hacer nada especial
         break;
       case AppLifecycleState.hidden:
-        // App está oculta - tratarlo como pausa
+        // App está oculta - tratarlo como pausa (solo si no está ya pausado manualmente)
         if (!isPaused && !gameEnded) {
           _pauseGameAutomatically();
         }
@@ -3314,16 +3315,18 @@ void _continueWithDiceResult(int finalResult) {
     
     _pauseGameSystems();
     _showPauseDialog(); // Solo mostrar diálogo en pausa manual
+    print('⏸️ Juego pausado manualmente por el usuario');
   }
 
   // ▶️ REANUDAR JUEGO (función específica)  
   void _resumeGame() {
     setState(() {
       isPaused = false;
-      wasAutoPaused = false;
+      wasAutoPaused = false; // Resetear bandera de pausa automática
     });
     
     _resumeGameSystems();
+    print('▶️ Juego reanudado manualmente por el usuario');
   }
 
   // 🔄 PAUSA AUTOMÁTICA (cuando sales de la app)
@@ -3342,7 +3345,7 @@ void _continueWithDiceResult(int finalResult) {
   void _resumeGameAutomatically() {
     setState(() {
       isPaused = false;
-      wasAutoPaused = false;
+      wasAutoPaused = false; // Resetear bandera después de reanudar
     });
     
     _resumeGameSystems(); // Reanudar sistemas
@@ -3358,6 +3361,15 @@ void _continueWithDiceResult(int finalResult) {
     pausedDiceResult = diceValue;
     wasPlayerTimerActive = (_playerTimer != null && _playerTimer!.isActive);
     pausedTimerCountdown = timerCountdown; // Guardar tiempo restante
+    
+    // 💾 GUARDAR ESTADO ADICIONAL DEL PERÍODO DE DECISIÓN
+    if (isDecisionTime) {
+      // Asegurar que currentDiceResult tenga el valor correcto
+      if (currentDiceResult == 0) {
+        currentDiceResult = diceValue;
+      }
+      pausedDiceResult = currentDiceResult; // Usar el resultado de decisión correcto
+    }
     
     // 🎲 DETECTAR SI EL DADO ESTÁ EN ANIMACIÓN ACTIVA
     if (_animationController.isAnimating) {
@@ -3376,55 +3388,60 @@ void _continueWithDiceResult(int finalResult) {
     _animationController.stop();
     _jumpController.stop();
     
-    // Pausar audio
-    AudioService().pauseBackgroundMusic();
+    // 🎵 PAUSAR TODOS LOS AUDIOS DEL JUEGO
+    try {
+      AudioService().pauseBackgroundMusic();
+      // También detener efectos de sonido que puedan estar reproduciéndose
+      // Los nuevos efectos se bloquean con verificaciones isPaused
+    } catch (e) {
+      print('❌ Error pausando audio: $e');
+    }
     
     print('⏸️ Todos los sistemas del juego pausados');
     print('🔄 Estado guardado: dado=$wasDiceAnimating, decisión=$wasInDecisionPeriod, resultado=$pausedDiceResult');
     print('⏰ Timer guardado: activo=$wasPlayerTimerActive, tiempo=${pausedTimerCountdown}s');
+    print('🎯 Decision guardado: isDecisionTime=$isDecisionTime, currentDiceResult=$currentDiceResult');
   }
 
   // ▶️ REANUDAR TODOS LOS SISTEMAS DEL JUEGO
   void _resumeGameSystems() {
-    // Reanudar audio
-    AudioService().resumeBackgroundMusic();
+    // 🎵 REANUDAR TODOS LOS AUDIOS DEL JUEGO
+    try {
+      AudioService().resumeBackgroundMusic();
+      // Los nuevos efectos de sonido se desbloquean automáticamente con isPaused = false
+    } catch (e) {
+      print('❌ Error reanudando audio: $e');
+    }
     
     // 🔄 RESTAURAR ESTADO SEGÚN LO QUE ESTABA PASANDO CUANDO SE PAUSÓ
     if (!gameEnded) {
-      if (shouldCompleteDiceAnimation) {
-        // El dado estaba en animación, completarla con el resultado correcto
-        print('🎲 Completando animación del dado interrumpida por pausa');
+      // 🎲 PRIORIDAD 1: Animación de dado (unificar shouldCompleteDiceAnimation y wasDiceAnimating)
+      if (shouldCompleteDiceAnimation || wasDiceAnimating) {
+        // El dado estaba en algún proceso de animación
+        print('🎲 Restaurando animación de dado con resultado: $pausedDiceResult');
         setState(() {
+          diceValue = pausedDiceResult;
           currentDiceResult = pausedDiceResult;
         });
         
-        // Completar animación rápidamente
-        Timer(const Duration(milliseconds: 500), () {
+        // Continuar inmediatamente al período de decisión sin re-animar
+        Timer(const Duration(milliseconds: 300), () {
           if (!isPaused) {
             setState(() {
-              diceValue = pausedDiceResult;
               isMoving = true;
             });
             _startDecisionPeriod(pausedDiceResult);
           }
         });
         
-      } else if (wasDiceAnimating) {
-        // El dado estaba animándose, continuar inmediatamente con el resultado
-        print('🔄 Restaurando: el dado estaba animándose, continuando con resultado $pausedDiceResult');
-        setState(() {
-          diceValue = pausedDiceResult;
-          isMoving = true;
-        });
-        _startDecisionPeriod(pausedDiceResult);
-        
       } else if (wasInDecisionPeriod) {
-        // Estaba en período de decisión, restaurar countdown
-        print('🔄 Restaurando: estaba en período de decisión');
+        // 🔄 PRIORIDAD 2: Período de decisión activo
+        print('🔄 Restaurando período de decisión');
         setState(() {
           isDecisionTime = true;
           currentDiceResult = pausedDiceResult;
-          decisionCountdown = 3; // Reiniciar countdown
+          diceValue = pausedDiceResult;
+          decisionCountdown = 3; // Reiniciar countdown para dar tiempo al usuario
         });
         
         if (widget.isHuman[currentPlayerIndex]) {
@@ -3434,19 +3451,21 @@ void _continueWithDiceResult(int finalResult) {
         }
         
       } else if (wasPlayerTimerActive && widget.isHuman[currentPlayerIndex] && !isMoving) {
-        // Timer del jugador humano estaba activo, restaurar con tiempo restante
-        print('🔄 Restaurando: timer del jugador con ${pausedTimerCountdown}s restantes');
+        // ⏰ PRIORIDAD 3: Timer del jugador humano
+        print('🔄 Restaurando timer del jugador con ${pausedTimerCountdown}s restantes');
         _resumePlayerTimerWithTime(pausedTimerCountdown);
         
-      } else if (widget.isHuman[currentPlayerIndex] && !isMoving) {
-        // Jugador humano esperando lanzar dado (timer no estaba activo)
+      } else if (widget.isHuman[currentPlayerIndex] && !isMoving && !isDecisionTime) {
+        // 👤 PRIORIDAD 4: Jugador humano esperando (sin timer activo)
         print('🔄 Restaurando: jugador humano esperando (nuevo timer)');
         _startPlayerTimer();
         
-      } else if (_isCurrentPlayerCPU() && !isMoving) {
-        // CPU esperando lanzar dado
+      } else if (_isCurrentPlayerCPU() && !isMoving && !isDecisionTime) {
+        // 🤖 PRIORIDAD 5: CPU esperando
         print('🔄 Restaurando: CPU esperando');
-        _cpuTimer = Timer(const Duration(milliseconds: 1000), () => _rollDice());
+        _cpuTimer = Timer(const Duration(milliseconds: 1000), () {
+          if (!isPaused) _rollDice();
+        });
       }
     }
     
@@ -4609,6 +4628,12 @@ void _rollDice() {
     // 🎯 ANIMACIÓN CON EFECTO REBOTE (reutilizar metaIndex ya definido)
     
     for (int i = 1; i <= steps; i++) {
+      // ⏸️ VERIFICAR PAUSA ANTES DE CADA PASO DE ANIMACIÓN
+      if (isPaused) {
+        print('⏸️ Animación de movimiento pausada en paso $i de $steps');
+        return; // Salir de la animación si está pausado
+      }
+      
       int targetIndex = startIndex + i;
       
       // Si estamos en el proceso de rebote
@@ -4630,7 +4655,7 @@ void _rollDice() {
           
           // ⏰ Timer para limpiar mensaje de rebote después de 3 segundos
           Timer(const Duration(milliseconds: 3000), () {
-            if (mounted) {
+            if (mounted && !isPaused) {
               setState(() {
                 lastMessage = null;
               });
@@ -4645,7 +4670,7 @@ void _rollDice() {
         targetIndex = metaIndex;
         
         // 🎵 Sonido al llegar a la META
-        AudioService().playGoalEffect();
+        if (!isPaused) AudioService().playGoalEffect(); // 🚫 NO sonar durante pausa
       }
       
       // Animar el salto
@@ -4654,19 +4679,31 @@ void _rollDice() {
       // Pequeña pausa para el salto hacia arriba
       await Future.delayed(const Duration(milliseconds: 200));
       
+      // ⏸️ VERIFICAR PAUSA DESPUÉS DEL DELAY
+      if (isPaused) {
+        print('⏸️ Animación pausada durante salto hacia arriba');
+        return;
+      }
+      
       // Mover a la posición calculada
       setState(() {
         piece.position = boardPath[targetIndex];
       });
       
       // 🎵 Sonido de movimiento de ficha
-      AudioService().playPieceMove();
+      if (!isPaused) AudioService().playPieceMove(); // 🚫 NO sonar durante pausa
       
       // 🎵 NUEVO: Reproducir sonido de casilla especial si corresponde
       _playSpecialCellSoundAfterMovement(piece.position);
       
       // Completar el salto (bajar)
       await _jumpController.reverse();
+      
+      // ⏸️ VERIFICAR PAUSA DESPUÉS DEL SALTO
+      if (isPaused) {
+        print('⏸️ Animación pausada durante salto hacia abajo');
+        return;
+      }
       
       // Pausa antes del siguiente salto
       await Future.delayed(const Duration(milliseconds: 150));
@@ -4720,14 +4757,14 @@ void _rollDice() {
       if (_isCurrentPlayerCPU()) {
         // CPU debe lanzar automáticamente después de caer en "LANCE DE NUEVO"
         Timer(const Duration(milliseconds: 1500), () {
-          if (!isMoving && mounted) {
+          if (!isPaused && !isMoving && mounted) {
             _rollDice(); // Lanzar automáticamente para CPU
           }
         });
       } else {
         // 👤 PARA HUMANOS: Iniciar timer normal si cae en "LANCE DE NUEVO"
         Timer(const Duration(milliseconds: 500), () {
-          if (!isMoving && mounted) {
+          if (!isPaused && !isMoving && mounted) {
             _startPlayerTimer(); // Iniciar timer para jugador humano
           }
         });
@@ -4775,7 +4812,9 @@ void _rollDice() {
     
     // Vibración táctil dramática
     HapticFeedback.heavyImpact();
-    Timer(const Duration(milliseconds: 100), () => HapticFeedback.heavyImpact());
+    Timer(const Duration(milliseconds: 100), () {
+      if (!isPaused) HapticFeedback.heavyImpact();
+    });
     
     String attackerColor = _getColorName(attacker.color);
     String victimColor = _getColorName(victim.color);
@@ -4801,14 +4840,18 @@ void _rollDice() {
     // Mostrar mensaje por 3 segundos
     _messageTimer?.cancel();
     _messageTimer = Timer(const Duration(seconds: 3), () {
-      setState(() {
-        lastMessage = null;
-      });
-      
-      // 🎵 DESACTIVAR FLAG DESPUÉS DE QUE TERMINA EL AUDIO
-      Timer(const Duration(milliseconds: 500), () {
-        _isPlayingCollisionAudio = false;
-      });
+      if (!isPaused) {
+        setState(() {
+          lastMessage = null;
+        });
+        
+        // 🎵 DESACTIVAR FLAG DESPUÉS DE QUE TERMINA EL AUDIO
+        Timer(const Duration(milliseconds: 500), () {
+          if (!isPaused) {
+            _isPlayingCollisionAudio = false;
+          }
+        });
+      }
     });
   }
 
