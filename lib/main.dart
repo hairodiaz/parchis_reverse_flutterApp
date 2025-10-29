@@ -289,14 +289,14 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
           backgroundColor: const Color(0xFF1a237e),
           title: const Row(
             children: [
-              Icon(Icons.waving_hand, color: Colors.amber, size: 28),
+              Icon(Icons.waving_hand, color: Colors.amber, size: 26),
               SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  '¡Bienvenido al Parchís Reverse!',
+                  '¡Bienvenido a Parchís Reverse!',
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 20,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -308,10 +308,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                '🎯 Esta es una versión moderna del clásico juego dominicano con nuevas mecánicas y efectos especiales.',
+                '🎯 Esta es una versión moderna del clásico juego Dominicano con nuevas mecánicas y efectos especiales.',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 16,
+                  fontSize: 14,
                   height: 1.5,
                 ),
               ),
@@ -351,7 +351,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
                     const SizedBox(width: 8),
                     const Expanded(
                       child: Text(
-                        'No mostrar esta bienvenida nuevamente',
+                        'No volver a mostrar',
                         style: TextStyle(
                           color: Colors.white70,
                           fontSize: 14,
@@ -379,7 +379,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    child: const Text('Empezar Jugando'),
+                    child: const Text('Cerrar'),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -1722,7 +1722,6 @@ class PlayerConfigScreen extends StatefulWidget {
 class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
   int numPlayers = 4;
   List<String> playerNames = ['Jugador 1', 'Jugador 2', 'Jugador 3', 'Jugador 4'];
-  List<String?> originalPlayerNames = [null, null, null, null]; // Para restaurar nombres cuando cambia de CPU a humano
   List<bool> isHuman = [true, true, true, true]; // true = humano, false = CPU
   List<Color> availableColors = [Colors.red, Colors.blue, Colors.green, Colors.yellow];
   List<String> colorNames = ['Rojo', 'Azul', 'Verde', 'Amarillo'];
@@ -1752,6 +1751,15 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
       setState(() {
         selectedColorIndices = savedColors;
       });
+    }
+  }
+
+  // ✅ FUNCIÓN SIMPLIFICADA para obtener nombre del jugador
+  String _getPlayerDisplayName(int index) {
+    if (index == 0) {
+      return playerNames[0]; // Nombre del usuario logueado
+    } else {
+      return isHuman[index] ? 'Jugador ${index + 1}' : 'CPU ${index + 1}';
     }
   }
   
@@ -1942,7 +1950,7 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                 ),
               ),
             const Text(
-              'Configuración de Partida',
+              'Partida Clásica',
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
@@ -1979,21 +1987,21 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
               children: [
                 // Título
                 const Text(
-                  '⚙️ CONFIGURACIÓN',
+                  '⚙️ Configura tu partida',
                   style: TextStyle(
-                    fontSize: 28,
+                    fontSize: 24,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF5D4037),
                   ),
                 ),
                 const SizedBox(height: 10),
-                const Text(
+                /*const Text(
                   'Configura tu partida',
                   style: TextStyle(
                     fontSize: 16,
                     color: Color(0xFF8D6E63),
                   ),
-                ),
+                ),*/
                 const SizedBox(height: 30),
                 
                 // Selector de cantidad de jugadores
@@ -2102,92 +2110,39 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                             ),
                             const SizedBox(width: 12),
                             
-                            // Nombre del jugador
+                            // Nombre del jugador SIMPLIFICADO
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    colorNames[index],
+                                    colorNames[selectedColorIndices[index]],
                                     style: const TextStyle(
                                       fontSize: 14,
                                       color: Colors.grey,
                                     ),
                                   ),
-                                  TextField(
-                                    enabled: index == 0 ? false : isHuman[index], // Solo editable si es humano y no es jugador 1
-                                    decoration: InputDecoration(
-                                      hintText: index == 0 
-                                          ? '👤 Usuario logueado' 
-                                          : (isHuman[index] ? 'Nombre del jugador' : 'CPU automático'),
-                                      border: InputBorder.none,
-                                      contentPadding: EdgeInsets.zero,
-                                      suffixIcon: index == 0 
-                                          ? Icon(
-                                              Icons.lock_outline,
-                                              color: Colors.grey[400],
-                                              size: 16,
-                                            )
-                                          : (!isHuman[index] 
-                                              ? Icon(
-                                                  Icons.smart_toy,
-                                                  color: Colors.orange[400],
-                                                  size: 16,
-                                                )
-                                              : Icon(
-                                                  Icons.edit,
-                                                  color: Colors.green[400],
-                                                  size: 16,
-                                                )),
-                                    ),
+                                  Text(
+                                    _getPlayerDisplayName(index),
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w600,
                                       color: index == 0 
-                                          ? Colors.grey[600] 
+                                          ? Colors.blue[700] // Usuario principal
                                           : (!isHuman[index] 
-                                              ? Colors.orange[700]
-                                              : Colors.black),
+                                              ? Colors.orange[700] // CPU
+                                              : Colors.black), // Jugador humano
                                     ),
-                                    controller: TextEditingController(
-                                      text: playerNames[index],
-                                    ),
-                                    onChanged: (value) {
-                                      // Solo permitir cambios si no es el usuario (index 0) y es humano
-                                      if (index != 0 && isHuman[index]) {
-                                        setState(() {
-                                          playerNames[index] = value.isEmpty 
-                                              ? 'Jugador ${index + 1}' 
-                                              : value;
-                                          // Actualizar también el nombre original para preservarlo
-                                          originalPlayerNames[index] = playerNames[index];
-                                        });
-                                      }
-                                    },
                                   ),
                                 ],
                               ),
                             ),
                             
-                            // Selector CPU/Humano (Jugador 1 siempre es humano)
+                            // Selector CPU/Humano SIMPLIFICADO
                             GestureDetector(
-                              onTap: index == 0 ? null : () { // Bloquear tap para Jugador 1
+                              onTap: index == 0 ? null : () { // Bloquear para Jugador 1
                                 setState(() {
                                   isHuman[index] = !isHuman[index];
-                                  if (!isHuman[index]) {
-                                    // Guardar nombre actual antes de cambiar a CPU
-                                    if (originalPlayerNames[index] == null) {
-                                      originalPlayerNames[index] = playerNames[index];
-                                    }
-                                    playerNames[index] = 'CPU ${index + 1}';
-                                  } else {
-                                    // Restaurar nombre original cuando vuelve a ser humano
-                                    if (originalPlayerNames[index] != null) {
-                                      playerNames[index] = originalPlayerNames[index]!;
-                                    } else {
-                                      playerNames[index] = 'Jugador ${index + 1}';
-                                    }
-                                  }
                                 });
                               },
                               child: Container(
@@ -2197,14 +2152,14 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                                 ),
                                 decoration: BoxDecoration(
                                   color: index == 0 
-                                      ? Colors.blue[50] // Color especial para Jugador 1
+                                      ? Colors.blue[50] // Usuario principal
                                       : (isHuman[index] 
                                           ? Colors.green[100]
                                           : Colors.orange[100]),
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
                                     color: index == 0 
-                                        ? Colors.blue[300]! // Borde especial para Jugador 1
+                                        ? Colors.blue[300]! // Usuario principal
                                         : (isHuman[index] 
                                             ? Colors.green
                                             : Colors.orange),
@@ -2216,13 +2171,13 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                                   children: [
                                     Icon(
                                       index == 0 
-                                          ? Icons.account_circle // Icono especial para Jugador 1
+                                          ? Icons.account_circle // Usuario principal
                                           : (isHuman[index] 
                                               ? Icons.person 
                                               : Icons.smart_toy),
                                       size: 20,
                                       color: index == 0 
-                                          ? Colors.blue[700] // Color especial para Jugador 1
+                                          ? Colors.blue[700] // Usuario principal
                                           : (isHuman[index] 
                                               ? Colors.green[700]
                                               : Colors.orange[700]),
@@ -2230,13 +2185,13 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                                     const SizedBox(width: 5),
                                     Text(
                                       index == 0 
-                                          ? 'TÚ' // Texto especial para Jugador 1
+                                          ? 'TÚ' // Usuario principal
                                           : (isHuman[index] ? 'HUMANO' : 'CPU'),
                                       style: TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold,
                                         color: index == 0 
-                                            ? Colors.blue[700] // Color especial para Jugador 1
+                                            ? Colors.blue[700] // Usuario principal
                                             : (isHuman[index] 
                                                 ? Colors.green[700]
                                                 : Colors.orange[700]),
@@ -2309,7 +2264,7 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                         MaterialPageRoute(
                           builder: (context) => ParchisBoard(
                             numPlayers: numPlayers,
-                            playerNames: playerNames.take(numPlayers).toList(),
+                            playerNames: List.generate(numPlayers, (index) => _getPlayerDisplayName(index)),
                             isHuman: isHuman.take(numPlayers).toList(),
                             playerColorIndices: selectedColorIndices.take(numPlayers).toList(),
                             turnOrder: turnOrder,
@@ -3507,74 +3462,207 @@ void _continueWithDiceResult(int finalResult) {
   }
 
   // 📋 DIÁLOGO DE PAUSA (solo para pausa manual)
-  void _showPauseDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Icon(Icons.pause_circle, color: Colors.orange, size: 32),
-            SizedBox(width: 12),
-            Text('⏸️ JUEGO PAUSADO', style: TextStyle(color: Colors.orange, fontSize: 18)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('El juego está pausado. ¿Qué quieres hacer?', 
-                style: TextStyle(fontSize: 16)),
-            SizedBox(height: 20),
-            // Estado actual del juego
-            Container(
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(10),
+  // Reemplazar la función _showPauseDialog()
+void _showPauseDialog() {
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+      backgroundColor: Colors.white,
+      contentPadding: const EdgeInsets.all(20),
+      title: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFF9800), Color(0xFFFF6B35)],
               ),
-              child: Column(
-                children: [
-                  Text('🎮 Turno actual: ${_getPlayerDisplayName(currentPlayerIndex)}',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  SizedBox(height: 4),
-                  Text('🎲 Último dado: $diceValue'),
-                  if (extraTurnsRemaining > 0)
-                    Text('✨ Turnos extra: $extraTurnsRemaining'),
-                ],
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.pause_circle_filled,
+              color: Colors.white,
+              size: 40,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            '⏸️ JUEGO PAUSADO',
+            style: TextStyle(
+              color: Color(0xFFFF6B35),
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            '¿Qué quieres hacer?',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.black87,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 20),
+          
+          // Estado actual del juego
+          Container(
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.blue.shade50, Colors.purple.shade50],
+              ),
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: Colors.blue.shade200),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 16,
+                      height: 16,
+                      decoration: BoxDecoration(
+                        color: _getPlayerColor(currentPlayerIndex),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${_getPlayerDisplayName(currentPlayerIndex)}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    Column(
+                      children: [
+                        const Text('🎲', style: TextStyle(fontSize: 16)),
+                        Text(
+                          '$diceValue',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (extraTurnsRemaining > 0)
+                      Column(
+                        children: [
+                          const Text('✨', style: TextStyle(fontSize: 16)),
+                          Text(
+                            '$extraTurnsRemaining',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        Column(
+          children: [
+            // Botón Continuar (principal)
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _resumeGame();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4CAF50),
+                  foregroundColor: Colors.white,
+                  elevation: 3,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.play_arrow, size: 24),
+                    SizedBox(width: 8),
+                    Text(
+                      'Continuar',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 12),
+            
+            // Botón Salir (secundario)
+            SizedBox(
+              width: double.infinity,
+              height: 45,
+              child: OutlinedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _showExitDialog();
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF757575),
+                  side: const BorderSide(
+                    color: Color(0xFF757575),
+                    width: 2,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.home, size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      'Salir',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
         ),
-        actions: [
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _showExitDialog(); // Usar función existente
-                  },
-                  child: Text('🏠 Salir al Menú'),
-                ),
-              ),
-              SizedBox(width: 8),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _resumeGame(); // Usar función específica para reanudar
-                  },
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                  child: Text('▶️ Continuar'),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+      ],
+    ),
+  );
+}
+
 
   // 📱 WAKELOCK - MANTENER PANTALLA ACTIVA
 
@@ -5101,25 +5189,36 @@ void _rollDice() {
         backgroundColor: const Color(0xFF8B4513),
         elevation: 4,
         automaticallyImplyLeading: false, // Quitar botón atrás de la pantalla de juego
-        actions: [
-          // 🆕 BOTÓN DE PAUSA
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: isPaused ? Colors.green.withOpacity(0.2) : Colors.orange.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: IconButton(
-              onPressed: _togglePauseManually,
-              icon: Icon(
-                isPaused ? Icons.play_arrow : Icons.pause,
-                color: isPaused ? Colors.green : Colors.orange,
-                size: 24,
-              ),
-              tooltip: isPaused ? 'Reanudar' : 'Pausar',
-            ),
-          ),
-        ],
+       // En la sección actions del AppBar, reemplazar por:
+actions: [
+  // 🎯 BOTÓN DE PAUSA MÁS PEQUEÑO
+  Container(
+    margin: const EdgeInsets.only(right: 12),
+    decoration: BoxDecoration(
+      color: isPaused ? Colors.green.withOpacity(0.2) : Colors.orange.withOpacity(0.2),
+      borderRadius: BorderRadius.circular(10), // Reducido de 12 a 10
+      border: Border.all(
+        color: isPaused ? Colors.green : Colors.orange,
+        width: 2,
+      ),
+    ),
+    child: IconButton(
+      onPressed: _togglePauseManually,
+      icon: Icon(
+        isPaused ? Icons.play_arrow : Icons.pause,
+        color: isPaused ? Colors.green : Colors.orange,
+        size: 16, // Reducido de 26 a 22
+      ),
+      tooltip: isPaused ? 'Reanudar' : 'Pausar',
+      iconSize: 16, // Añadido para asegurar el tamaño
+      constraints: const BoxConstraints( // Añadido para controlar el tamaño del botón
+        minWidth: 25, // Reducido de 48 (default) a 40
+        minHeight: 25, // Reducido de 48 (default) a 40
+      ),
+      padding: const EdgeInsets.all(8), // Reducido el padding interno
+    ),
+  ),
+],
       ),
       body: Stack(
         children: [

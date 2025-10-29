@@ -290,7 +290,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 32),
             
             // 📊 INFORMACIÓN DEBUG
-            _buildDebugInfo(),
+            //_buildDebugInfo(),
           ],
         ),
       ),
@@ -684,7 +684,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   /// 📊 Información de debug
-  Widget _buildDebugInfo() {
+  /*Widget _buildDebugInfo() {
     return Card(
       color: Colors.grey.shade100,
       child: Padding(
@@ -704,5 +704,5 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
-  }
+  }*/
 }
