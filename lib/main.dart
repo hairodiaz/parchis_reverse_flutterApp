@@ -2406,6 +2406,12 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   bool shouldCompleteDiceAnimation = false; // Si debe completar la animación al reanudar
   bool wasPlayerTimerActive = false; // Si el timer del jugador estaba activo cuando se pausó
   int pausedTimerCountdown = 10; // Tiempo restante del timer cuando se pausó
+  
+  // 🚶 NUEVO: ESTADO DE MOVIMIENTO DE FICHAS DURANTE PAUSA
+  bool wasMovingPiece = false; // Si una ficha estaba moviéndose cuando se pausó
+  GamePiece? pausedMovingPiece; // Qué ficha estaba moviéndose
+  int pausedStepsRemaining = 0; // Cuántos pasos faltaban
+  int pausedCurrentStep = 0; // En qué paso estaba
 
   // �👤 SISTEMA DE PERFILES DE JUGADORES
   
@@ -3362,6 +3368,13 @@ void _continueWithDiceResult(int finalResult) {
     wasPlayerTimerActive = (_playerTimer != null && _playerTimer!.isActive);
     pausedTimerCountdown = timerCountdown; // Guardar tiempo restante
     
+    // 💾 NUEVO: GUARDAR ESTADO DE MOVIMIENTO DE FICHAS
+    wasMovingPiece = (jumpingPiece != null);
+    if (wasMovingPiece && jumpingPiece != null) {
+      pausedMovingPiece = jumpingPiece;
+      print('🚶 Ficha en movimiento detectada durante pausa: ${jumpingPiece!.color}');
+    }
+    
     // 💾 GUARDAR ESTADO ADICIONAL DEL PERÍODO DE DECISIÓN
     if (isDecisionTime) {
       // Asegurar que currentDiceResult tenga el valor correcto
@@ -3384,20 +3397,17 @@ void _continueWithDiceResult(int finalResult) {
     _timer?.cancel();
     _messageTimer?.cancel();
     
-    // Pausar animaciones
-    _animationController.stop();
-    _jumpController.stop();
-    
-    // 🎵 PAUSAR TODOS LOS AUDIOS DEL JUEGO
-    try {
-      AudioService().pauseBackgroundMusic();
-      // También detener efectos de sonido que puedan estar reproduciéndose
-      // Los nuevos efectos se bloquean con verificaciones isPaused
-    } catch (e) {
-      print('❌ Error pausando audio: $e');
-    }
-    
-    print('⏸️ Todos los sistemas del juego pausados');
+  // Pausar animaciones
+  _animationController.stop();
+  _jumpController.stop();
+  
+  // 🔇 DETENER TODOS LOS SONIDOS ACTIVOS (incluyendo el sonido del dado)
+  try {
+    AudioService().stopAllSounds(); // Detener todos los efectos de sonido
+    print('🔇 Audio: Todos los sonidos detenidos durante pausa (incluyendo dado)');
+  } catch (e) {
+    print('❌ Error pausando audio: $e');
+  }    print('⏸️ Todos los sistemas del juego pausados');
     print('🔄 Estado guardado: dado=$wasDiceAnimating, decisión=$wasInDecisionPeriod, resultado=$pausedDiceResult');
     print('⏰ Timer guardado: activo=$wasPlayerTimerActive, tiempo=${pausedTimerCountdown}s');
     print('🎯 Decision guardado: isDecisionTime=$isDecisionTime, currentDiceResult=$currentDiceResult');
@@ -3405,19 +3415,29 @@ void _continueWithDiceResult(int finalResult) {
 
   // ▶️ REANUDAR TODOS LOS SISTEMAS DEL JUEGO
   void _resumeGameSystems() {
-    // 🎵 REANUDAR TODOS LOS AUDIOS DEL JUEGO
+    // 🎵 NO REANUDAR MÚSICA DE FONDO - El juego no debe tener música de fondo
+    // Solo permitir efectos de sonido, NO música de fondo durante partidas
     try {
-      AudioService().resumeBackgroundMusic();
-      // Los nuevos efectos de sonido se desbloquean automáticamente con isPaused = false
+      print('🔇 Audio: Solo efectos de sonido activos durante partida (sin música de fondo)');
     } catch (e) {
-      print('❌ Error reanudando audio: $e');
+      print('❌ Error con audio: $e');
     }
     
     // 🔄 RESTAURAR ESTADO SEGÚN LO QUE ESTABA PASANDO CUANDO SE PAUSÓ
     if (!gameEnded) {
-      // 🎲 PRIORIDAD 1: Animación de dado (unificar shouldCompleteDiceAnimation y wasDiceAnimating)
-      if (shouldCompleteDiceAnimation || wasDiceAnimating) {
-        // El dado estaba en algún proceso de animación
+      // 🚶 PRIORIDAD 0: MOVIMIENTO DE FICHA (la más alta prioridad)
+      if (wasMovingPiece && pausedMovingPiece != null) {
+        print('🚶 Restaurando movimiento de ficha: ${pausedMovingPiece!.color}');
+        setState(() {
+          isMoving = true;
+          jumpingPiece = pausedMovingPiece;
+        });
+        
+        // NOTA: Las animaciones de fichas se reanudan automáticamente
+        // ya que _animateStepByStep tiene verificaciones de pausa integradas
+        
+      } else if (shouldCompleteDiceAnimation || wasDiceAnimating) {
+        // 🎲 PRIORIDAD 1: Animación de dado
         print('🎲 Restaurando animación de dado con resultado: $pausedDiceResult');
         setState(() {
           diceValue = pausedDiceResult;
@@ -3477,7 +3497,13 @@ void _continueWithDiceResult(int finalResult) {
     shouldCompleteDiceAnimation = false; // Limpiar flag de animación
     pausedTimerCountdown = 10;
     
-    print('▶️ Todos los sistemas del juego reanudados');
+    // 🧹 LIMPIAR VARIABLES DE MOVIMIENTO
+    wasMovingPiece = false;
+    pausedMovingPiece = null;
+    pausedStepsRemaining = 0;
+    pausedCurrentStep = 0;
+    
+    print('▶️ Todos los sistemas del juego reanudados (SIN música de fondo)');
   }
 
   // 📋 DIÁLOGO DE PAUSA (solo para pausa manual)
@@ -4673,6 +4699,12 @@ void _rollDice() {
         if (!isPaused) AudioService().playGoalEffect(); // 🚫 NO sonar durante pausa
       }
       
+      // ⏸️ VERIFICACIÓN ANTES DE CADA ANIMACIÓN DE SALTO
+      if (isPaused) {
+        print('⏸️ Pausa detectada antes de salto - deteniendo animación');
+        return;
+      }
+      
       // Animar el salto
       _jumpController.forward();
       
@@ -4707,6 +4739,18 @@ void _rollDice() {
       
       // Pausa antes del siguiente salto
       await Future.delayed(const Duration(milliseconds: 150));
+      
+      // ⏸️ VERIFICACIÓN FINAL ANTES DEL SIGUIENTE PASO
+      if (isPaused) {
+        print('⏸️ Pausa detectada entre pasos - deteniendo animación');
+        return;
+      }
+    }
+    
+    // ⏸️ VERIFICACIÓN ANTES DE EJECUTAR POST-MOVIMIENTO
+    if (isPaused) {
+      print('⏸️ Pausa detectada antes de post-movimiento - deteniendo');
+      return;
     }
     
     // AHORA ejecutar la colisión si había una víctima
