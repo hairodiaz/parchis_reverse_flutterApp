@@ -3468,32 +3468,27 @@ void _showPauseDialog() {
     context: context,
     barrierDismissible: false,
     builder: (context) => AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       backgroundColor: Colors.white,
-      contentPadding: const EdgeInsets.all(20),
-      title: Column(
+      contentPadding: const EdgeInsets.all(24),
+      title: const Column(
         children: [
-          Container(
-            padding: const EdgeInsets.all(15),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFF9800), Color(0xFFFF6B35)],
-              ),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.pause_circle_filled,
-              color: Colors.white,
-              size: 40,
-            ),
-          ),
-          const SizedBox(height: 12),
-          const Text(
+          Text(
             '⏸️ JUEGO PAUSADO',
             style: TextStyle(
-              color: Color(0xFFFF6B35),
-              fontSize: 20,
+              color: Color(0xFF2E7D32),
+              fontSize: 22,
               fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: 8),
+          Text(
+            '¿Qué quieres hacer?',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.black54,
+              fontWeight: FontWeight.normal,
             ),
             textAlign: TextAlign.center,
           ),
@@ -3502,24 +3497,14 @@ void _showPauseDialog() {
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            '¿Qué quieres hacer?',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.black87,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 20),
-          
           // Estado actual del juego
           Container(
-            padding: const EdgeInsets.all(15),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [Colors.blue.shade50, Colors.purple.shade50],
+                colors: [Colors.blue.shade50, Colors.indigo.shade50],
               ),
-              borderRadius: BorderRadius.circular(15),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.blue.shade200),
             ),
             child: Column(
@@ -3528,53 +3513,31 @@ void _showPauseDialog() {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Container(
-                      width: 16,
-                      height: 16,
+                      width: 18,
+                      height: 18,
                       decoration: BoxDecoration(
                         color: _getPlayerColor(currentPlayerIndex),
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 2),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10),
                     Text(
-                      '${_getPlayerDisplayName(currentPlayerIndex)}',
+                      'Turno: ${_getPlayerDisplayName(currentPlayerIndex)}',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                        fontSize: 16,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    Column(
-                      children: [
-                        const Text('🎲', style: TextStyle(fontSize: 16)),
-                        Text(
-                          '$diceValue',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
+                    _buildGameStat('🎲', '$diceValue', 'Último dado'),
                     if (extraTurnsRemaining > 0)
-                      Column(
-                        children: [
-                          const Text('✨', style: TextStyle(fontSize: 16)),
-                          Text(
-                            '$extraTurnsRemaining',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
+                      _buildGameStat('✨', '$extraTurnsRemaining', 'Turnos extra'),
                   ],
                 ),
               ],
@@ -3585,30 +3548,31 @@ void _showPauseDialog() {
       actions: [
         Column(
           children: [
-            // Botón Continuar (principal)
+            // Botón Continuar (principal) - MÁS GRANDE Y ATRACTIVO
             SizedBox(
               width: double.infinity,
-              height: 50,
+              height: 55,
               child: ElevatedButton(
                 onPressed: () {
                   Navigator.pop(context);
                   _resumeGame();
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4CAF50),
+                  backgroundColor: const Color(0xFF2E7D32),
                   foregroundColor: Colors.white,
-                  elevation: 3,
+                  elevation: 4,
+                  shadowColor: Colors.green.withOpacity(0.4),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.play_arrow, size: 24),
-                    SizedBox(width: 8),
+                    Icon(Icons.play_arrow_rounded, size: 28),
+                    SizedBox(width: 12),
                     Text(
-                      'Continuar',
+                      'Continuar Juego',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -3621,32 +3585,32 @@ void _showPauseDialog() {
             
             const SizedBox(height: 12),
             
-            // Botón Salir (secundario)
+            // Botón Salir (secundario) - MÁS ELEGANTE
             SizedBox(
               width: double.infinity,
-              height: 45,
+              height: 50,
               child: OutlinedButton(
                 onPressed: () {
                   Navigator.pop(context);
                   _showExitDialog();
                 },
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF757575),
+                  foregroundColor: const Color(0xFF424242),
                   side: const BorderSide(
-                    color: Color(0xFF757575),
+                    color: Color(0xFF616161),
                     width: 2,
                   ),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.home, size: 20),
-                    SizedBox(width: 8),
+                    Icon(Icons.home_rounded, size: 24),
+                    SizedBox(width: 12),
                     Text(
-                      'Salir',
+                      'Salir al Menú',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -3660,6 +3624,30 @@ void _showPauseDialog() {
         ),
       ],
     ),
+  );
+}
+
+// Función auxiliar para mostrar estadísticas del juego
+Widget _buildGameStat(String emoji, String value, String label) {
+  return Column(
+    children: [
+      Text(emoji, style: const TextStyle(fontSize: 20)),
+      const SizedBox(height: 4),
+      Text(
+        value,
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 16,
+        ),
+      ),
+      Text(
+        label,
+        style: const TextStyle(
+          fontSize: 12,
+          color: Colors.grey,
+        ),
+      ),
+    ],
   );
 }
 
@@ -5191,15 +5179,15 @@ void _rollDice() {
         automaticallyImplyLeading: false, // Quitar botón atrás de la pantalla de juego
        // En la sección actions del AppBar, reemplazar por:
 actions: [
-  // 🎯 BOTÓN DE PAUSA MÁS PEQUEÑO
+  // 🎯 BOTÓN DE PAUSA COMPACTO
   Container(
-    margin: const EdgeInsets.only(right: 12),
+    margin: const EdgeInsets.only(right: 8),
     decoration: BoxDecoration(
-      color: isPaused ? Colors.green.withOpacity(0.2) : Colors.orange.withOpacity(0.2),
-      borderRadius: BorderRadius.circular(10), // Reducido de 12 a 10
+      color: isPaused ? Colors.green.withOpacity(0.15) : Colors.orange.withOpacity(0.15),
+      borderRadius: BorderRadius.circular(8),
       border: Border.all(
         color: isPaused ? Colors.green : Colors.orange,
-        width: 2,
+        width: 1.5,
       ),
     ),
     child: IconButton(
@@ -5207,15 +5195,15 @@ actions: [
       icon: Icon(
         isPaused ? Icons.play_arrow : Icons.pause,
         color: isPaused ? Colors.green : Colors.orange,
-        size: 16, // Reducido de 26 a 22
+        size: 18,
       ),
       tooltip: isPaused ? 'Reanudar' : 'Pausar',
-      iconSize: 16, // Añadido para asegurar el tamaño
-      constraints: const BoxConstraints( // Añadido para controlar el tamaño del botón
-        minWidth: 25, // Reducido de 48 (default) a 40
-        minHeight: 25, // Reducido de 48 (default) a 40
+      iconSize: 18,
+      constraints: const BoxConstraints(
+        minWidth: 32,
+        minHeight: 32,
       ),
-      padding: const EdgeInsets.all(8), // Reducido el padding interno
+      padding: const EdgeInsets.all(4),
     ),
   ),
 ],
