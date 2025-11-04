@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math'; // ✅ AGREGAR para generar IDs únicos
+import 'models/online_game_models.dart'; // ✅ AGREGAR modelos online
 
 /// 🚀 WEBSOCKET SERVICE - REEMPLAZO DE FIREBASE
 /// 
@@ -54,11 +55,10 @@ class WebSocketService {
   /// 🔌 Conectar al servidor WebSocket
   Future<bool> connect({String? serverUrl}) async {
     try {
-      // 📱 CONFIGURACIÓN PARA DIFERENTES PLATAFORMAS:
-      // - Emulador Android: 10.0.2.2:8080
-      // - Dispositivo físico: IP de tu PC (ej: 192.168.1.100:8080)
-      // - Web/Desktop: localhost:8080
-      final url = serverUrl ?? 'ws://10.0.2.2:8080'; // Cambiado para emulador Android
+      // 🌐 CONFIGURACIÓN PARA RAILWAY (PRODUCCIÓN)
+      // - Railway WebSocket: wss://tu-servidor.railway.app
+      // - Para testing local: ws://10.0.2.2:8080 (emulador) o ws://localhost:8080
+      final url = serverUrl ?? 'wss://parchisreverseflutterapp-production.up.railway.app'; // ✅ Servidor Railway
       
       print('🔌 Conectando a WebSocket: $url');
       

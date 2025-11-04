@@ -11,6 +11,7 @@ import 'screens/login_screen.dart';
 import 'screens/intro_screen.dart'; // 🎬 NUEVA PANTALLA DE INTRO
 import 'screens/instructions_screen.dart'; // 📚 PANTALLA DE INSTRUCCIONES
 import 'screens/dice_showcase.dart'; // 🎲 PANTALLA DE PRUEBA DE DADOS
+import 'screens/online_lobby_screen.dart'; // 🌐 PANTALLA DE LOBBY ONLINE
 
 // Enum para prioridades de mensajes
 enum MessagePriority {
@@ -1249,9 +1250,9 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
   Widget _buildGameModeCarousel() {
     final gameModes = [
       {'icon': Icons.play_arrow_rounded, 'title': 'CLÁSICO', 'subtitle': 'Modo tradicional', 'available': true},
-      {'icon': Icons.casino, 'title': 'PRUEBA DADOS', 'subtitle': 'Comparar animaciones', 'available': true, 'isTest': true},
+      {'icon': Icons.casino, 'title': 'PRUEBA DADOS', 'subtitle': 'Comparar animaciones', 'available': false, 'isTest': true},
+      {'icon': Icons.public, 'title': 'ONLINE', 'subtitle': 'Multijugador', 'available': true, 'isOnline': true},
       {'icon': Icons.emoji_events, 'title': 'RANKED', 'subtitle': 'Competitivo', 'available': false},
-      {'icon': Icons.public, 'title': 'ONLINE', 'subtitle': 'Multijugador', 'available': false},
       {'icon': Icons.emoji_events_outlined, 'title': 'TORNEO', 'subtitle': 'Eliminación', 'available': false},
     ];
 
@@ -1276,6 +1277,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
                 available: mode['available'] as bool,
                 isActive: index == _currentGameMode,
                 isTest: mode['isTest'] as bool? ?? false,
+                isOnline: mode['isOnline'] as bool? ?? false,
               );
             },
           ),
@@ -1313,6 +1315,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
     required bool available,
     required bool isActive,
     bool isTest = false,
+    bool isOnline = false,
   }) {
     return AnimatedBuilder(
       animation: _buttonsAnimation,
@@ -1333,6 +1336,12 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => const DiceShowcase()),
+                      );
+                    } else if (isOnline) {
+                      // 🌐 Navegar a lobby online
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const OnlineLobbyScreen()),
                       );
                     } else {
                       // Navegar a configuración de jugadores normal
@@ -2306,6 +2315,11 @@ class ParchisBoard extends StatefulWidget {
   final List<int> playerColorIndices;
   final List<int> turnOrder;
   
+  // 🌐 PARÁMETROS OPCIONALES PARA MODO ONLINE (sin afectar modo local)
+  final bool isOnlineMode;
+  final String? roomCode;
+  final int? onlinePlayerIndex; // Índice del jugador local en modo online
+  
   const ParchisBoard({
     super.key,
     this.numPlayers = 4,
@@ -2313,6 +2327,10 @@ class ParchisBoard extends StatefulWidget {
     this.isHuman = const [true, true, true, true],
     this.playerColorIndices = const [0, 1, 2, 3],
     this.turnOrder = const [0, 1, 2, 3],
+    // 🌐 MODO ONLINE (por defecto false = modo local)
+    this.isOnlineMode = false,
+    this.roomCode,
+    this.onlinePlayerIndex,
   });
 
   @override
@@ -5269,25 +5287,54 @@ void _rollDice() {
         automaticallyImplyLeading: false, // Quitar botón atrás de la pantalla de juego
        // En la sección actions del AppBar, reemplazar por:
 actions: [
-  // 🎯 BOTÓN DE PAUSA COMPACTO
+  // 🎯 BOTÓN DE PAUSA COMPACTO (solo en modo local)
+  if (!widget.isOnlineMode) // 🌐 NO mostrar pausa en modo online
+    Container(
+      margin: const EdgeInsets.only(right: 8),
+      decoration: BoxDecoration(
+        color: isPaused ? Colors.green.withOpacity(0.15) : Colors.orange.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isPaused ? Colors.green : Colors.orange,
+          width: 1.5,
+        ),
+      ),
+      child: IconButton(
+        onPressed: _togglePauseManually,
+        icon: Icon(
+          isPaused ? Icons.play_arrow : Icons.pause,
+          color: isPaused ? Colors.green : Colors.orange,
+          size: 18,
+        ),
+        tooltip: isPaused ? 'Reanudar' : 'Pausar',
+        iconSize: 18,
+        constraints: const BoxConstraints(
+          minWidth: 32,
+          minHeight: 32,
+        ),
+        padding: const EdgeInsets.all(4),
+      ),
+    ),
+  
+  // 🌐 BOTÓN DE SALIR (diferente navegación según modo)
   Container(
     margin: const EdgeInsets.only(right: 8),
     decoration: BoxDecoration(
-      color: isPaused ? Colors.green.withOpacity(0.15) : Colors.orange.withOpacity(0.15),
+      color: Colors.red.withOpacity(0.15),
       borderRadius: BorderRadius.circular(8),
       border: Border.all(
-        color: isPaused ? Colors.green : Colors.orange,
+        color: Colors.red,
         width: 1.5,
       ),
     ),
     child: IconButton(
-      onPressed: _togglePauseManually,
-      icon: Icon(
-        isPaused ? Icons.play_arrow : Icons.pause,
-        color: isPaused ? Colors.green : Colors.orange,
+      onPressed: () => _showExitGameDialog(),
+      icon: const Icon(
+        Icons.exit_to_app,
+        color: Colors.red,
         size: 18,
       ),
-      tooltip: isPaused ? 'Reanudar' : 'Pausar',
+      tooltip: 'Salir',
       iconSize: 18,
       constraints: const BoxConstraints(
         minWidth: 32,
@@ -6052,5 +6099,43 @@ actions: [
     
     String key = '$row,$col';
     return boardNumbers[key] ?? 0;
+  }
+
+  // 🚪 DIÁLOGO DE SALIR DEL JUEGO (diferente según modo)
+  void _showExitGameDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(widget.isOnlineMode ? '¿Salir del juego online?' : '¿Salir del juego?'),
+        content: Text(
+          widget.isOnlineMode 
+              ? 'Abandonarás la partida online y volverás al lobby.'
+              : '¿Estás seguro que quieres salir de la partida?'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // Cerrar diálogo
+              if (widget.isOnlineMode) {
+                // 🌐 MODO ONLINE: Volver al lobby online
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const OnlineLobbyScreen()),
+                  (route) => false,
+                );
+              } else {
+                // 🏠 MODO LOCAL: Volver a configuración de jugadores
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('Salir'),
+          ),
+        ],
+      ),
+    );
   }
 }

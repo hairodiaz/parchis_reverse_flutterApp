@@ -268,7 +268,7 @@ class _InstructionsScreenState extends State<InstructionsScreen>
           _buildTipCard(
             '🎯 Prioridades',
             '1. Protege tus fichas cerca de la META.\n'
-            '2. Bloquea a tus oponentes cuando puedas.\n'
+            '2. Cómete a tus oponentes cuando puedas.\n'
             '3. Usa las casillas especiales tácticamente.',
             Colors.green,
           ),
