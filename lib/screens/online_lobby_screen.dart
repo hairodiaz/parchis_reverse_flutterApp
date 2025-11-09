@@ -75,7 +75,12 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen>
     // 🎮 Configurar nombre inicial del jugador
     _initializePlayerName();
     
-    // 🔌 Auto-conectar al servidor
+    // � Listener para actualizar botón de unirse dinámicamente
+    _roomCodeController.addListener(() {
+      setState(() {}); // Reconstruir para actualizar estado del botón
+    });
+    
+    // �🔌 Auto-conectar al servidor
     _autoConnectToServer();
   }
 
@@ -470,9 +475,7 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen>
           const SizedBox(height: 24),
           
           ElevatedButton(
-            onPressed: _isConnected && _roomCodeController.text.isNotEmpty 
-                ? _joinRoom 
-                : null,
+            onPressed: _canJoinRoom() ? _joinRoom : null,
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF2196F3),
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
@@ -607,17 +610,34 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen>
     }
   }
 
+  // ✅ VERIFICAR SI SE PUEDE UNIR A SALA
+  bool _canJoinRoom() {
+    final hasName = _playerNameController.text.trim().isNotEmpty;
+    final hasCode = _roomCodeController.text.trim().isNotEmpty;
+    final isConnected = _isConnected;
+    
+    print('🔍 DEBUG _canJoinRoom: hasName=$hasName, hasCode=$hasCode, isConnected=$isConnected');
+    
+    return hasName && hasCode && isConnected;
+  }
+
   // 🚪 UNIRSE A SALA
   Future<void> _joinRoom() async {
+    print('🚀 DEBUG: _joinRoom iniciado');
+    
     if (_playerNameController.text.trim().isEmpty) {
+      print('❌ ERROR: Nombre vacío');
       _showErrorDialog('Error', 'Por favor ingresa tu nombre.');
       return;
     }
 
     if (_roomCodeController.text.trim().isEmpty) {
+      print('❌ ERROR: Código vacío');
       _showErrorDialog('Error', 'Por favor ingresa el código de sala.');
       return;
     }
+    
+    print('✅ DEBUG: Validaciones pasadas, navegando a sala de espera');
 
     try {
       // � Navegar a la sala de espera como invitado
@@ -655,19 +675,4 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen>
     );
   }
 
-  void _showSuccessDialog(String title, String message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
 }
