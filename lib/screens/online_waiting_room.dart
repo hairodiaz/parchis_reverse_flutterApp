@@ -87,17 +87,17 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
   }
 
   void _initializeRoom() {
-    // 🎮 Agregar solo el jugador actual a la lista
+    // 🎮 Inicializar con el jugador actual únicamente
     connectedPlayers.add({
       'name': widget.playerName,
       'color': widget.playerColor,
       'isHost': widget.isHost,
       'isReady': true,
       'connectionTime': DateTime.now(),
+      'id': _webSocketService.uniqueClientId ?? 'unknown',
     });
     
-    // � Solicitar información actualizada de la sala
-    _loadRoomInfo();
+    print('🏠 Sala inicializada con jugador: ${widget.playerName} (Host: ${widget.isHost})');
   }
 
   /// 🌐 Configurar listeners de WebSocket para sincronización en tiempo real
@@ -129,41 +129,8 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
     });
   }
 
-  /// 🔄 Cargar información actualizada de la sala
-  Future<void> _loadRoomInfo() async {
-    try {
-      print('📊 Cargando info de sala: ${widget.roomCode}');
-      
-      final roomInfo = await _webSocketService.getRoomInfo(widget.roomCode);
-      if (roomInfo != null && mounted) {
-        setState(() {
-          _currentRoom = roomInfo;
-          _syncPlayersFromRoom(roomInfo);
-        });
-        print('✅ Sala cargada con ${roomInfo.players.length} jugadores');
-      }
-    } catch (e) {
-      print('❌ Error cargando info de sala: $e');
-    }
-  }
-
-  /// 👥 Sincronizar lista de jugadores desde OnlineGameRoom
-  void _syncPlayersFromRoom(OnlineGameRoom room) {
-    connectedPlayers.clear();
-    
-    for (final player in room.players) {
-      connectedPlayers.add({
-        'name': player.name,
-        'color': _colorFromString(player.color),
-        'isHost': player.isHost,
-        'isReady': true, // Por ahora todos listos
-        'connectionTime': player.joinedAt,
-        'isConnected': player.isConnected,
-      });
-    }
-    
-    print('👥 Jugadores sincronizados: ${connectedPlayers.length}');
-  }
+  /// � Función simplificada - no necesitamos cargar del servidor
+  /// Los jugadores se manejan dinámicamente con eventos WebSocket
 
   /// 🎨 Convertir string de color a Color object
   Color _colorFromString(String colorString) {
@@ -178,36 +145,64 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
 
   /// 📨 Manejar actualización de sala
   void _handleRoomUpdate(Map<String, dynamic> message) {
-    print('🔄 Sala actualizada');
-    _loadRoomInfo(); // Recargar información
+    print('🔄 Sala actualizada - usando eventos específicos');
+    // Los cambios se manejan con eventos específicos como player_joined/player_left
   }
 
   /// 👋 Manejar jugador que se une
   void _handlePlayerJoined(Map<String, dynamic> message) {
     final playerName = message['playerName'] ?? 'Desconocido';
-    print('👋 Jugador se unió: $playerName');
+    final playerId = message['clientId'] ?? message['playerId'] ?? 'unknown';
+    final playerColor = message['playerColor'] ?? 'red';
+    
+    print('👋 Jugador se unió: $playerName (ID: $playerId)');
     
     if (mounted) {
-      _loadRoomInfo(); // Recargar para obtener lista actualizada
+      // Solo agregar si no es el jugador actual y no existe ya
+      final currentUserId = _webSocketService.uniqueClientId;
+      final playerExists = connectedPlayers.any((p) => 
+        p['id'] == playerId || p['name'] == playerName);
       
-      // Mostrar notificación
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('🎮 $playerName se unió a la sala'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
-        ),
-      );
+      if (playerId != currentUserId && !playerExists) {
+        setState(() {
+          connectedPlayers.add({
+            'name': playerName,
+            'color': _colorFromString(playerColor),
+            'isHost': false,
+            'isReady': true,
+            'connectionTime': DateTime.now(),
+            'id': playerId,
+          });
+        });
+        
+        // Mostrar notificación
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('🎮 $playerName se unió a la sala'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        
+        print('✅ Jugador agregado a la lista. Total: ${connectedPlayers.length}');
+      } else {
+        print('🤷 Jugador ya existe o es el usuario actual - no agregado');
+      }
     }
   }
 
   /// 🚪 Manejar jugador que se va
   void _handlePlayerLeft(Map<String, dynamic> message) {
     final playerName = message['playerName'] ?? 'Desconocido';
-    print('🚪 Jugador se fue: $playerName');
+    final playerId = message['clientId'] ?? message['playerId'] ?? 'unknown';
+    
+    print('🚪 Jugador se fue: $playerName (ID: $playerId)');
     
     if (mounted) {
-      _loadRoomInfo(); // Recargar para obtener lista actualizada
+      setState(() {
+        connectedPlayers.removeWhere((player) => 
+          player['id'] == playerId || player['name'] == playerName);
+      });
       
       // Mostrar notificación
       ScaffoldMessenger.of(context).showSnackBar(
@@ -217,6 +212,8 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
           duration: Duration(seconds: 2),
         ),
       );
+      
+      print('✅ Jugador removido. Total restante: ${connectedPlayers.length}');
     }
   }
 
@@ -885,8 +882,19 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
             child: const Text('Cancelar'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context); // Cerrar diálogo
+              
+              if (widget.isHost) {
+                // 🔒 Anfitrión cierra la sala
+                print('🔒 Anfitrión cerrando sala: ${widget.roomCode}');
+                await _webSocketService.closeRoom();
+              } else {
+                // 🚪 Jugador sale de la sala
+                print('🚪 Jugador saliendo de sala: ${widget.roomCode}');
+                _webSocketService.leaveRoom();
+              }
+              
               Navigator.pop(context); // Volver al lobby
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),

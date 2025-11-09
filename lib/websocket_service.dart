@@ -452,34 +452,19 @@ class WebSocketService {
       return serverRoom;
     }
     
-    // Fallback a datos de prueba si el servidor no responde
-    print('⚠️ Usando datos de prueba como fallback');
+    // Fallback: devolver sala vacía si el servidor no responde
+    print('⚠️ Servidor no responde, devolviendo sala mínima');
     if (roomCode.isNotEmpty) {
       return OnlineGameRoom(
         roomCode: roomCode,
-        players: [
-          OnlinePlayer(
-            id: 'host_$roomCode',
-            name: 'Host-$roomCode',
-            color: 'red',
-            isHost: true,
-            joinedAt: DateTime.now().subtract(Duration(minutes: 5)),
-          ),
-          OnlinePlayer(
-            id: _uniqueClientId ?? 'guest_default',
-            name: 'Cliente-${_uniqueClientId?.substring(7, 12) ?? 'Guest'}',
-            color: 'blue',
-            isHost: false,
-            joinedAt: DateTime.now(),
-          ),
-        ],
+        players: [], // 🔥 SIN JUGADORES FANTASMAS - solo los reales del servidor
         gameState: OnlineGameState(
           currentPlayer: 0,
           diceValue: 1,
           pieces: [],
         ),
         status: 'waiting',
-        createdAt: DateTime.now().subtract(Duration(minutes: 5)),
+        createdAt: DateTime.now(),
       );
     }
     
@@ -518,6 +503,27 @@ class WebSocketService {
   /// Salir de sala antes del juego (compatibilidad)
   Future<void> leaveRoomPreGame() async {
     leaveRoom();
+  }
+
+  /// 🔒 Cerrar sala (solo para anfitriones)
+  Future<void> closeRoom() async {
+    if (!_isConnected || _socket == null || _currentRoomCode == null) {
+      print('❌ No se puede cerrar sala: no conectado o sin sala activa');
+      return;
+    }
+
+    try {
+      final message = {
+        'type': 'close_room',
+        'roomCode': _currentRoomCode,
+        'clientId': _uniqueClientId,
+      };
+
+      print('🔒 Cerrando sala: $_currentRoomCode');
+      _socket!.add(jsonEncode(message));
+    } catch (e) {
+      print('❌ Error cerrando sala: $e');
+    }
   }
 
   /// 🔄 Mejorar getRoomInfo para solicitar datos reales del servidor
