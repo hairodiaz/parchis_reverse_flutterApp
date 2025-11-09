@@ -956,6 +956,23 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
     );
   }
 
+  /// 🔍 Obtener el índice del jugador actual en la lista de jugadores conectados
+  int _getMyPlayerIndex() {
+    final myClientId = _webSocketService.uniqueClientId;
+    
+    for (int i = 0; i < connectedPlayers.length; i++) {
+      final playerId = connectedPlayers[i]['id'] ?? connectedPlayers[i]['clientId'];
+      if (playerId == myClientId) {
+        print('🎯 Mi índice de jugador: $i (ID: $myClientId)');
+        return i;
+      }
+    }
+    
+    // Fallback: si no se encuentra, asumir que es el primer jugador (anfitrión)
+    print('⚠️ No se encontró índice del jugador, usando 0 (anfitrión)');
+    return 0;
+  }
+
   // 🎮 INICIAR PARTIDA
   void _startGame() {
     setState(() {
@@ -1052,7 +1069,7 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
           // 🌐 PARÁMETROS DE MODO ONLINE
           isOnlineMode: true,
           roomCode: widget.roomCode,
-          onlinePlayerIndex: 0, // Por ahora siempre el primer jugador (anfitrión)
+          onlinePlayerIndex: _getMyPlayerIndex(), // Calcular índice correcto del jugador actual
         ),
       ),
     );

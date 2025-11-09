@@ -12,6 +12,7 @@ import 'screens/intro_screen.dart'; // 🎬 NUEVA PANTALLA DE INTRO
 import 'screens/instructions_screen.dart'; // 📚 PANTALLA DE INSTRUCCIONES
 import 'screens/dice_showcase.dart'; // 🎲 PANTALLA DE PRUEBA DE DADOS
 import 'screens/online_lobby_screen.dart'; // 🌐 PANTALLA DE LOBBY ONLINE
+import 'websocket_service.dart'; // 🌐 WEBSOCKET PARA SINCRONIZACIÓN ONLINE
 
 // Enum para prioridades de mensajes
 enum MessagePriority {
@@ -2431,6 +2432,11 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   int pausedStepsRemaining = 0; // Cuántos pasos faltaban
   int pausedCurrentStep = 0; // En qué paso estaba
 
+  // 🌐 VARIABLES WEBSOCKET PARA MODO ONLINE (SIN AFECTAR MODO LOCAL)
+  WebSocketService? _webSocketService;
+  StreamSubscription? _gameMessageSubscription;
+  bool _isWaitingForRemoteAction = false; // Para bloquear acciones locales mientras esperamos sincronización
+
   // �👤 SISTEMA DE PERFILES DE JUGADORES
   
   // Obtener nombre del jugador con formato correcto
@@ -2938,6 +2944,11 @@ void _continueWithDiceResult(int finalResult) {
       }
     }
     
+    // 🌐 CONFIGURAR WEBSOCKET SOLO SI ES MODO ONLINE (SIN AFECTAR MODO LOCAL)
+    if (widget.isOnlineMode && widget.roomCode != null) {
+      _initializeWebSocket();
+    }
+    
     // 🎮 AUTO-INICIAR SI EL PRIMER JUGADOR ES CPU / ⏰ TIMER SI ES HUMANO
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Timer(const Duration(milliseconds: 1000), () {
@@ -3259,6 +3270,11 @@ void _continueWithDiceResult(int finalResult) {
     _playerTimer?.cancel();
     _cpuTimer?.cancel();
     
+    // 🌐 LIMPIAR WEBSOCKET EN MODO ONLINE (SIN AFECTAR MODO LOCAL)
+    if (widget.isOnlineMode) {
+      _cleanupWebSocket();
+    }
+    
     // 🔇 DETENER TODOS LOS AUDIOS DEL JUEGO
     try {
       AudioService().stopAllSounds(); // Detener todos los sonidos activos
@@ -3281,6 +3297,172 @@ void _continueWithDiceResult(int finalResult) {
     priorityMessage = null;
     
     super.dispose();
+  }
+
+  // 🌐 MÉTODOS WEBSOCKET PARA MODO ONLINE (SIN AFECTAR MODO LOCAL)
+
+  /// Inicializar WebSocket solo en modo online
+  void _initializeWebSocket() {
+    if (!widget.isOnlineMode || widget.roomCode == null) return;
+    
+    print('🌐 Inicializando WebSocket para juego online - Sala: ${widget.roomCode}');
+    
+    _webSocketService = WebSocketService();
+    
+    // Configurar listener para mensajes del juego
+    _gameMessageSubscription = _webSocketService!.messageStream.listen((message) {
+      _handleGameMessage(message);
+    });
+    
+    print('✅ WebSocket configurado para sincronización de juego');
+  }
+
+  /// Manejar mensajes WebSocket del juego
+  void _handleGameMessage(Map<String, dynamic> message) {
+    if (!widget.isOnlineMode || !mounted) return;
+    
+    final messageType = message['type'];
+    print('🎮 Mensaje de juego recibido: $messageType');
+    
+    switch (messageType) {
+      case 'dice_rolled':
+        _handleRemoteDiceRoll(message);
+        break;
+      case 'piece_moved':
+        _handleRemotePieceMove(message);
+        break;
+      case 'turn_changed':
+        _handleRemoteTurnChange(message);
+        break;
+      case 'game_ended':
+        _handleRemoteGameEnd(message);
+        break;
+      default:
+        print('⚠️ Mensaje de juego no reconocido: $messageType');
+    }
+  }
+
+  /// Manejar dado lanzado remotamente
+  void _handleRemoteDiceRoll(Map<String, dynamic> message) {
+    final playerIndex = message['playerIndex'] as int?;
+    final diceResult = message['diceResult'] as int?;
+    
+    if (playerIndex == null || diceResult == null) return;
+    
+    print('🎲 Dado remoto: Jugador $playerIndex sacó $diceResult');
+    
+    // Solo procesar si NO es nuestro turno
+    if (playerIndex != widget.onlinePlayerIndex) {
+      setState(() {
+        currentPlayerIndex = playerIndex;
+        diceValue = diceResult;
+        isMoving = true;
+      });
+      
+      _continueWithDiceResult(diceResult);
+    }
+  }
+
+  /// Manejar movimiento de ficha remoto
+  void _handleRemotePieceMove(Map<String, dynamic> message) {
+    final playerIndex = message['playerIndex'] as int?;
+    final fromRow = message['fromRow'] as int?;
+    final fromCol = message['fromCol'] as int?;
+    final toRow = message['toRow'] as int?;
+    final toCol = message['toCol'] as int?;
+    
+    if (playerIndex == null || fromRow == null || fromCol == null || 
+        toRow == null || toCol == null) return;
+    
+    print('🚶 Movimiento remoto: Jugador $playerIndex de ($fromRow,$fromCol) a ($toRow,$toCol)');
+    
+    // Solo procesar si NO es nuestro turno
+    if (playerIndex != widget.onlinePlayerIndex) {
+      // Encontrar la ficha y moverla
+      final piece = gamePieces.firstWhere(
+        (p) => p.color == playerColors[playerIndex] && 
+               p.position.row == fromRow && 
+               p.position.col == fromCol,
+        orElse: () => gamePieces[playerIndex],
+      );
+      
+      setState(() {
+        piece.position = Position(toRow, toCol);
+      });
+    }
+  }
+
+  /// Manejar cambio de turno remoto
+  void _handleRemoteTurnChange(Map<String, dynamic> message) {
+    final newPlayerIndex = message['newPlayerIndex'] as int?;
+    
+    if (newPlayerIndex == null) return;
+    
+    print('🔄 Turno remoto: Ahora le toca al jugador $newPlayerIndex');
+    
+    setState(() {
+      currentPlayerIndex = newPlayerIndex;
+      isMoving = false;
+      _isWaitingForRemoteAction = false;
+    });
+  }
+
+  /// Manejar fin de juego remoto
+  void _handleRemoteGameEnd(Map<String, dynamic> message) {
+    final winner = message['winner'] as int?;
+    
+    if (winner == null) return;
+    
+    print('🏆 Juego terminado remotamente - Ganador: Jugador $winner');
+    
+    setState(() {
+      gameEnded = true;
+      playerFinished[winner] = true;
+      if (!finishOrder.contains(winner)) {
+        finishOrder.add(winner);
+      }
+    });
+  }
+
+  /// Enviar dado lanzado a otros jugadores
+  void _sendDiceRoll(int diceResult) {
+    if (!widget.isOnlineMode || _webSocketService == null) return;
+    
+    _webSocketService!.sendMessage({
+      'type': 'dice_rolled',
+      'roomCode': widget.roomCode,
+      'playerIndex': widget.onlinePlayerIndex,
+      'diceResult': diceResult,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    });
+    
+    print('📤 Enviado dado: $diceResult');
+  }
+
+  /// Enviar movimiento de ficha a otros jugadores
+  void _sendPieceMove(Position from, Position to) {
+    if (!widget.isOnlineMode || _webSocketService == null) return;
+    
+    _webSocketService!.sendMessage({
+      'type': 'piece_moved',
+      'roomCode': widget.roomCode,
+      'playerIndex': widget.onlinePlayerIndex,
+      'fromRow': from.row,
+      'fromCol': from.col,
+      'toRow': to.row,
+      'toCol': to.col,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    });
+    
+    print('📤 Enviado movimiento: (${from.row},${from.col}) → (${to.row},${to.col})');
+  }
+
+  /// Limpiar recursos WebSocket
+  void _cleanupWebSocket() {
+    _gameMessageSubscription?.cancel();
+    _gameMessageSubscription = null;
+    _webSocketService = null;
+    print('🧹 WebSocket limpiado');
   }
 
   // ⏸️ SISTEMA DE PAUSA AUTOMÁTICA Y MANUAL
@@ -4327,6 +4509,20 @@ void _rollDice() {
   if (isMoving) return;
   if (isPaused) return;
   
+  // 🌐 VERIFICAR TURNO EN MODO ONLINE (SIN AFECTAR MODO LOCAL)
+  if (widget.isOnlineMode) {
+    // Solo permitir lanzar dado si es nuestro turno
+    if (currentPlayerIndex != widget.onlinePlayerIndex) {
+      print('🚫 No es tu turno en modo online');
+      return;
+    }
+    // Verificar si estamos esperando acción remota
+    if (_isWaitingForRemoteAction) {
+      print('⏳ Esperando sincronización remota...');
+      return;
+    }
+  }
+  
   // 🏁 EVITAR QUE JUGADORES TERMINADOS LANCEN DADOS
   if (playerFinished[currentPlayerIndex]) {
     print("🎯 DEBUG: Jugador ${currentPlayerIndex + 1} ya terminó, no puede lanzar dados");
@@ -4381,7 +4577,12 @@ void _rollDice() {
       isMoving = true;
     });
     
-    // 🎉 Continuar inmediatamente con el resultado
+    // � ENVIAR RESULTADO DEL DADO A OTROS JUGADORES (SOLO EN MODO ONLINE)
+    if (widget.isOnlineMode) {
+      _sendDiceRoll(finalResult);
+    }
+    
+    // �🎉 Continuar inmediatamente con el resultado
     Timer(const Duration(milliseconds: 300), () {
       if (isPaused) return;
       _startDecisionPeriod(finalResult);
@@ -4423,6 +4624,12 @@ void _rollDice() {
   // 🤖 VERIFICA SI EL JUGADOR ACTUAL ES CPU
   bool _isCurrentPlayerCPU() {
     return !widget.isHuman[currentPlayerIndex];
+  }
+
+  // 🌐 VERIFICAR SI ES NUESTRO TURNO EN MODO ONLINE (SIN AFECTAR MODO LOCAL)
+  bool _isMyTurnOnline() {
+    if (!widget.isOnlineMode) return true; // En modo local, siempre es nuestro turno
+    return currentPlayerIndex == widget.onlinePlayerIndex;
   }
 
   // 🎭 SISTEMA CPU ÉPICO CON PERSONALIDAD
@@ -4736,9 +4943,16 @@ void _rollDice() {
       }
       
       // Mover a la posición calculada
+      Position previousPosition = piece.position;
       setState(() {
         piece.position = boardPath[targetIndex];
       });
+      
+      // 🌐 SINCRONIZAR MOVIMIENTO EN MODO ONLINE (SIN AFECTAR MODO LOCAL)
+      if (widget.isOnlineMode && i == steps - 1) {
+        // Solo enviar al final del movimiento completo
+        _sendPieceMove(previousPosition, piece.position);
+      }
       
       // 🎵 Sonido de movimiento de ficha
       if (!isPaused) AudioService().playPieceMove(); // 🚫 NO sonar durante pausa
@@ -5615,7 +5829,7 @@ actions: [
                                 
                                 const SizedBox(height: 8),
                                 GestureDetector(
-                                  onTap: _rollDice,
+                                  onTap: _isMyTurnOnline() ? _rollDice : null,
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
