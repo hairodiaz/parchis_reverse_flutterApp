@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/auth_service.dart';
+import '../websocket_service.dart';
 import 'online_waiting_room.dart';
 
 /// 🌐 PANTALLA DE LOBBY ONLINE
@@ -93,15 +94,18 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen>
     setState(() => _isConnecting = true);
     
     try {
-      // 🎯 Simulamos conexión exitosa por ahora
-      // TODO: Usar WebSocketService real cuando se arreglen los modelos
-      await Future.delayed(const Duration(seconds: 1));
+      // � CONEXIÓN REAL AL WEBSOCKET
+      final websocket = WebSocketService();
+      final connected = await websocket.connect();
       
       setState(() {
-        _isConnected = true; // Siempre exitoso por ahora
+        _isConnected = connected;
         _isConnecting = false;
       });
       
+      if (!connected) {
+        _showErrorDialog('Error de Conexión', 'No se pudo conectar al servidor online.\nVerifica tu conexión a internet.');
+      }
     } catch (e) {
       setState(() {
         _isConnected = false;
@@ -589,23 +593,34 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen>
     }
 
     try {
-      // 🎯 Generar código de sala único
-      final roomCode = 'SALA${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
-      
-      // 🎮 Navegar a la sala de espera
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => OnlineWaitingRoom(
-            roomCode: roomCode,
-            playerName: _playerNameController.text.trim(),
-            playerColor: _playerColors[_colorNames.indexOf(_selectedColor)],
-            isHost: true,
-          ),
-        ),
+      // � CREAR SALA REAL CON WEBSOCKET
+      final websocket = WebSocketService();
+      final roomCode = await websocket.createRoom(
+        _playerNameController.text.trim(),
+        playerColor: _selectedColor,
       );
+
+      if (roomCode != null) {
+        print('✅ Sala creada: $roomCode');
+        
+        // 🎮 Navegar a la sala de espera real
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => OnlineWaitingRoom(
+              roomCode: roomCode,
+              playerName: _playerNameController.text.trim(),
+              playerColor: _playerColors[_colorNames.indexOf(_selectedColor)],
+              isHost: true,
+            ),
+          ),
+        );
+      } else {
+        _showErrorDialog('Error', 'No se pudo crear la sala. Inténtalo nuevamente.');
+      }
       
     } catch (e) {
+      print('❌ Error creando sala: $e');
       _showErrorDialog('Error', 'Error inesperado: $e');
     }
   }
@@ -637,23 +652,39 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen>
       return;
     }
     
-    print('✅ DEBUG: Validaciones pasadas, navegando a sala de espera');
+    print('✅ DEBUG: Validaciones pasadas, intentando unirse con WebSocket');
 
     try {
-      // � Navegar a la sala de espera como invitado
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => OnlineWaitingRoom(
-            roomCode: _roomCodeController.text.trim().toUpperCase(),
-            playerName: _playerNameController.text.trim(),
-            playerColor: _playerColors[_colorNames.indexOf(_selectedColor)],
-            isHost: false,
-          ),
-        ),
+      // 🌐 UNIRSE A SALA REAL CON WEBSOCKET
+      final websocket = WebSocketService();
+      final success = await websocket.joinRoom(
+        _roomCodeController.text.trim().toUpperCase(),
+        _playerNameController.text.trim(),
+        playerColor: _selectedColor,
       );
+
+      if (success) {
+        print('✅ Unido exitosamente a sala: ${_roomCodeController.text.trim()}');
+        
+        // 🎮 Navegar a la sala de espera real
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => OnlineWaitingRoom(
+              roomCode: _roomCodeController.text.trim().toUpperCase(),
+              playerName: _playerNameController.text.trim(),
+              playerColor: _playerColors[_colorNames.indexOf(_selectedColor)],
+              isHost: false,
+            ),
+          ),
+        );
+      } else {
+        print('❌ No se pudo unir a la sala');
+        _showErrorDialog('Error', 'No se pudo unir a la sala.\n\n• Verifica que el código sea correcto\n• Asegúrate de que la sala exista\n• La sala puede estar llena');
+      }
       
     } catch (e) {
+      print('❌ Error uniéndose a sala: $e');
       _showErrorDialog('Error', 'Error inesperado: $e');
     }
   }
