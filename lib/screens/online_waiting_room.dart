@@ -118,6 +118,9 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
     
     _messageSubscription = _webSocketService.messageStream.listen((message) {
       print('📨 Mensaje WebSocket recibido: ${message['type']}');
+      print('🔍 Mensaje completo: $message');
+      print('🎯 Código de sala actual: ${widget.roomCode}');
+      print('🏠 ¿Es anfitrión?: ${widget.isHost}');
       
       switch (message['type']) {
         case 'room_updated':
@@ -130,16 +133,22 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
           _handlePlayerLeft(message);
           break;
         case 'room_closed':
+        case 'close_room':
+        case 'room_destroyed':
+        case 'room_ended':
           _handleRoomClosed(message);
           break;
         case 'host_left':
+        case 'host_disconnected':
           _handleHostLeft(message);
           break;
         case 'room_players_list':
+        case 'players_list':
           _handleRoomPlayersList(message);
           break;
         default:
           print('🤷 Tipo de mensaje no manejado: ${message['type']}');
+          print('📋 Mensaje completo: $message');
       }
     });
   }
@@ -225,12 +234,37 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
     }
     
     // Caso normal: solo un jugador nuevo
-    final playerName = message['playerName'] ?? message['name'] ?? 'Desconocido';
-    final playerId = message['clientId'] ?? message['playerId'] ?? message['id'] ?? 'unknown';
-    final playerColor = message['playerColor'] ?? message['color'] ?? 'red';
-    final isHost = message['isHost'] ?? false;
+    // ⚠️ DEBUG: Imprimir todos los campos disponibles
+    print('🔍 CAMPOS DISPONIBLES EN MENSAJE: ${message.keys.toList()}');
+    for (final key in message.keys) {
+      print('   $key: ${message[key]}');
+    }
     
-    print('👋 Jugador individual se unió: $playerName (ID: $playerId, Host: $isHost)');
+    // Intentar múltiples variaciones de nombres de campos
+    final playerName = message['playerName'] ?? 
+                      message['name'] ?? 
+                      message['player_name'] ??
+                      message['player'] ??
+                      message['username'] ??
+                      'Jugador';
+                      
+    final playerId = message['clientId'] ?? 
+                    message['playerId'] ?? 
+                    message['id'] ?? 
+                    message['client_id'] ??
+                    message['player_id'] ??
+                    'unknown';
+                    
+    final playerColor = message['playerColor'] ?? 
+                       message['color'] ?? 
+                       message['player_color'] ??
+                       'red';
+                       
+    final isHost = message['isHost'] ?? 
+                  message['is_host'] ?? 
+                  false;
+    
+    print('👋 Jugador procesado: $playerName (ID: $playerId, Host: $isHost, Color: $playerColor)');
     
     if (mounted) {
       final currentUserId = _webSocketService.uniqueClientId;
@@ -339,27 +373,44 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
 
   /// 🔒 Manejar cierre de sala
   void _handleRoomClosed(Map<String, dynamic> message) {
-    print('🔒 Sala cerrada por el anfitrión');
+    print('🔒 SALA CERRADA - Información completa:');
+    print('   📨 Mensaje completo: $message');
+    print('   🎯 Sala en mensaje: ${message['roomCode'] ?? message['room_code'] ?? message['room']}');
+    print('   🏠 Mi sala actual: ${widget.roomCode}');
+    print('   🆔 Mi ID: ${_webSocketService.uniqueClientId}');
+    print('   👤 ¿Soy anfitrión?: ${widget.isHost}');
     
-    if (mounted) {
-      // Mostrar diálogo y volver al lobby
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          title: Text('🔒 Sala Cerrada'),
-          content: Text('El anfitrión cerró la sala. Serás redirigido al lobby.'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(); // Cerrar diálogo
-                Navigator.of(context).pop(); // Volver al lobby
-              },
-              child: Text('Entendido'),
-            ),
-          ],
-        ),
-      );
+    // Verificar si el mensaje es para esta sala específica
+    final messageRoom = message['roomCode'] ?? 
+                       message['room_code'] ?? 
+                       message['room'] ?? 
+                       message['code'];
+    
+    if (messageRoom == null || messageRoom == widget.roomCode) {
+      print('✅ Mensaje de cierre aplicable a esta sala - CERRANDO');
+      
+      if (mounted) {
+        // Mostrar diálogo y volver al lobby
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: Text('🔒 Sala Cerrada'),
+            content: Text('El anfitrión cerró la sala. Serás redirigido al lobby.'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop(); // Cerrar diálogo
+                  Navigator.of(context).pop(); // Volver al lobby
+                },
+                child: Text('Entendido'),
+              ),
+            ],
+          ),
+        );
+      }
+    } else {
+      print('❌ Mensaje de cierre NO aplicable - sala diferente ($messageRoom vs ${widget.roomCode})');
     }
   }
 
@@ -1009,7 +1060,23 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
               if (widget.isHost) {
                 // 🔒 Anfitrión cierra la sala
                 print('🔒 Anfitrión cerrando sala: ${widget.roomCode}');
+                
+                // Intentar múltiples mensajes para asegurar que el servidor entienda
+                _webSocketService.sendMessage({
+                  'type': 'close_room',
+                  'roomCode': widget.roomCode,
+                  'clientId': _webSocketService.uniqueClientId,
+                });
+                
+                _webSocketService.sendMessage({
+                  'type': 'room_closed', 
+                  'roomCode': widget.roomCode,
+                  'closedBy': _webSocketService.uniqueClientId,
+                });
+                
                 await _webSocketService.closeRoom();
+                
+                print('🔒 Enviados múltiples mensajes de cierre');
               } else {
                 // 🚪 Jugador sale de la sala
                 print('🚪 Jugador saliendo de sala: ${widget.roomCode}');
