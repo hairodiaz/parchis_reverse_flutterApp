@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../main.dart'; // 🎮 Import para acceder a ParchisBoard
+import '../websocket_service.dart'; // 🌐 Import para WebSocket
+import '../models/online_game_models.dart'; // 📊 Import para modelos
 
 /// 🏠 PANTALLA DE SALA DE ESPERA ONLINE
 /// 
@@ -40,6 +43,11 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
   // 📊 Estado
   List<Map<String, dynamic>> connectedPlayers = [];
   bool isGameStarting = false;
+  
+  // 🌐 WebSocket y streams
+  final WebSocketService _webSocketService = WebSocketService();
+  StreamSubscription<Map<String, dynamic>>? _messageSubscription;
+  OnlineGameRoom? _currentRoom;
 
   @override
   void initState() {
@@ -74,6 +82,7 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
     
     // 🚀 Inicializar sala
     _initializeRoom();
+    _setupWebSocketListeners();
     _slideController.forward();
   }
 
@@ -87,14 +96,189 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
       'connectionTime': DateTime.now(),
     });
     
-    // 🔥 MODO REAL: Sin jugadores fantasmas
-    // Los jugadores reales se unirán vía WebSocket
+    // � Solicitar información actualizada de la sala
+    _loadRoomInfo();
+  }
+
+  /// 🌐 Configurar listeners de WebSocket para sincronización en tiempo real
+  void _setupWebSocketListeners() {
+    print('🔄 Configurando listeners WebSocket para sala: ${widget.roomCode}');
+    
+    _messageSubscription = _webSocketService.messageStream.listen((message) {
+      print('📨 Mensaje WebSocket recibido: ${message['type']}');
+      
+      switch (message['type']) {
+        case 'room_updated':
+          _handleRoomUpdate(message);
+          break;
+        case 'player_joined':
+          _handlePlayerJoined(message);
+          break;
+        case 'player_left':
+          _handlePlayerLeft(message);
+          break;
+        case 'room_closed':
+          _handleRoomClosed(message);
+          break;
+        case 'host_left':
+          _handleHostLeft(message);
+          break;
+        default:
+          print('🤷 Tipo de mensaje no manejado: ${message['type']}');
+      }
+    });
+  }
+
+  /// 🔄 Cargar información actualizada de la sala
+  Future<void> _loadRoomInfo() async {
+    try {
+      print('📊 Cargando info de sala: ${widget.roomCode}');
+      
+      final roomInfo = await _webSocketService.getRoomInfo(widget.roomCode);
+      if (roomInfo != null && mounted) {
+        setState(() {
+          _currentRoom = roomInfo;
+          _syncPlayersFromRoom(roomInfo);
+        });
+        print('✅ Sala cargada con ${roomInfo.players.length} jugadores');
+      }
+    } catch (e) {
+      print('❌ Error cargando info de sala: $e');
+    }
+  }
+
+  /// 👥 Sincronizar lista de jugadores desde OnlineGameRoom
+  void _syncPlayersFromRoom(OnlineGameRoom room) {
+    connectedPlayers.clear();
+    
+    for (final player in room.players) {
+      connectedPlayers.add({
+        'name': player.name,
+        'color': _colorFromString(player.color),
+        'isHost': player.isHost,
+        'isReady': true, // Por ahora todos listos
+        'connectionTime': player.joinedAt,
+        'isConnected': player.isConnected,
+      });
+    }
+    
+    print('👥 Jugadores sincronizados: ${connectedPlayers.length}');
+  }
+
+  /// 🎨 Convertir string de color a Color object
+  Color _colorFromString(String colorString) {
+    switch (colorString.toLowerCase()) {
+      case 'red': return Colors.red;
+      case 'blue': return Colors.blue;
+      case 'green': return Colors.green;
+      case 'yellow': return Colors.yellow;
+      default: return Colors.red;
+    }
+  }
+
+  /// 📨 Manejar actualización de sala
+  void _handleRoomUpdate(Map<String, dynamic> message) {
+    print('🔄 Sala actualizada');
+    _loadRoomInfo(); // Recargar información
+  }
+
+  /// 👋 Manejar jugador que se une
+  void _handlePlayerJoined(Map<String, dynamic> message) {
+    final playerName = message['playerName'] ?? 'Desconocido';
+    print('👋 Jugador se unió: $playerName');
+    
+    if (mounted) {
+      _loadRoomInfo(); // Recargar para obtener lista actualizada
+      
+      // Mostrar notificación
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('🎮 $playerName se unió a la sala'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  /// 🚪 Manejar jugador que se va
+  void _handlePlayerLeft(Map<String, dynamic> message) {
+    final playerName = message['playerName'] ?? 'Desconocido';
+    print('🚪 Jugador se fue: $playerName');
+    
+    if (mounted) {
+      _loadRoomInfo(); // Recargar para obtener lista actualizada
+      
+      // Mostrar notificación
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('👋 $playerName salió de la sala'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  /// 🔒 Manejar cierre de sala
+  void _handleRoomClosed(Map<String, dynamic> message) {
+    print('🔒 Sala cerrada por el anfitrión');
+    
+    if (mounted) {
+      // Mostrar diálogo y volver al lobby
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: Text('🔒 Sala Cerrada'),
+          content: Text('El anfitrión cerró la sala. Serás redirigido al lobby.'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Cerrar diálogo
+                Navigator.of(context).pop(); // Volver al lobby
+              },
+              child: Text('Entendido'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  /// 👑 Manejar cuando el anfitrión se va
+  void _handleHostLeft(Map<String, dynamic> message) {
+    print('👑 El anfitrión abandonó la sala');
+    
+    if (mounted) {
+      // Si no somos el anfitrión, la sala se cierra
+      if (!widget.isHost) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: Text('👑 Anfitrión Desconectado'),
+            content: Text('El anfitrión abandonó la sala. La partida ha sido cancelada.'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop(); // Cerrar diálogo
+                  Navigator.of(context).pop(); // Volver al lobby
+                },
+                child: Text('Volver al Lobby'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
   }
 
   @override
   void dispose() {
     _pulseController.dispose();
     _slideController.dispose();
+    _messageSubscription?.cancel(); // 🧹 Limpiar suscripción WebSocket
     super.dispose();
   }
 

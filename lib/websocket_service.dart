@@ -201,22 +201,24 @@ class WebSocketService {
     }
   }
 
-  /// 🚪 Salir de la sala actual
+  /// 🚪 Salir de la sala actual (mejorado)
   void leaveRoom() {
-    if (!_isConnected || _socket == null || _currentRoomCode == null) {
-      return;
-    }
-    
-    try {
-      final message = {'type': 'leave_room'};
+    if (_currentRoomCode != null) {
+      print('🚪 Saliendo de sala: $_currentRoomCode');
       
-      print('🚪 Saliendo de sala $_currentRoomCode');
-      _socket!.add(jsonEncode(message));
+      // Notificar al servidor que estamos saliendo
+      if (_isConnected && _socket != null) {
+        final message = {
+          'type': 'leave_room',
+          'roomCode': _currentRoomCode,
+          'clientId': _uniqueClientId,
+        };
+        
+        _socket!.add(jsonEncode(message));
+      }
       
       _currentRoomCode = null;
       _currentPlayerId = null;
-    } catch (e) {
-      print('❌ Error enviando mensaje salir de sala: $e');
     }
   }
 
@@ -440,11 +442,18 @@ class WebSocketService {
     return success ? roomCode : null;
   }
 
-  /// Obtener información de sala (temporal con datos de prueba)
+  /// Obtener información de sala (con servidor real y fallback)
   Future<OnlineGameRoom?> getRoomInfo(String roomCode) async {
-    print('🔍 Obteniendo info de sala: $roomCode (Cliente: $_uniqueClientId)');
+    print('🔍 Obteniendo info de sala desde servidor: $roomCode');
     
-    // 🧪 DATOS DE PRUEBA para que la pantalla funcione
+    // Intentar obtener datos reales del servidor primero
+    final serverRoom = await getRoomInfoFromServer(roomCode);
+    if (serverRoom != null) {
+      return serverRoom;
+    }
+    
+    // Fallback a datos de prueba si el servidor no responde
+    print('⚠️ Usando datos de prueba como fallback');
     if (roomCode.isNotEmpty) {
       return OnlineGameRoom(
         roomCode: roomCode,
@@ -456,7 +465,6 @@ class WebSocketService {
             isHost: true,
             joinedAt: DateTime.now().subtract(Duration(minutes: 5)),
           ),
-          // Simular que el cliente actual es el segundo jugador
           OnlinePlayer(
             id: _uniqueClientId ?? 'guest_default',
             name: 'Cliente-${_uniqueClientId?.substring(7, 12) ?? 'Guest'}',
@@ -470,7 +478,7 @@ class WebSocketService {
           diceValue: 1,
           pieces: [],
         ),
-        status: 'waiting', // Estado esperando por defecto
+        status: 'waiting',
         createdAt: DateTime.now().subtract(Duration(minutes: 5)),
       );
     }
@@ -511,6 +519,125 @@ class WebSocketService {
   Future<void> leaveRoomPreGame() async {
     leaveRoom();
   }
+
+  /// 🔄 Mejorar getRoomInfo para solicitar datos reales del servidor
+  Future<OnlineGameRoom?> getRoomInfoFromServer(String roomCode) async {
+    if (!_isConnected || _socket == null) {
+      print('❌ No conectado al servidor para obtener info de sala');
+      return null;
+    }
+
+    try {
+      final message = {
+        'type': 'get_room_info',
+        'roomCode': roomCode,
+        'clientId': _uniqueClientId,
+      };
+
+      print('🔍 Solicitando info de sala: $roomCode');
+      _socket!.add(jsonEncode(message));
+
+      // Esperar respuesta del servidor
+      final completer = Completer<OnlineGameRoom?>();
+      late StreamSubscription subscription;
+
+      subscription = _messageController.stream.listen((data) {
+        if (data['type'] == 'room_info' && data['roomCode'] == roomCode) {
+          try {
+            // Convertir respuesta del servidor a OnlineGameRoom
+            final roomData = data['room'];
+            if (roomData != null) {
+              final room = _parseServerRoomData(roomData);
+              subscription.cancel();
+              completer.complete(room);
+            } else {
+              subscription.cancel();
+              completer.complete(null);
+            }
+          } catch (e) {
+            print('❌ Error parseando datos de sala: $e');
+            subscription.cancel();
+            completer.complete(null);
+          }
+        } else if (data['type'] == 'error' && data['context'] == 'get_room_info') {
+          print('❌ Error obteniendo info de sala: ${data['message']}');
+          subscription.cancel();
+          completer.complete(null);
+        }
+      });
+
+      // Timeout después de 5 segundos
+      Timer(Duration(seconds: 5), () {
+        if (!completer.isCompleted) {
+          print('⏰ Timeout obteniendo info de sala');
+          subscription.cancel();
+          completer.complete(null);
+        }
+      });
+
+      return await completer.future;
+    } catch (e) {
+      print('❌ Error solicitando info de sala: $e');
+      return null;
+    }
+  }
+
+  /// 📊 Parsear datos de sala del servidor a OnlineGameRoom
+  OnlineGameRoom _parseServerRoomData(Map<String, dynamic> roomData) {
+    // Parsear jugadores
+    final playersData = roomData['players'] as List? ?? [];
+    final players = playersData.map((playerData) {
+      return OnlinePlayer(
+        id: playerData['id'] ?? '',
+        name: playerData['name'] ?? 'Desconocido',
+        color: playerData['color'] ?? 'red',
+        isHost: playerData['isHost'] ?? false,
+        joinedAt: DateTime.fromMillisecondsSinceEpoch(
+          playerData['joinedAt'] ?? DateTime.now().millisecondsSinceEpoch,
+        ),
+        isConnected: playerData['isConnected'] ?? true,
+      );
+    }).toList();
+
+    // Crear estado del juego
+    final gameStateData = roomData['gameState'] as Map<String, dynamic>? ?? {};
+    final gameState = OnlineGameState(
+      currentPlayer: gameStateData['currentPlayer'] ?? 0,
+      diceValue: gameStateData['diceValue'] ?? 0,
+      pieces: [], // Por ahora vacío
+      gameStarted: gameStateData['gameStarted'] ?? false,
+      gameEnded: gameStateData['gameEnded'] ?? false,
+      winner: gameStateData['winner'],
+    );
+
+    return OnlineGameRoom(
+      roomCode: roomData['roomCode'] ?? '',
+      players: players,
+      gameState: gameState,
+      status: roomData['status'] ?? 'waiting',
+      createdAt: DateTime.fromMillisecondsSinceEpoch(
+        roomData['createdAt'] ?? DateTime.now().millisecondsSinceEpoch,
+      ),
+    );
+  }
+
+  /// 🔔 Notificar al servidor sobre eventos de sala
+  Future<void> notifyRoomEvent(String eventType, {Map<String, dynamic>? data}) async {
+    if (!_isConnected || _socket == null || _currentRoomCode == null) {
+      return;
+    }
+
+    final message = {
+      'type': eventType,
+      'roomCode': _currentRoomCode,
+      'clientId': _uniqueClientId,
+      ...?data,
+    };
+
+    _socket!.add(jsonEncode(message));
+  }
+
+
 }
 
 /// 📋 MODELOS DE DATOS PARA WEBSOCKET
