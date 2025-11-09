@@ -124,10 +124,12 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
     print('🔄 Configurando listeners WebSocket para sala: ${widget.roomCode}');
     
     _messageSubscription = _webSocketService.messageStream.listen((message) {
-      print('📨 Mensaje WebSocket recibido: ${message['type']}');
+      print('📨📨📨 MENSAJE WEBSOCKET RECIBIDO 📨📨📨');
+      print('🏷️ Tipo: ${message['type']}');
       print('🔍 Mensaje completo: $message');
-      print('🎯 Código de sala actual: ${widget.roomCode}');
-      print('🏠 ¿Es anfitrión?: ${widget.isHost}');
+      print('🎯 Mi sala actual: ${widget.roomCode}');
+      print('🏠 ¿Soy anfitrión?: ${widget.isHost}');
+      print('⏰ Timestamp: ${DateTime.now()}');
       
       switch (message['type']) {
         case 'room_updated':
@@ -469,11 +471,17 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
 
   /// 🚀 Manejar inicio de partida desde el anfitrión
   void _handleGameStart(Map<String, dynamic> message) {
-    print('🚀 Recibido mensaje start_game: $message');
+    print('🚀🚀🚀 RECIBIDO MENSAJE START_GAME 🚀🚀🚀');
+    print('📨 Mensaje completo: $message');
+    print('🎯 Mi sala: ${widget.roomCode}');
+    print('🏠 ¿Soy anfitrión?: ${widget.isHost}');
     
     // Verificar que el mensaje sea válido
-    if (message['roomCode'] != widget.roomCode) {
-      print('⚠️ Mensaje start_game para sala diferente');
+    final messageRoom = message['roomCode'] ?? message['room_code'] ?? message['room'];
+    print('🔍 Sala del mensaje: $messageRoom');
+    
+    if (messageRoom != widget.roomCode) {
+      print('❌ MENSAJE START_GAME PARA SALA DIFERENTE: $messageRoom vs ${widget.roomCode}');
       return;
     }
     
@@ -1114,8 +1122,11 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
   void _navigateToOnlineGame() {
     // 🌐 ENVIAR MENSAJE DE INICIO SOLO SI SOY ANFITRIÓN
     if (widget.isHost) {
-      print('🚀 Anfitrión iniciando partida - Enviando mensaje start_game');
-      _webSocketService.sendMessage({
+      print('🚀🚀🚀 ANFITRIÓN ENVIANDO START_GAME 🚀🚀🚀');
+      print('🎯 Sala: ${widget.roomCode}');
+      print('👥 Jugadores conectados: ${connectedPlayers.length}');
+      
+      final gameStartMessage = {
         'type': 'start_game',
         'roomCode': widget.roomCode,
         'players': connectedPlayers.map((player) => {
@@ -1126,7 +1137,13 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
         }).toList(),
         'startedBy': _webSocketService.uniqueClientId,
         'timestamp': DateTime.now().millisecondsSinceEpoch,
-      });
+      };
+      
+      print('📤 Mensaje start_game completo: $gameStartMessage');
+      _webSocketService.sendMessage(gameStartMessage);
+      print('✅ Mensaje start_game enviado');
+    } else {
+      print('👥 Cliente - No enviando mensaje start_game');
     }
 
     // 🎯 Preparar datos para modo online  
