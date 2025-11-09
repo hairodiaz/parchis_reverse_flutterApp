@@ -324,17 +324,14 @@ class WebSocketService {
           final rooms = roomsData.map((roomData) {
             // Convertir formato WebSocket a formato Firebase (compatibilidad)
             return OnlineGameRoom(
-              roomId: roomData['roomCode'] ?? '',
-              hostPlayer: roomData['hostName'] ?? 'Host desconocido',
+              roomCode: roomData['roomCode'] ?? '',
               players: [], // Lista vacía por ahora, se llenará cuando se necesite
               gameState: OnlineGameState(
-                currentPlayerIndex: 0,
+                currentPlayer: 0,
                 diceValue: 1,
                 pieces: [], // Lista vacía de piezas
-                lastUpdate: DateTime.now(),
               ),
               status: roomData['status'] ?? 'waiting',
-              isPublic: true, // Las salas públicas siempre son públicas
               createdAt: DateTime.fromMillisecondsSinceEpoch(
                 roomData['createdAt'] ?? DateTime.now().millisecondsSinceEpoch
               ),
@@ -371,76 +368,67 @@ class WebSocketService {
     print('🧪 Generando salas de prueba...');
     return [
       OnlineGameRoom(
-        roomId: 'DEMO1',
-        hostPlayer: 'JugadorHost1',
+        roomCode: 'DEMO1',
         players: [
           OnlinePlayer(
-            playerId: 'p1',
+            id: 'p1',
             name: 'JugadorHost1',
-            avatarColor: 'red',
-            level: 'Principiante',
+            color: 'red',
             isHost: true,
+            joinedAt: DateTime.now().subtract(Duration(minutes: 5)),
           ),
         ],
         gameState: OnlineGameState(
-          currentPlayerIndex: 0,
+          currentPlayer: 0,
           diceValue: 1,
           pieces: [],
-          lastUpdate: DateTime.now(),
         ),
         status: 'waiting',
-        isPublic: true,
         createdAt: DateTime.now().subtract(Duration(minutes: 5)),
       ),
       OnlineGameRoom(
-        roomId: 'DEMO2',
-        hostPlayer: 'JugadorHost2',
+        roomCode: 'DEMO2',
         players: [
           OnlinePlayer(
-            playerId: 'p2',
+            id: 'p2',
             name: 'JugadorHost2',
-            avatarColor: 'blue',
-            level: 'Intermedio',
+            color: 'blue',
             isHost: true,
+            joinedAt: DateTime.now().subtract(Duration(minutes: 2)),
           ),
         ],
         gameState: OnlineGameState(
-          currentPlayerIndex: 0,
+          currentPlayer: 0,
           diceValue: 1,
           pieces: [],
-          lastUpdate: DateTime.now(),
         ),
         status: 'waiting',
-        isPublic: true,
         createdAt: DateTime.now().subtract(Duration(minutes: 2)),
       ),
       OnlineGameRoom(
-        roomId: 'DEMO3',
-        hostPlayer: 'JugadorHost3',
+        roomCode: 'DEMO3',
         players: [
           OnlinePlayer(
-            playerId: 'p3',
+            id: 'p3',
             name: 'JugadorHost3',
-            avatarColor: 'green',
-            level: 'Avanzado',
+            color: 'green',
             isHost: true,
+            joinedAt: DateTime.now().subtract(Duration(minutes: 1)),
           ),
           OnlinePlayer(
-            playerId: 'p4',
+            id: 'p4',
             name: 'Invitado1',
-            avatarColor: 'yellow',
-            level: 'Principiante',
+            color: 'yellow',
             isHost: false,
+            joinedAt: DateTime.now().subtract(Duration(seconds: 30)),
           ),
         ],
         gameState: OnlineGameState(
-          currentPlayerIndex: 0,
+          currentPlayer: 0,
           diceValue: 1,
           pieces: [],
-          lastUpdate: DateTime.now(),
         ),
         status: 'waiting',
-        isPublic: true,
         createdAt: DateTime.now().subtract(Duration(minutes: 1)),
       ),
     ];
@@ -448,7 +436,7 @@ class WebSocketService {
 
   /// Unirse a sala (compatibilidad con API de Firebase)
   Future<String?> joinGameRoom(String roomCode, OnlinePlayer player) async {
-    final success = await joinRoom(roomCode, player.name, playerColor: player.avatarColor);
+    final success = await joinRoom(roomCode, player.name, playerColor: player.color);
     return success ? roomCode : null;
   }
 
@@ -459,33 +447,30 @@ class WebSocketService {
     // 🧪 DATOS DE PRUEBA para que la pantalla funcione
     if (roomCode.isNotEmpty) {
       return OnlineGameRoom(
-        roomId: roomCode,
-        hostPlayer: 'Host-$roomCode',
+        roomCode: roomCode,
         players: [
           OnlinePlayer(
-            playerId: 'host_$roomCode',
+            id: 'host_$roomCode',
             name: 'Host-$roomCode',
-            avatarColor: 'red',
-            level: 'Pro',
+            color: 'red',
             isHost: true,
+            joinedAt: DateTime.now().subtract(Duration(minutes: 5)),
           ),
           // Simular que el cliente actual es el segundo jugador
           OnlinePlayer(
-            playerId: _uniqueClientId ?? 'guest_default',
+            id: _uniqueClientId ?? 'guest_default',
             name: 'Cliente-${_uniqueClientId?.substring(7, 12) ?? 'Guest'}',
-            avatarColor: 'blue',
-            level: 'Principiante',
+            color: 'blue',
             isHost: false,
+            joinedAt: DateTime.now(),
           ),
         ],
         gameState: OnlineGameState(
-          currentPlayerIndex: 0,
+          currentPlayer: 0,
           diceValue: 1,
           pieces: [],
-          lastUpdate: DateTime.now(),
         ),
         status: 'waiting', // Estado esperando por defecto
-        isPublic: true,
         createdAt: DateTime.now().subtract(Duration(minutes: 5)),
       );
     }

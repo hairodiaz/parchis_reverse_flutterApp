@@ -15,13 +15,11 @@ class AuthService {
 
   // 📱 Estado actual
   LocalUser? _currentLocalUser;
-  bool _isInitialized = false;
 
   // 🚀 Inicializar servicio
   static Future<void> initialize() async {
     try {
       // Solo modo local - sin dependencias cloud
-      AuthService()._isInitialized = true;
       
       // Asegurar que hay un usuario local
       await AuthService()._ensureLocalUser();
@@ -30,7 +28,6 @@ class AuthService {
     } catch (e) {
       print('❌ Error inicializando AuthService: $e');
       // Continuar en modo offline
-      AuthService()._isInitialized = true;
     }
   }
 
