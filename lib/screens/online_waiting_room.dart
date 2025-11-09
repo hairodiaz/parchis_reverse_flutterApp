@@ -83,6 +83,12 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
     // 🚀 Inicializar sala
     _initializeRoom();
     _setupWebSocketListeners();
+    
+    // Solicitar lista de jugadores después de un pequeño delay
+    Future.delayed(Duration(milliseconds: 500), () {
+      _requestRoomPlayersList();
+    });
+    
     _slideController.forward();
   }
 
@@ -123,14 +129,29 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
         case 'host_left':
           _handleHostLeft(message);
           break;
+        case 'room_players_list':
+          _handleRoomPlayersList(message);
+          break;
         default:
           print('🤷 Tipo de mensaje no manejado: ${message['type']}');
       }
     });
   }
 
-  /// � Función simplificada - no necesitamos cargar del servidor
-  /// Los jugadores se manejan dinámicamente con eventos WebSocket
+  /// 📋 Solicitar lista completa de jugadores en la sala
+  void _requestRoomPlayersList() {
+    print('📋 Solicitando lista de jugadores para sala: ${widget.roomCode}');
+    
+    // Crear mensaje para solicitar lista de jugadores
+    final message = {
+      'type': 'get_room_players',
+      'roomCode': widget.roomCode,
+      'clientId': _webSocketService.uniqueClientId,
+    };
+    
+    // Enviar solicitud via WebSocket (si está conectado)
+    _webSocketService.sendMessage(message);
+  }
 
   /// 🎨 Convertir string de color a Color object
   Color _colorFromString(String colorString) {
@@ -149,13 +170,49 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
     // Los cambios se manejan con eventos específicos como player_joined/player_left
   }
 
+  /// 📋 Manejar lista completa de jugadores de la sala
+  void _handleRoomPlayersList(Map<String, dynamic> message) {
+    print('📋 DEBUG - Lista de jugadores recibida: $message');
+    
+    final playersData = message['players'] as List? ?? [];
+    
+    if (mounted && playersData.isNotEmpty) {
+      setState(() {
+        // Limpiar lista actual y agregar todos los jugadores de la respuesta
+        connectedPlayers.clear();
+        
+        for (final playerData in playersData) {
+          final playerName = playerData['name'] ?? playerData['playerName'] ?? 'Desconocido';
+          final playerId = playerData['id'] ?? playerData['clientId'] ?? 'unknown';
+          final playerColor = playerData['color'] ?? playerData['playerColor'] ?? 'red';
+          final isHost = playerData['isHost'] ?? false;
+          
+          connectedPlayers.add({
+            'name': playerName,
+            'color': _colorFromString(playerColor),
+            'isHost': isHost,
+            'isReady': true,
+            'connectionTime': DateTime.now(),
+            'id': playerId,
+          });
+        }
+      });
+      
+      print('✅ Lista de jugadores actualizada. Total: ${connectedPlayers.length}');
+      for (final player in connectedPlayers) {
+        print('   - ${player['name']} (Host: ${player['isHost']})');
+      }
+    }
+  }
+
   /// 👋 Manejar jugador que se une
   void _handlePlayerJoined(Map<String, dynamic> message) {
-    final playerName = message['playerName'] ?? 'Desconocido';
-    final playerId = message['clientId'] ?? message['playerId'] ?? 'unknown';
-    final playerColor = message['playerColor'] ?? 'red';
+    final playerName = message['playerName'] ?? message['name'] ?? 'Desconocido';
+    final playerId = message['clientId'] ?? message['playerId'] ?? message['id'] ?? 'unknown';
+    final playerColor = message['playerColor'] ?? message['color'] ?? 'red';
     
-    print('👋 Jugador se unió: $playerName (ID: $playerId)');
+    print('👋 DEBUG - Mensaje completo: $message');
+    print('👋 Jugador se unió: $playerName (ID: $playerId, Color: $playerColor)');
     
     if (mounted) {
       // Solo agregar si no es el jugador actual y no existe ya

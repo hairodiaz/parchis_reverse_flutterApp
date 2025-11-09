@@ -526,6 +526,21 @@ class WebSocketService {
     }
   }
 
+  /// 📤 Enviar mensaje genérico al WebSocket
+  void sendMessage(Map<String, dynamic> message) {
+    if (!_isConnected || _socket == null) {
+      print('❌ No se puede enviar mensaje: WebSocket no conectado');
+      return;
+    }
+
+    try {
+      _socket!.add(jsonEncode(message));
+      print('📤 Mensaje enviado: ${message['type']}');
+    } catch (e) {
+      print('❌ Error enviando mensaje: $e');
+    }
+  }
+
   /// 🔄 Mejorar getRoomInfo para solicitar datos reales del servidor
   Future<OnlineGameRoom?> getRoomInfoFromServer(String roomCode) async {
     if (!_isConnected || _socket == null) {
