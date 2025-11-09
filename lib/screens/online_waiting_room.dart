@@ -94,6 +94,9 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
       });
     }
     
+    // 🎯 ESTRATEGIA AUTOMÁTICA: TODOS los dispositivos monitoreando para auto-navegación
+    _startClientAutoDetection();
+    
     _slideController.forward();
   }
 
@@ -583,7 +586,48 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
     }
   }
 
-  /// 🎮 Navegar al juego automáticamente (para clientes, sin enviar mensaje)
+  /// � Iniciar detección automática para clientes (estrategia alternativa)
+  void _startClientAutoDetection() {
+    print('🎯 ${widget.isHost ? "Anfitrión" : "Cliente"} iniciando auto-detección de juego...');
+    
+    // Crear un timer que verifique cada 2 segundos si el juego debe iniciar
+    Timer.periodic(Duration(seconds: 2), (timer) {
+      if (!mounted || _gameHasStarted) {
+        timer.cancel();
+        return;
+      }
+      
+      // Condiciones para auto-navegación INMEDIATA:
+      // 1. Hay al menos 2 jugadores conectados
+      // 2. Han pasado al menos 3 segundos para estabilidad
+      // 3. No hemos detectado inicio de juego por WebSocket
+      
+      final timeSinceConnection = DateTime.now().difference(
+        connectedPlayers.isNotEmpty ? connectedPlayers[0]['connectionTime'] : DateTime.now()
+      ).inSeconds;
+      
+      if (timeSinceConnection > 3 && connectedPlayers.length >= 2) {
+        print('� AUTO-NAVEGACIÓN ACTIVADA: ${timeSinceConnection}s, ${connectedPlayers.length} jugadores');
+        timer.cancel();
+        _gameHasStarted = true;
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('🎮 ¡Todos los jugadores listos! Iniciando partida...'),
+              backgroundColor: Colors.blue,
+              duration: Duration(seconds: 2),
+            ),
+          );
+          
+          // Navegación INMEDIATA
+          _navigateToOnlineGameAutomatically();
+        }
+      }
+    });
+  }
+
+  /// �🎮 Navegar al juego automáticamente (para clientes, sin enviar mensaje)
   void _navigateToOnlineGameAutomatically() {
     print('🎮 Navegando automáticamente al juego online...');
     
@@ -1198,11 +1242,14 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
 
   // 🎮 NAVEGAR AL JUEGO ONLINE
   void _navigateToOnlineGame() {
-    // 🌐 ESTRATEGIA INTELIGENTE: Usar player_joined que SÍ funciona
+    // 🌐 ESTRATEGIA SIMPLE Y EFECTIVA: Timeout automático para clientes
     if (widget.isHost) {
       print('🚀🚀🚀 ANFITRIÓN ENVIANDO INICIO DE JUEGO 🚀🚀🚀');
       print('🎯 Sala: ${widget.roomCode}');
       print('👥 Jugadores conectados: ${connectedPlayers.length}');
+      
+      // Marcar globalmente que el juego ha iniciado
+      _gameHasStarted = true;
       
       // � GENIAL: Usar player_joined con datos especiales de inicio de juego
       final gameStartViaPlayerJoined = {
