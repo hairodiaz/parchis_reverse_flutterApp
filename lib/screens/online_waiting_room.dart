@@ -48,6 +48,9 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
   final WebSocketService _webSocketService = WebSocketService();
   StreamSubscription<Map<String, dynamic>>? _messageSubscription;
   OnlineGameRoom? _currentRoom;
+  
+  // 🎮 Control de inicio de juego
+  bool _gameHasStarted = false;
 
   @override
   void initState() {
@@ -241,6 +244,41 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
   /// 👋 Manejar jugador que se une
   void _handlePlayerJoined(Map<String, dynamic> message) {
     print('👋 DEBUG - Mensaje player_joined completo: $message');
+    
+    // 🎮💡 DETECTAR SEÑAL DE INICIO DE JUEGO VIA PLAYER_JOINED
+    final playerData = message['playerData'];
+    if (playerData != null) {
+      final playerName = playerData['name'];
+      final playerAction = playerData['action'];
+      
+      // ¡DETECTAR SEÑAL ESPECIAL DE INICIO!
+      if (playerName == '__GAME_STARTING__' || playerAction == 'START_GAME') {
+        print('🎮💡 ¡DETECTADO INICIO DE JUEGO VIA PLAYER_JOINED!');
+        
+        // Verificar estado del juego en roomData
+        final roomData = message['roomData'];
+        final gameState = roomData?['gameState'];
+        final gameStarted = gameState?['gameStarted'] == true;
+        
+        if (gameStarted) {
+          print('🎯 Confirmado: gameStarted = true');
+          
+          // Crear mensaje de start_game simulado
+          final simulatedStartMessage = {
+            'type': 'start_game',
+            'roomCode': widget.roomCode,
+            'players': roomData?['players'] ?? [],
+            'startedBy': playerData['startedBy'] ?? 'host',
+            'timestamp': playerData['joinedAt'] ?? DateTime.now().millisecondsSinceEpoch,
+          };
+          
+          // Procesar como inicio de juego
+          _handleGameStart(simulatedStartMessage);
+        }
+        
+        return; // No procesar como jugador normal
+      }
+    }
     
     // Verificar si el mensaje incluye una lista completa de jugadores
     final allPlayers = message['allPlayers'] ?? message['players'] ?? message['roomPlayers'];
@@ -478,6 +516,12 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
 
   /// 🚀 Manejar inicio de partida desde el anfitrión
   void _handleGameStart(Map<String, dynamic> message) {
+    // Evitar procesar duplicados
+    if (_gameHasStarted) {
+      print('🔄 Juego ya iniciado, ignorando mensaje duplicado');
+      return;
+    }
+
     print('🚀🚀🚀 RECIBIDO MENSAJE START_GAME 🚀🚀🚀');
     print('📨 Mensaje completo: $message');
     print('🎯 Mi sala: ${widget.roomCode}');
@@ -502,10 +546,13 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
       print('❌ No es un mensaje válido de inicio de juego');
       return;
     }
+
+    // Marcar que el juego ha iniciado
+    _gameHasStarted = true;
     
     // Solo procesar si NO soy el anfitrión (el anfitrión ya navega por su cuenta)
     if (!widget.isHost) {
-      print('🎮 Iniciando partida automáticamente - Cliente');
+      print('🎮 ¡MENSAJE RECIBIDO! Iniciando partida automáticamente - Cliente');
       
       // Actualizar lista de jugadores con los datos del mensaje si es necesario
       final playersFromMessage = message['players'] as List<dynamic>?;
@@ -513,11 +560,24 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
         // Aquí podrías actualizar connectedPlayers si es necesario
         print('📋 Datos de jugadores en start_game: ${playersFromMessage.length} jugadores');
       }
-      
-      // Navegar automáticamente al juego
+
+      // Mostrar notificación de inicio
       if (mounted) {
-        _navigateToOnlineGameAutomatically();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🎮 ¡Juego iniciado por el anfitrión! Entrando...'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
       }
+      
+      // Navegar automáticamente al juego con un pequeño delay
+      Future.delayed(Duration(milliseconds: 500), () {
+        if (mounted) {
+          _navigateToOnlineGameAutomatically();
+        }
+      });
     } else {
       print('🏠 Anfitrión - Ignorando mensaje start_game propio');
     }
@@ -1138,16 +1198,45 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
 
   // 🎮 NAVEGAR AL JUEGO ONLINE
   void _navigateToOnlineGame() {
-    // 🌐 ENVIAR MENSAJE DE INICIO SOLO SI SOY ANFITRIÓN
+    // 🌐 ESTRATEGIA INTELIGENTE: Usar player_joined que SÍ funciona
     if (widget.isHost) {
-      print('🚀🚀🚀 ANFITRIÓN ENVIANDO START_GAME 🚀🚀🚀');
+      print('🚀🚀🚀 ANFITRIÓN ENVIANDO INICIO DE JUEGO 🚀🚀🚀');
       print('🎯 Sala: ${widget.roomCode}');
       print('👥 Jugadores conectados: ${connectedPlayers.length}');
       
-      // 🚀 INTENTAR MÚLTIPLES TIPOS DE MENSAJES PARA ASEGURAR QUE LLEGUE
-      final gameStartMessage1 = {
-        'type': 'game_start',  // Variación 1
-        'action': 'start_game',
+      // � GENIAL: Usar player_joined con datos especiales de inicio de juego
+      final gameStartViaPlayerJoined = {
+        'type': 'player_joined',  // ¡Tipo que SÍ sabemos que funciona!
+        'playerData': {
+          'id': 'GAME_START_SIGNAL_${DateTime.now().millisecondsSinceEpoch}',
+          'name': '__GAME_STARTING__', // Nombre especial que detectaremos
+          'color': 'GAME_START',
+          'isHost': true,
+          'joinedAt': DateTime.now().millisecondsSinceEpoch,
+          'action': 'START_GAME', // Campo especial
+          'roomCode': widget.roomCode,
+        },
+        'roomData': {
+          'players': connectedPlayers.map((player) => {
+            'id': player['id'] ?? player['clientId'],
+            'name': player['name'],
+            'color': player['color'].toString(),
+            'isHost': player['isHost'] ?? false,
+          }).toList(),
+          'gameState': {
+            'gameStarted': true, // ¡CLAVE!
+            'startedBy': _webSocketService.uniqueClientId,
+            'currentPlayer': 0,
+            'diceValue': 0,
+            'pieces': [],
+            'gameEnded': false,
+          }
+        }
+      };
+      
+      // También intentar los mensajes originales por si acaso
+      final originalStartMessage = {
+        'type': 'start_game',
         'roomCode': widget.roomCode,
         'players': connectedPlayers.map((player) => {
           'name': player['name'],
@@ -1158,39 +1247,15 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
         'startedBy': _webSocketService.uniqueClientId,
         'timestamp': DateTime.now().millisecondsSinceEpoch,
       };
-
-      final gameStartMessage2 = {
-        'type': 'room_updated',  // Usar tipo que sabemos que funciona
-        'action': 'game_starting',
-        'roomCode': widget.roomCode,
-        'gameStarted': true,
-        'startedBy': _webSocketService.uniqueClientId,
-        'players': connectedPlayers.length,
-      };
-
-      final gameStartMessage3 = {
-        'type': 'start_game',  // Mensaje original
-        'roomCode': widget.roomCode,
-        'players': connectedPlayers.map((player) => {
-          'name': player['name'],
-          'color': player['color'].toString(),
-          'id': player['id'] ?? player['clientId'],
-          'isHost': player['isHost'] ?? false,
-        }).toList(),
-        'startedBy': _webSocketService.uniqueClientId,
-        'timestamp': DateTime.now().millisecondsSinceEpoch,
-      };
       
-      print('📤 Enviando múltiples mensajes para asegurar llegada:');
-      print('   📤1 game_start: $gameStartMessage1');
-      print('   📤2 room_updated: $gameStartMessage2'); 
-      print('   📤3 start_game: $gameStartMessage3');
+      print('📤💡 ENVIANDO VIA PLAYER_JOINED (estrategia inteligente):');
+      print('   📤🎯 gameStartViaPlayerJoined: $gameStartViaPlayerJoined');
+      print('   📤📦 originalStartMessage: $originalStartMessage');
       
-      _webSocketService.sendMessage(gameStartMessage1);
-      _webSocketService.sendMessage(gameStartMessage2);
-      _webSocketService.sendMessage(gameStartMessage3);
+      _webSocketService.sendMessage(gameStartViaPlayerJoined);
+      _webSocketService.sendMessage(originalStartMessage);
       
-      print('✅ Todos los mensajes start_game enviados');
+      print('✅💡 Mensajes enviados usando estrategia player_joined');
     } else {
       print('👥 Cliente - No enviando mensaje start_game');
     }
