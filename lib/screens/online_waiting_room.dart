@@ -153,6 +153,9 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
         case 'players_list':
           _handleRoomPlayersList(message);
           break;
+        case 'start_game':
+          _handleGameStart(message);
+          break;
         default:
           print('🤷 Tipo de mensaje no manejado: ${message['type']}');
           print('📋 Mensaje completo: $message');
@@ -462,6 +465,80 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
         );
       }
     }
+  }
+
+  /// 🚀 Manejar inicio de partida desde el anfitrión
+  void _handleGameStart(Map<String, dynamic> message) {
+    print('🚀 Recibido mensaje start_game: $message');
+    
+    // Verificar que el mensaje sea válido
+    if (message['roomCode'] != widget.roomCode) {
+      print('⚠️ Mensaje start_game para sala diferente');
+      return;
+    }
+    
+    // Solo procesar si NO soy el anfitrión (el anfitrión ya navega por su cuenta)
+    if (!widget.isHost) {
+      print('🎮 Iniciando partida automáticamente - Cliente');
+      
+      // Actualizar lista de jugadores con los datos del mensaje si es necesario
+      final playersFromMessage = message['players'] as List<dynamic>?;
+      if (playersFromMessage != null) {
+        // Aquí podrías actualizar connectedPlayers si es necesario
+        print('📋 Datos de jugadores en start_game: ${playersFromMessage.length} jugadores');
+      }
+      
+      // Navegar automáticamente al juego
+      if (mounted) {
+        _navigateToOnlineGameAutomatically();
+      }
+    } else {
+      print('🏠 Anfitrión - Ignorando mensaje start_game propio');
+    }
+  }
+
+  /// 🎮 Navegar al juego automáticamente (para clientes, sin enviar mensaje)
+  void _navigateToOnlineGameAutomatically() {
+    print('🎮 Navegando automáticamente al juego online...');
+    
+    // 🎯 Preparar datos para modo online (mismo código que _navigateToOnlineGame pero sin enviar mensaje)
+    final onlinePlayerNames = <String>[];
+    final onlineIsHuman = <bool>[];
+    final onlineColorIndices = <int>[];
+    
+    // 📋 Convertir jugadores conectados a formato de ParchisBoard
+    for (int i = 0; i < connectedPlayers.length && i < 4; i++) {
+      final player = connectedPlayers[i];
+      onlinePlayerNames.add(player['name']);
+      onlineIsHuman.add(true); // Todos son humanos en modo online
+      
+      // 🎨 Convertir color a índice
+      Color playerColor = player['color'];
+      int colorIndex = 0; // Default rojo
+      if (playerColor == Colors.blue) {
+        colorIndex = 1;
+      } else if (playerColor == Colors.green) colorIndex = 2;
+      else if (playerColor == Colors.yellow) colorIndex = 3;
+      
+      onlineColorIndices.add(colorIndex);
+    }
+    
+    // 🔥 NAVEGAR AL PARCHIS BOARD EN MODO ONLINE
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (context) => ParchisBoard(
+          numPlayers: connectedPlayers.length,
+          playerNames: onlinePlayerNames,
+          isHuman: onlineIsHuman,
+          playerColorIndices: onlineColorIndices,
+          turnOrder: List.generate(connectedPlayers.length, (index) => index),
+          // 🌐 PARÁMETROS DE MODO ONLINE
+          isOnlineMode: true,
+          roomCode: widget.roomCode,
+          onlinePlayerIndex: _getMyPlayerIndex(), // Calcular índice correcto del jugador actual
+        ),
+      ),
+    );
   }
 
   @override
@@ -1035,7 +1112,24 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
 
   // 🎮 NAVEGAR AL JUEGO ONLINE
   void _navigateToOnlineGame() {
-    // 🎯 Preparar datos para modo online
+    // 🌐 ENVIAR MENSAJE DE INICIO SOLO SI SOY ANFITRIÓN
+    if (widget.isHost) {
+      print('🚀 Anfitrión iniciando partida - Enviando mensaje start_game');
+      _webSocketService.sendMessage({
+        'type': 'start_game',
+        'roomCode': widget.roomCode,
+        'players': connectedPlayers.map((player) => {
+          'name': player['name'],
+          'color': player['color'].toString(),
+          'id': player['id'] ?? player['clientId'],
+          'isHost': player['isHost'] ?? false,
+        }).toList(),
+        'startedBy': _webSocketService.uniqueClientId,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      });
+    }
+
+    // 🎯 Preparar datos para modo online  
     final onlinePlayerNames = <String>[];
     final onlineIsHuman = <bool>[];
     final onlineColorIndices = <int>[];
