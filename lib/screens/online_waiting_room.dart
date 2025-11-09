@@ -133,7 +133,13 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
       
       switch (message['type']) {
         case 'room_updated':
-          _handleRoomUpdate(message);
+          // Verificar si es un mensaje de inicio de juego disfrazado
+          if (message['action'] == 'game_starting' || message['gameStarted'] == true) {
+            print('🚀 Detectado inicio de juego via room_updated');
+            _handleGameStart(message);
+          } else {
+            _handleRoomUpdate(message);
+          }
           break;
         case 'player_joined':
           _handlePlayerJoined(message);
@@ -156,6 +162,7 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
           _handleRoomPlayersList(message);
           break;
         case 'start_game':
+        case 'game_start':
           _handleGameStart(message);
           break;
         default:
@@ -480,8 +487,19 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
     final messageRoom = message['roomCode'] ?? message['room_code'] ?? message['room'];
     print('🔍 Sala del mensaje: $messageRoom');
     
-    if (messageRoom != widget.roomCode) {
+    if (messageRoom != null && messageRoom != widget.roomCode) {
       print('❌ MENSAJE START_GAME PARA SALA DIFERENTE: $messageRoom vs ${widget.roomCode}');
+      return;
+    }
+    
+    // Verificar si es mensaje de inicio de juego válido
+    final isGameStart = message['type'] == 'start_game' || 
+                       message['type'] == 'game_start' ||
+                       message['action'] == 'game_starting' ||
+                       message['gameStarted'] == true;
+                       
+    if (!isGameStart) {
+      print('❌ No es un mensaje válido de inicio de juego');
       return;
     }
     
@@ -1126,8 +1144,32 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
       print('🎯 Sala: ${widget.roomCode}');
       print('👥 Jugadores conectados: ${connectedPlayers.length}');
       
-      final gameStartMessage = {
-        'type': 'start_game',
+      // 🚀 INTENTAR MÚLTIPLES TIPOS DE MENSAJES PARA ASEGURAR QUE LLEGUE
+      final gameStartMessage1 = {
+        'type': 'game_start',  // Variación 1
+        'action': 'start_game',
+        'roomCode': widget.roomCode,
+        'players': connectedPlayers.map((player) => {
+          'name': player['name'],
+          'color': player['color'].toString(),
+          'id': player['id'] ?? player['clientId'],
+          'isHost': player['isHost'] ?? false,
+        }).toList(),
+        'startedBy': _webSocketService.uniqueClientId,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      };
+
+      final gameStartMessage2 = {
+        'type': 'room_updated',  // Usar tipo que sabemos que funciona
+        'action': 'game_starting',
+        'roomCode': widget.roomCode,
+        'gameStarted': true,
+        'startedBy': _webSocketService.uniqueClientId,
+        'players': connectedPlayers.length,
+      };
+
+      final gameStartMessage3 = {
+        'type': 'start_game',  // Mensaje original
         'roomCode': widget.roomCode,
         'players': connectedPlayers.map((player) => {
           'name': player['name'],
@@ -1139,9 +1181,16 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
         'timestamp': DateTime.now().millisecondsSinceEpoch,
       };
       
-      print('📤 Mensaje start_game completo: $gameStartMessage');
-      _webSocketService.sendMessage(gameStartMessage);
-      print('✅ Mensaje start_game enviado');
+      print('📤 Enviando múltiples mensajes para asegurar llegada:');
+      print('   📤1 game_start: $gameStartMessage1');
+      print('   📤2 room_updated: $gameStartMessage2'); 
+      print('   📤3 start_game: $gameStartMessage3');
+      
+      _webSocketService.sendMessage(gameStartMessage1);
+      _webSocketService.sendMessage(gameStartMessage2);
+      _webSocketService.sendMessage(gameStartMessage3);
+      
+      print('✅ Todos los mensajes start_game enviados');
     } else {
       print('👥 Cliente - No enviando mensaje start_game');
     }
