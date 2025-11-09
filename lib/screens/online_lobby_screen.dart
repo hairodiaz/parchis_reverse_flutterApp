@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../services/auth_service.dart';
 import '../websocket_service.dart';
 import 'online_waiting_room.dart';
@@ -13,7 +12,7 @@ import 'online_waiting_room.dart';
 /// - 🎮 Configurar nombre y color del jugador
 
 class OnlineLobbyScreen extends StatefulWidget {
-  const OnlineLobbyScreen({Key? key}) : super(key: key);
+  const OnlineLobbyScreen({super.key});
 
   @override
   State<OnlineLobbyScreen> createState() => _OnlineLobbyScreenState();
@@ -593,10 +592,16 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen>
     }
 
     try {
-      // � CREAR SALA REAL CON WEBSOCKET
+      // 🔍 DEBUG: Verificar qué nombre se está enviando
+      final playerName = _playerNameController.text.trim();
+      print('🔍 DEBUG CREAR SALA:');
+      print('   📝 Nombre del jugador: "$playerName"');
+      print('   🎨 Color seleccionado: $_selectedColor');
+      
+      // 🏠 CREAR SALA REAL CON WEBSOCKET
       final websocket = WebSocketService();
       final roomCode = await websocket.createRoom(
-        _playerNameController.text.trim(),
+        playerName,
         playerColor: _selectedColor,
       );
 
@@ -655,11 +660,19 @@ class _OnlineLobbyScreenState extends State<OnlineLobbyScreen>
     print('✅ DEBUG: Validaciones pasadas, intentando unirse con WebSocket');
 
     try {
+      // 🔍 DEBUG: Verificar qué nombre se está enviando
+      final playerName = _playerNameController.text.trim();
+      final roomCode = _roomCodeController.text.trim().toUpperCase();
+      print('🔍 DEBUG UNIRSE A SALA:');
+      print('   📝 Nombre del jugador: "$playerName"');
+      print('   🏠 Código de sala: "$roomCode"');
+      print('   🎨 Color seleccionado: $_selectedColor');
+      
       // 🌐 UNIRSE A SALA REAL CON WEBSOCKET
       final websocket = WebSocketService();
       final success = await websocket.joinRoom(
-        _roomCodeController.text.trim().toUpperCase(),
-        _playerNameController.text.trim(),
+        roomCode,
+        playerName,
         playerColor: _selectedColor,
       );
 

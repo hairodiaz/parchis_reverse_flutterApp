@@ -95,7 +95,14 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
   }
 
   void _initializeRoom() {
-    // 🎮 SIEMPRE agregar el usuario actual primero
+    // 🎮 DEBUG: Verificar qué nombre estamos recibiendo
+    print('🔍 DEBUG INICIALIZACIÓN:');
+    print('   📝 widget.playerName: "${widget.playerName}"');
+    print('   🎨 widget.playerColor: ${widget.playerColor}');
+    print('   🏠 widget.isHost: ${widget.isHost}');
+    print('   🔗 roomCode: ${widget.roomCode}');
+    
+    // SIEMPRE agregar el usuario actual primero
     connectedPlayers.add({
       'name': widget.playerName,
       'color': widget.playerColor,
@@ -106,9 +113,9 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
     });
     
     if (widget.isHost) {
-      print('🏠 Anfitrión inicializado: ${widget.playerName}');
+      print('🏠 Anfitrión inicializado: "${widget.playerName}"');
     } else {
-      print('🔄 Cliente inicializado: ${widget.playerName}. Esperando otros jugadores...');
+      print('🔄 Cliente inicializado: "${widget.playerName}". Esperando otros jugadores...');
     }
   }
 
@@ -241,19 +248,34 @@ class _OnlineWaitingRoomState extends State<OnlineWaitingRoom>
     }
     
     // Intentar múltiples variaciones de nombres de campos
-    final playerName = message['playerName'] ?? 
-                      message['name'] ?? 
-                      message['player_name'] ??
-                      message['player'] ??
-                      message['username'] ??
-                      'Jugador';
-                      
-    final playerId = message['clientId'] ?? 
-                    message['playerId'] ?? 
-                    message['id'] ?? 
-                    message['client_id'] ??
-                    message['player_id'] ??
-                    'unknown';
+    String? playerName;
+    String? playerId;
+    
+    // 🔍 Buscar nombre del jugador en diferentes campos
+    final nameFields = ['playerName', 'name', 'player_name', 'player', 'username', 'nick', 'nickname'];
+    for (final field in nameFields) {
+      if (message[field] != null && message[field].toString().trim().isNotEmpty) {
+        playerName = message[field].toString();
+        print('✅ Nombre encontrado en campo "$field": "$playerName"');
+        break;
+      }
+    }
+    
+    // 🔍 Buscar ID del jugador en diferentes campos  
+    final idFields = ['clientId', 'playerId', 'id', 'client_id', 'player_id', 'userId'];
+    for (final field in idFields) {
+      if (message[field] != null && message[field].toString().trim().isNotEmpty) {
+        playerId = message[field].toString();
+        print('✅ ID encontrado en campo "$field": "$playerId"');
+        break;
+      }
+    }
+    
+    // Fallbacks si no encontramos nada
+    playerName ??= 'Jugador_${DateTime.now().millisecondsSinceEpoch % 10000}';
+    playerId ??= 'unknown_${DateTime.now().millisecondsSinceEpoch}';
+    
+    print('⚠️ Usando nombre final: "$playerName" (ID: "$playerId")');
                     
     final playerColor = message['playerColor'] ?? 
                        message['color'] ?? 
