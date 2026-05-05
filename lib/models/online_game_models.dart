@@ -1,5 +1,6 @@
 /// 🎮 MODELOS PARA JUEGO ONLINE
 /// Clases para manejar datos del juego multijugador
+library;
 
 /// 👤 Modelo de jugador online
 class OnlinePlayer {

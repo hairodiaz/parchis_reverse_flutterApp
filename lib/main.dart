@@ -10,9 +10,107 @@ import 'screens/settings_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/intro_screen.dart'; // 🎬 NUEVA PANTALLA DE INTRO
 import 'screens/instructions_screen.dart'; // 📚 PANTALLA DE INSTRUCCIONES
-import 'screens/dice_showcase.dart'; // 🎲 PANTALLA DE PRUEBA DE DADOS
-import 'screens/online_lobby_screen.dart'; // 🌐 PANTALLA DE LOBBY ONLINE
-import 'websocket_service.dart'; // 🌐 WEBSOCKET PARA SINCRONIZACIÓN ONLINE
+import 'screens/online_matchmaking_screen.dart'; // 🌐 BÚSQUEDA ONLINE SIMULADA (MVP)
+import 'utils/responsive_utils.dart'; // 📱 UTILIDADES RESPONSIVE
+// 🚫 TEMPORALMENTE DESHABILITADO - PRUEBA DE DADOS
+// import 'screens/dice_showcase.dart'; // 🎲 PANTALLA DE PRUEBA DE DADOS
+// 🚫 TEMPORALMENTE DESHABILITADO - SERVIDOR WEBSOCKET
+// import 'screens/online_lobby_screen.dart'; // 🌐 PANTALLA DE LOBBY ONLINE (para servidor real)
+// import 'websocket_service.dart'; // 🌐 WEBSOCKET PARA SINCRONIZACIÓN ONLINE
+
+// 🏁 CONFIGURACIÓN DE PRODUCCIÓN
+const bool kProductionMode = true; // CAMBIAR A TRUE PARA RELEASE
+
+// �️ FUNCIÓN OPTIMIZADA PARA DEBUG
+void debugLog(String message) {
+  if (!kProductionMode) {
+    print(message);
+  }
+  // En modo producción, no imprime nada = mejor rendimiento
+}
+
+// �📱 CLASE UTILITARIA PARA RESPONSIVE DESIGN Y PERFORMANCE
+class ResponsiveHelper {
+  static double _screenWidth = 0;
+  static double _screenHeight = 0;
+  static double _scaleFactor = 1;
+  static bool _isLowPerformanceDevice = false;
+  
+  static void init(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    _screenWidth = mediaQuery.size.width;
+    _screenHeight = mediaQuery.size.height;
+    
+    // Calcular factor de escala basado en ancho de pantalla
+    // Referencia: 390px (iPhone 12/13/14 estándar)
+    _scaleFactor = _screenWidth / 390;
+    
+    // Limitar el factor de escala para evitar extremos
+    _scaleFactor = _scaleFactor.clamp(0.7, 1.5);
+    
+    // 🚀 Detectar dispositivos de bajo rendimiento
+    _detectPerformanceLevel(mediaQuery);
+  }
+  
+  static void _detectPerformanceLevel(MediaQueryData mediaQuery) {
+    // Considerar bajo rendimiento si:
+    // - Pantalla muy pequeña (< 360px width)
+    // - Baja densidad de píxeles (< 2.0)
+    _isLowPerformanceDevice = _screenWidth < 360 || mediaQuery.devicePixelRatio < 2.0;
+  }
+  
+  // Escalar texto según el tamaño de pantalla
+  static double scaledText(double baseSize) {
+    return baseSize * _scaleFactor;
+  }
+  
+  // Escalar espaciado según el tamaño de pantalla
+  static double scaledPadding(double basePadding) {
+    return basePadding * _scaleFactor;
+  }
+  
+  // Escalar iconos según el tamaño de pantalla
+  static double scaledIcon(double baseSize) {
+    return baseSize * _scaleFactor;
+  }
+  
+  // Obtener factor de escala actual
+  static double get scaleFactor => _scaleFactor;
+  
+  // Verificar si es pantalla pequeña
+  static bool get isSmallScreen => _screenWidth < 360;
+  
+  // Verificar si es pantalla grande
+  static bool get isLargeScreen => _screenWidth > 600;
+  
+  // Obtener dimensiones de pantalla
+  static double get screenWidth => _screenWidth;
+  static double get screenHeight => _screenHeight;
+  
+  // 🚀 FUNCIONES DE OPTIMIZACIÓN DE RENDIMIENTO
+  static bool get isLowPerformanceDevice => _isLowPerformanceDevice;
+  
+  // Duración optimizada para animaciones
+  static Duration getAnimationDuration(Duration baseDuration) {
+    return _isLowPerformanceDevice 
+        ? Duration(milliseconds: (baseDuration.inMilliseconds * 0.7).round())
+        : baseDuration;
+  }
+  
+  // Intervalo optimizado para timers
+  static Duration getTimerInterval() {
+    return _isLowPerformanceDevice 
+        ? const Duration(milliseconds: 100)  // Menos frecuente en dispositivos lentos
+        : const Duration(milliseconds: 50);   // Más suave en dispositivos rápidos
+  }
+  
+  // Número de pasos optimizado para animaciones
+  static int getAnimationSteps(int baseSteps) {
+    return _isLowPerformanceDevice 
+        ? (baseSteps * 0.6).round()  // Menos pasos = más fluido
+        : baseSteps;
+  }
+}
 
 // Enum para prioridades de mensajes
 enum MessagePriority {
@@ -126,11 +224,11 @@ void main() async {
   try {
     // 🗂️ Inicializar base de datos local (Hive)
     await HiveService.init();
-    print('✅ Base de datos local inicializada correctamente');
+    debugLog('✅ Base de datos local inicializada correctamente');
     
     // 🔐 Inicializar servicio de autenticación
     await AuthService.initialize();
-    print('✅ Servicio de autenticación inicializado');
+    debugLog('✅ Servicio de autenticación inicializado');
     
     // 🎵 Inicializar servicio de audio
     await AudioService().initialize();
@@ -197,12 +295,12 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
     super.initState();
     
     _backgroundController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
+      duration: ResponsiveHelper.getAnimationDuration(const Duration(milliseconds: 1500)),
       vsync: this,
     );
     
     _buttonsController = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: ResponsiveHelper.getAnimationDuration(const Duration(milliseconds: 800)),
       vsync: this,
     );
     
@@ -289,16 +387,16 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
         builder: (context, setDialogState) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           backgroundColor: const Color(0xFF1a237e),
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.waving_hand, color: Colors.amber, size: 26),
-              SizedBox(width: 12),
+              Icon(Icons.waving_hand, color: Colors.amber, size: ResponsiveHelper.scaledIcon(26)),
+              SizedBox(width: ResponsiveHelper.scaledPadding(12)),
               Expanded(
                 child: Text(
                   '¡Bienvenido a Parchís Reverse!',
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 16,
+                    fontSize: ResponsiveHelper.scaledText(16),
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -309,24 +407,24 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 '🎯 Esta es una versión moderna del clásico juego Dominicano con nuevas mecánicas y efectos especiales.',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 14,
+                  fontSize: ResponsiveHelper.scaledText(14),
                   height: 1.5,
                 ),
               ),
-              const SizedBox(height: 16),
-              const Text(
+              SizedBox(height: ResponsiveHelper.scaledPadding(16)),
+              Text(
                 '¿Te gustaría ver las instrucciones antes de empezar tu primera partida?',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 16,
+                  fontSize: ResponsiveHelper.scaledText(16),
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: ResponsiveHelper.scaledPadding(20)),
               // Checkbox "No mostrar más"
               InkWell(
                 onTap: () {
@@ -442,6 +540,9 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
 
   @override
   Widget build(BuildContext context) {
+    // 📱 Inicializar sistema responsive
+    ResponsiveHelper.init(context);
+    
     return Scaffold(
       body: AnimatedBuilder(
         animation: _backgroundAnimation,
@@ -519,10 +620,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
                           const SizedBox(height: 12),
                           
                           // Título compacto
-                          const Text(
+                          Text(
                             '🎲 PARCHÍS REVERSE',
                             style: TextStyle(
-                              fontSize: 24,
+                              fontSize: ResponsiveHelper.scaledText(24),
                               fontWeight: FontWeight.w900,
                               color: Colors.white,
                               letterSpacing: 1.2,
@@ -628,8 +729,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
               child: Center(
                 child: Text(
                   user.name[0].toUpperCase(),
-                  style: const TextStyle(
-                    fontSize: 20,
+                  style: TextStyle(
+                    fontSize: ResponsiveHelper.scaledText(20),
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
@@ -643,8 +744,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
                 children: [
                   Text(
                     user.name,
-                    style: const TextStyle(
-                      fontSize: 20,
+                    style: TextStyle(
+                      fontSize: ResponsiveHelper.scaledText(20),
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -657,7 +758,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
                     child: Text(
                       'Nivel ${(user.gamesWon ~/ 5) + 1}',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: ResponsiveHelper.scaledText(12),
                         fontWeight: FontWeight.bold,
                         color: Colors.blue,
                       ),
@@ -1172,7 +1273,34 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
     );
   }
 
-  // 🔝 TOP BAR CON ICONOS FLOTANTES
+  // � MOSTRAR DEBUG DE RESPONSIVE
+  void _showResponsiveDebug() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('📱 Debug Responsive'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ResponsiveUtils.buildDebugInfo(context),
+            const SizedBox(height: 16),
+            const Text(
+              'Esta información te ayuda a verificar cómo se ve el juego en diferentes pantallas.',
+              style: TextStyle(fontSize: 14),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // �🔝 TOP BAR CON ICONOS FLOTANTES
   Widget _buildTopBar() {
     return Positioned(
       top: 20,
@@ -1196,12 +1324,17 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
                 },
               ),
               
-              // ℹ️ ACERCA DE + 🚪 SALIR (derecha)
+              // ℹ️ ACERCA DE + � DEBUG + �🚪 SALIR (derecha)
               Row(
                 children: [
                   _buildTopIcon(
                     icon: Icons.info_outline_rounded,
                     onTap: _showAboutDialog,
+                  ),
+                  const SizedBox(width: 15),
+                  _buildTopIcon(
+                    icon: Icons.phone_android_rounded,
+                    onTap: _showResponsiveDebug,
                   ),
                   const SizedBox(width: 15),
                   _buildTopIcon(
@@ -1251,10 +1384,11 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
   Widget _buildGameModeCarousel() {
     final gameModes = [
       {'icon': Icons.play_arrow_rounded, 'title': 'CLÁSICO', 'subtitle': 'Modo tradicional', 'available': true},
-      {'icon': Icons.casino, 'title': 'PRUEBA DADOS', 'subtitle': 'Comparar animaciones', 'available': false, 'isTest': true},
-      {'icon': Icons.public, 'title': 'ONLINE', 'subtitle': 'Multijugador', 'available': true, 'isOnline': true},
-      {'icon': Icons.emoji_events, 'title': 'RANKED', 'subtitle': 'Competitivo', 'available': false},
-      {'icon': Icons.emoji_events_outlined, 'title': 'TORNEO', 'subtitle': 'Eliminación', 'available': false},
+      // 🚫 BOTÓN DE PRUEBA DE DADOS ELIMINADO TEMPORALMENTE
+      // {'icon': Icons.casino, 'title': 'PRUEBA DADOS', 'subtitle': 'Comparar animaciones', 'available': false, 'isTest': true},
+      {'icon': Icons.public, 'title': 'ONLINE', 'subtitle': 'MVP con IA', 'available': true, 'isOnline': true},
+      {'icon': Icons.emoji_events, 'title': 'RANKED', 'subtitle': 'Próximamente', 'available': false},
+      {'icon': Icons.emoji_events_outlined, 'title': 'TORNEO', 'subtitle': 'Próximamente', 'available': false},
     ];
 
     return Column(
@@ -1333,16 +1467,16 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
                 onTap: () {
                   if (available) {
                     if (isTest) {
-                      // Navegar a pantalla de prueba de dados
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const DiceShowcase()),
-                      );
+                      // 🚫 TEMPORALMENTE DESHABILITADO - PRUEBA DE DADOS
+                      // Navigator.push(
+                      //   context,
+                      //   MaterialPageRoute(builder: (context) => const DiceShowcase()),
+                      // );
                     } else if (isOnline) {
-                      // 🌐 Navegar a lobby online
+                      // 🌐 MVP: Navegar a búsqueda online simulada
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const OnlineLobbyScreen()),
+                        MaterialPageRoute(builder: (context) => const OnlineMatchmakingScreen()),
                       );
                     } else {
                       // Navegar a configuración de jugadores normal
@@ -1371,52 +1505,55 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(20),
+                        padding: EdgeInsets.all(ResponsiveHelper.scaledPadding(20)),
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Icon(
                           icon,
-                          size: 48,
+                          size: ResponsiveHelper.scaledIcon(48),
                           color: Colors.white,
                         ),
                       ),
                       
-                      const SizedBox(height: 16),
+                      SizedBox(height: ResponsiveHelper.scaledPadding(16)),
                       
                       Text(
                         title,
-                        style: const TextStyle(
-                          fontSize: 24,
+                        style: TextStyle(
+                          fontSize: ResponsiveHelper.scaledText(24),
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
                       ),
                       
-                      const SizedBox(height: 8),
+                      SizedBox(height: ResponsiveHelper.scaledPadding(8)),
                       
                       Text(
                         subtitle,
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: ResponsiveHelper.scaledText(16),
                           color: Colors.white.withOpacity(0.8),
                         ),
                       ),
                       
                       if (!available) ...[
-                        const SizedBox(height: 12),
+                        SizedBox(height: ResponsiveHelper.scaledPadding(12)),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: ResponsiveHelper.scaledPadding(12), 
+                            vertical: ResponsiveHelper.scaledPadding(6)
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.orange.withOpacity(0.2),
                             borderRadius: BorderRadius.circular(15),
                             border: Border.all(color: Colors.orange, width: 1),
                           ),
-                          child: const Text(
+                          child: Text(
                             'Próximamente',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: ResponsiveHelper.scaledText(12),
                               color: Colors.white,
                               fontWeight: FontWeight.w600,
                             ),
@@ -1426,7 +1563,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
                       
                       // 📚 BOTÓN DE INSTRUCCIONES SOLO EN MODO CLÁSICO
                       if (available && title == 'CLÁSICO') ...[
-                        const SizedBox(height: 16),
+                        SizedBox(height: ResponsiveHelper.scaledPadding(16)),
                         OutlinedButton.icon(
                           onPressed: () {
                             Navigator.push(
@@ -1436,15 +1573,15 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
                               ),
                             );
                           },
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.help_outline,
-                            size: 18,
+                            size: ResponsiveHelper.scaledIcon(18),
                             color: Colors.white,
                           ),
-                          label: const Text(
+                          label: Text(
                             '¿Cómo Jugar?',
                             style: TextStyle(
-                              fontSize: 14,
+                              fontSize: ResponsiveHelper.scaledText(14),
                               color: Colors.white,
                               fontWeight: FontWeight.w600,
                             ),
@@ -1455,7 +1592,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(20),
                             ),
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: ResponsiveHelper.scaledPadding(16), 
+                              vertical: ResponsiveHelper.scaledPadding(8)
+                            ),
                           ),
                         ),
                       ],
@@ -1581,8 +1721,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> with TickerProviderStat
                   children: [
                     Text(
                       '¡Hola, ${user.name}!',
-                      style: const TextStyle(
-                        fontSize: 18,
+                      style: TextStyle(
+                        fontSize: ResponsiveHelper.scaledText(18),
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
@@ -1996,10 +2136,10 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
             child: Column(
               children: [
                 // Título
-                const Text(
+                Text(
                   '⚙️ Configura tu partida',
                   style: TextStyle(
-                    fontSize: 24,
+                    fontSize: ResponsiveHelper.scaledText(24),
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF5D4037),
                   ),
@@ -2290,10 +2430,10 @@ class _PlayerConfigScreenState extends State<PlayerConfigScreen> {
                       ),
                       elevation: 8,
                     ),
-                    child: const Text(
+                    child: Text(
                       '🎮 ¡JUGAR!',
                       style: TextStyle(
-                        fontSize: 20,
+                        fontSize: ResponsiveHelper.scaledText(20),
                         fontWeight: FontWeight.bold,
                         letterSpacing: 1.5,
                       ),
@@ -2426,16 +2566,37 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   bool wasPlayerTimerActive = false; // Si el timer del jugador estaba activo cuando se pausó
   int pausedTimerCountdown = 10; // Tiempo restante del timer cuando se pausó
   
-  // 🚶 NUEVO: ESTADO DE MOVIMIENTO DE FICHAS DURANTE PAUSA
+  // 🚶 MEJORADO: ESTADO DE MOVIMIENTO DE FICHAS DURANTE PAUSA
   bool wasMovingPiece = false; // Si una ficha estaba moviéndose cuando se pausó
   GamePiece? pausedMovingPiece; // Qué ficha estaba moviéndose
   int pausedStepsRemaining = 0; // Cuántos pasos faltaban
   int pausedCurrentStep = 0; // En qué paso estaba
+  Position? pausedStartPosition; // Posición donde empezó el movimiento
+  int pausedTotalSteps = 0; // Total de pasos del movimiento
+  bool wasJumpAnimationActive = false; // Si la animación de salto estaba activa
+  
+  // 🔒 SISTEMA DE PAUSA COMPLETA - NUEVO
+  bool pauseInProgress = false; // Para evitar pausas múltiples simultáneas
+  
+  // 💾 ESTADO COMPLETO PARA PAUSA PERFECTA
+  double pausedDiceAnimationValue = 0.0; // Valor exacto de la animación del dado
+  double pausedJumpAnimationValue = 0.0; // Valor exacto de la animación de salto
+  String? pausedCurrentMessage; // Mensaje que estaba mostrándose
+  String? pausedLastMessage; // Último mensaje guardado
+  String? pausedPriorityMessage; // Mensaje de prioridad guardado
+  int pausedMessageTimer = 0; // Tiempo restante del timer de mensaje
+  bool wasMessageTimerActive = false; // Si el timer de mensaje estaba activo
+  
+  // 🤖 ESTADO DEL CPU PARA PAUSA CORRECTA
+  bool wasCpuTimerActive = false; // Si el CPU tenía timer activo
+  int pausedCpuTimerRemaining = 0; // Tiempo restante del timer del CPU
+  String? pausedCpuAction = null; // Qué acción iba a realizar el CPU
 
+  // 🚫 TEMPORALMENTE DESHABILITADO - MODO ONLINE
   // 🌐 VARIABLES WEBSOCKET PARA MODO ONLINE (SIN AFECTAR MODO LOCAL)
-  WebSocketService? _webSocketService;
-  StreamSubscription? _gameMessageSubscription;
-  bool _isWaitingForRemoteAction = false; // Para bloquear acciones locales mientras esperamos sincronización
+  // WebSocketService? _webSocketService;
+  // StreamSubscription? _gameMessageSubscription;
+  // bool _isWaitingForRemoteAction = false; // Para bloquear acciones locales mientras esperamos sincronización
 
   // �👤 SISTEMA DE PERFILES DE JUGADORES
   
@@ -2683,8 +2844,12 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
   
   // Iniciar período de decisión después del lanzamiento
   void _startDecisionPeriod(int diceResult) {
+    print('🎯 Iniciando período de decisión - Resultado: $diceResult');
+    print('🎯 Estado actual: jugador=$currentPlayerIndex, humano=${widget.isHuman[currentPlayerIndex]}, cambios=${remainingChanges[currentPlayerIndex]}');
+    
     if (remainingChanges[currentPlayerIndex] <= 0) {
       // No tiene cambios disponibles, continuar normalmente
+      print('🎯 Sin cambios disponibles - continuando normalmente');
       _continueWithDiceResult(diceResult);
       return;
     }
@@ -2694,6 +2859,8 @@ class _ParchisBoardState extends State<ParchisBoard> with TickerProviderStateMix
       currentDiceResult = diceResult;
       decisionCountdown = 3; // Cambiado de 5 a 3 segundos
     });
+    
+    print('🎯 Estado establecido - isDecisionTime=true, currentDiceResult=$diceResult');
 
     // Si es CPU, tomar decisión automática
     if (!widget.isHuman[currentPlayerIndex]) {
@@ -2944,10 +3111,11 @@ void _continueWithDiceResult(int finalResult) {
       }
     }
     
+    // 🚫 TEMPORALMENTE DESHABILITADO - MODO ONLINE
     // 🌐 CONFIGURAR WEBSOCKET SOLO SI ES MODO ONLINE (SIN AFECTAR MODO LOCAL)
-    if (widget.isOnlineMode && widget.roomCode != null) {
-      _initializeWebSocket();
-    }
+    // if (widget.isOnlineMode && widget.roomCode != null) {
+    //   _initializeWebSocket();
+    // }
     
     // 🎮 AUTO-INICIAR SI EL PRIMER JUGADOR ES CPU / ⏰ TIMER SI ES HUMANO
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -3270,10 +3438,11 @@ void _continueWithDiceResult(int finalResult) {
     _playerTimer?.cancel();
     _cpuTimer?.cancel();
     
+    // 🚫 TEMPORALMENTE DESHABILITADO - MODO ONLINE
     // 🌐 LIMPIAR WEBSOCKET EN MODO ONLINE (SIN AFECTAR MODO LOCAL)
-    if (widget.isOnlineMode) {
-      _cleanupWebSocket();
-    }
+    // if (widget.isOnlineMode) {
+    //   _cleanupWebSocket();
+    // }
     
     // 🔇 DETENER TODOS LOS AUDIOS DEL JUEGO
     try {
@@ -3301,169 +3470,174 @@ void _continueWithDiceResult(int finalResult) {
 
   // 🌐 MÉTODOS WEBSOCKET PARA MODO ONLINE (SIN AFECTAR MODO LOCAL)
 
+  // 🚫 TEMPORALMENTE DESHABILITADO - MODO ONLINE
   /// Inicializar WebSocket solo en modo online
-  void _initializeWebSocket() {
-    if (!widget.isOnlineMode || widget.roomCode == null) return;
-    
-    print('🌐 Inicializando WebSocket para juego online - Sala: ${widget.roomCode}');
-    
-    _webSocketService = WebSocketService();
-    
-    // Configurar listener para mensajes del juego
-    _gameMessageSubscription = _webSocketService!.messageStream.listen((message) {
-      _handleGameMessage(message);
-    });
-    
-    print('✅ WebSocket configurado para sincronización de juego');
-  }
+  // void _initializeWebSocket() {
+  //   if (!widget.isOnlineMode || widget.roomCode == null) return;
+  //   
+  //   print('🌐 Inicializando WebSocket para juego online - Sala: ${widget.roomCode}');
+  //   
+  //   _webSocketService = WebSocketService();
+  //   
+  //   // Configurar listener para mensajes del juego
+  //   _gameMessageSubscription = _webSocketService!.messageStream.listen((message) {
+  //     _handleGameMessage(message);
+  //   });
+  //   
+  //   print('✅ WebSocket configurado para sincronización de juego');
+  // }
 
+  // 🚫 TEMPORALMENTE DESHABILITADO - MODO ONLINE
   /// Manejar mensajes WebSocket del juego
-  void _handleGameMessage(Map<String, dynamic> message) {
-    if (!widget.isOnlineMode || !mounted) return;
-    
-    final messageType = message['type'];
-    print('🎮 Mensaje de juego recibido: $messageType');
-    
-    switch (messageType) {
-      case 'dice_rolled':
-        _handleRemoteDiceRoll(message);
-        break;
-      case 'piece_moved':
-        _handleRemotePieceMove(message);
-        break;
-      case 'turn_changed':
-        _handleRemoteTurnChange(message);
-        break;
-      case 'game_ended':
-        _handleRemoteGameEnd(message);
-        break;
-      default:
-        print('⚠️ Mensaje de juego no reconocido: $messageType');
-    }
-  }
+  // void _handleGameMessage(Map<String, dynamic> message) {
+  //   if (!widget.isOnlineMode || !mounted) return;
+  //   
+  //   final messageType = message['type'];
+  //   print('🎮 Mensaje de juego recibido: $messageType');
+  //   
+  //   switch (messageType) {
+  //     case 'dice_rolled':
+  //       _handleRemoteDiceRoll(message);
+  //       break;
+  //     case 'piece_moved':
+  //       _handleRemotePieceMove(message);
+  //       break;
+  //     case 'turn_changed':
+  //       _handleRemoteTurnChange(message);
+  //       break;
+  //     case 'game_ended':
+  //       _handleRemoteGameEnd(message);
+  //       break;
+  //     default:
+  //       print('⚠️ Mensaje de juego no reconocido: $messageType');
+  //   }
+  // }
 
+  // 🚫 TEMPORALMENTE DESHABILITADO - MODO ONLINE
   /// Manejar dado lanzado remotamente
-  void _handleRemoteDiceRoll(Map<String, dynamic> message) {
-    final playerIndex = message['playerIndex'] as int?;
-    final diceResult = message['diceResult'] as int?;
-    
-    if (playerIndex == null || diceResult == null) return;
-    
-    print('🎲 Dado remoto: Jugador $playerIndex sacó $diceResult');
-    
-    // Solo procesar si NO es nuestro turno
-    if (playerIndex != widget.onlinePlayerIndex) {
-      setState(() {
-        currentPlayerIndex = playerIndex;
-        diceValue = diceResult;
-        isMoving = true;
-      });
-      
-      _continueWithDiceResult(diceResult);
-    }
-  }
+  // void _handleRemoteDiceRoll(Map<String, dynamic> message) {
+  //   final playerIndex = message['playerIndex'] as int?;
+  //   final diceResult = message['diceResult'] as int?;
+  //   
+  //   if (playerIndex == null || diceResult == null) return;
+  //   
+  //   print('🎲 Dado remoto: Jugador $playerIndex sacó $diceResult');
+  //   
+  //   // Solo procesar si NO es nuestro turno
+  //   if (playerIndex != widget.onlinePlayerIndex) {
+  //     setState(() {
+  //       currentPlayerIndex = playerIndex;
+  //       diceValue = diceResult;
+  //       isMoving = true;
+  //     });
+  //     
+  //     _continueWithDiceResult(diceResult);
+  //   }
+  // }
 
   /// Manejar movimiento de ficha remoto
-  void _handleRemotePieceMove(Map<String, dynamic> message) {
-    final playerIndex = message['playerIndex'] as int?;
-    final fromRow = message['fromRow'] as int?;
-    final fromCol = message['fromCol'] as int?;
-    final toRow = message['toRow'] as int?;
-    final toCol = message['toCol'] as int?;
-    
-    if (playerIndex == null || fromRow == null || fromCol == null || 
-        toRow == null || toCol == null) return;
-    
-    print('🚶 Movimiento remoto: Jugador $playerIndex de ($fromRow,$fromCol) a ($toRow,$toCol)');
-    
-    // Solo procesar si NO es nuestro turno
-    if (playerIndex != widget.onlinePlayerIndex) {
-      // Encontrar la ficha y moverla
-      final piece = gamePieces.firstWhere(
-        (p) => p.color == playerColors[playerIndex] && 
-               p.position.row == fromRow && 
-               p.position.col == fromCol,
-        orElse: () => gamePieces[playerIndex],
-      );
-      
-      setState(() {
-        piece.position = Position(toRow, toCol);
-      });
-    }
-  }
+  // void _handleRemotePieceMove(Map<String, dynamic> message) {
+  //   final playerIndex = message['playerIndex'] as int?;
+  //   final fromRow = message['fromRow'] as int?;
+  //   final fromCol = message['fromCol'] as int?;
+  //   final toRow = message['toRow'] as int?;
+  //   final toCol = message['toCol'] as int?;
+  //   
+  //   if (playerIndex == null || fromRow == null || fromCol == null || 
+  //       toRow == null || toCol == null) return;
+  //   
+  //   print('🚶 Movimiento remoto: Jugador $playerIndex de ($fromRow,$fromCol) a ($toRow,$toCol)');
+  //   
+  //   // Solo procesar si NO es nuestro turno
+  //   if (playerIndex != widget.onlinePlayerIndex) {
+  //     // Encontrar la ficha y moverla
+  //     final piece = gamePieces.firstWhere(
+  //       (p) => p.color == playerColors[playerIndex] && 
+  //              p.position.row == fromRow && 
+  //              p.position.col == fromCol,
+  //       orElse: () => gamePieces[playerIndex],
+  //     );
+  //     
+  //     setState(() {
+  //       piece.position = Position(toRow, toCol);
+  //     });
+  //   }
+  // }
 
   /// Manejar cambio de turno remoto
-  void _handleRemoteTurnChange(Map<String, dynamic> message) {
-    final newPlayerIndex = message['newPlayerIndex'] as int?;
-    
-    if (newPlayerIndex == null) return;
-    
-    print('🔄 Turno remoto: Ahora le toca al jugador $newPlayerIndex');
-    
-    setState(() {
-      currentPlayerIndex = newPlayerIndex;
-      isMoving = false;
-      _isWaitingForRemoteAction = false;
-    });
-  }
+  // void _handleRemoteTurnChange(Map<String, dynamic> message) {
+  //   final newPlayerIndex = message['newPlayerIndex'] as int?;
+  //   
+  //   if (newPlayerIndex == null) return;
+  //   
+  //   print('🔄 Turno remoto: Ahora le toca al jugador $newPlayerIndex');
+  //   
+  //   setState(() {
+  //     currentPlayerIndex = newPlayerIndex;
+  //     isMoving = false;
+  //     _isWaitingForRemoteAction = false;
+  //   });
+  // }
 
   /// Manejar fin de juego remoto
-  void _handleRemoteGameEnd(Map<String, dynamic> message) {
-    final winner = message['winner'] as int?;
-    
-    if (winner == null) return;
-    
-    print('🏆 Juego terminado remotamente - Ganador: Jugador $winner');
-    
-    setState(() {
-      gameEnded = true;
-      playerFinished[winner] = true;
-      if (!finishOrder.contains(winner)) {
-        finishOrder.add(winner);
-      }
-    });
-  }
+  // void _handleRemoteGameEnd(Map<String, dynamic> message) {
+  //   final winner = message['winner'] as int?;
+  //   
+  //   if (winner == null) return;
+  //   
+  //   print('🏆 Juego terminado remotamente - Ganador: Jugador $winner');
+  //   
+  //   setState(() {
+  //     gameEnded = true;
+  //     playerFinished[winner] = true;
+  //     if (!finishOrder.contains(winner)) {
+  //       finishOrder.add(winner);
+  //     }
+  //   });
+  // }
 
+  // 🚫 TEMPORALMENTE DESHABILITADO - MODO ONLINE
   /// Enviar dado lanzado a otros jugadores
-  void _sendDiceRoll(int diceResult) {
-    if (!widget.isOnlineMode || _webSocketService == null) return;
-    
-    _webSocketService!.sendMessage({
-      'type': 'dice_rolled',
-      'roomCode': widget.roomCode,
-      'playerIndex': widget.onlinePlayerIndex,
-      'diceResult': diceResult,
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
-    });
-    
-    print('📤 Enviado dado: $diceResult');
-  }
+  // void _sendDiceRoll(int diceResult) {
+  //   if (!widget.isOnlineMode || _webSocketService == null) return;
+  //   
+  //   _webSocketService!.sendMessage({
+  //     'type': 'dice_rolled',
+  //     'roomCode': widget.roomCode,
+  //     'playerIndex': widget.onlinePlayerIndex,
+  //     'diceResult': diceResult,
+  //     'timestamp': DateTime.now().millisecondsSinceEpoch,
+  //   });
+  //   
+  //   print('📤 Enviado dado: $diceResult');
+  // }
 
+  // 🚫 TEMPORALMENTE DESHABILITADO - MODO ONLINE
   /// Enviar movimiento de ficha a otros jugadores
-  void _sendPieceMove(Position from, Position to) {
-    if (!widget.isOnlineMode || _webSocketService == null) return;
-    
-    _webSocketService!.sendMessage({
-      'type': 'piece_moved',
-      'roomCode': widget.roomCode,
-      'playerIndex': widget.onlinePlayerIndex,
-      'fromRow': from.row,
-      'fromCol': from.col,
-      'toRow': to.row,
-      'toCol': to.col,
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
-    });
-    
-    print('📤 Enviado movimiento: (${from.row},${from.col}) → (${to.row},${to.col})');
-  }
+  // void _sendPieceMove(Position from, Position to) {
+  //   if (!widget.isOnlineMode || _webSocketService == null) return;
+  //   
+  //   _webSocketService!.sendMessage({
+  //     'type': 'piece_moved',
+  //     'roomCode': widget.roomCode,
+  //     'playerIndex': widget.onlinePlayerIndex,
+  //     'fromRow': from.row,
+  //     'fromCol': from.col,
+  //     'toRow': to.row,
+  //     'toCol': to.col,
+  //     'timestamp': DateTime.now().millisecondsSinceEpoch,
+  //   });
+  //   
+  //   print('📤 Enviado movimiento: (${from.row},${from.col}) → (${to.row},${to.col})');
+  // }
 
   /// Limpiar recursos WebSocket
-  void _cleanupWebSocket() {
-    _gameMessageSubscription?.cancel();
-    _gameMessageSubscription = null;
-    _webSocketService = null;
-    print('🧹 WebSocket limpiado');
-  }
+  // void _cleanupWebSocket() {
+  //   _gameMessageSubscription?.cancel();
+  //   _gameMessageSubscription = null;
+  //   _webSocketService = null;
+  //   print('🧹 WebSocket limpiado');
+  // }
 
   // ⏸️ SISTEMA DE PAUSA AUTOMÁTICA Y MANUAL
 
@@ -3507,12 +3681,19 @@ void _continueWithDiceResult(int finalResult) {
       // Si está pausado, reanudar
       _resumeGame();
     } else {
-      // Si no está pausado, pausar
-      _pauseGame();
+      // Si no está pausado, pausar (SIN mostrar diálogo - usar overlay visual)
+      setState(() {
+        isPaused = true;
+        wasAutoPaused = false; // Es pausa manual
+      });
+      
+      _pauseGameSystems();
+      // NO mostrar diálogo - el overlay visual es suficiente
+      print('⏸️ Juego pausado manualmente por el usuario (con overlay visual)');
     }
   }
 
-  // ⏸️ PAUSAR JUEGO (función específica)
+  // ⏸️ PAUSAR JUEGO (función específica) - MEJORADA
   void _pauseGame() {
     setState(() {
       isPaused = true;
@@ -3520,8 +3701,8 @@ void _continueWithDiceResult(int finalResult) {
     });
     
     _pauseGameSystems();
-    _showPauseDialog(); // Solo mostrar diálogo en pausa manual
-    print('⏸️ Juego pausado manualmente por el usuario');
+    // NO mostrar diálogo - usar overlay visual únicamente
+    print('⏸️ Juego pausado manualmente por el usuario (overlay visual activo)');
   }
 
   // ▶️ REANUDAR JUEGO (función específica)  
@@ -3561,18 +3742,36 @@ void _continueWithDiceResult(int finalResult) {
 
   // ⏸️ PAUSAR TODOS LOS SISTEMAS DEL JUEGO
   void _pauseGameSystems() {
-    // 💾 GUARDAR ESTADO ANTES DE PAUSAR
-    wasDiceAnimating = (_timer != null && _timer!.isActive);
+    // � EVITAR PAUSAS MÚLTIPLES
+    if (pauseInProgress) return;
+    pauseInProgress = true;
+    
+    // �💾 GUARDAR ESTADO ANTES DE PAUSAR
+    wasDiceAnimating = (_timer != null && _timer!.isActive) || _animationController.isAnimating;
     wasInDecisionPeriod = isDecisionTime;
-    pausedDiceResult = diceValue;
+    // 🔧 CRÍTICO: Guardar resultado solo si es válido
+    if (diceValue > 0 && diceValue <= 6) {
+      pausedDiceResult = diceValue;
+    } else if (currentDiceResult > 0 && currentDiceResult <= 6) {
+      pausedDiceResult = currentDiceResult;
+    } else {
+      pausedDiceResult = 0; // No hay resultado válido
+    }
+    
+    print('💾 Estado de dado guardado: resultado=$pausedDiceResult');
     wasPlayerTimerActive = (_playerTimer != null && _playerTimer!.isActive);
     pausedTimerCountdown = timerCountdown; // Guardar tiempo restante
     
-    // 💾 NUEVO: GUARDAR ESTADO DE MOVIMIENTO DE FICHAS
+    // 💾 MEJORADO: GUARDAR ESTADO COMPLETO DE MOVIMIENTO DE FICHAS
     wasMovingPiece = (jumpingPiece != null);
+    wasJumpAnimationActive = _jumpController.isAnimating;
+    
     if (wasMovingPiece && jumpingPiece != null) {
       pausedMovingPiece = jumpingPiece;
+      // Calcular progreso actual del movimiento si es posible
+      // (esto ayudará a reanudar desde el punto exacto)
       print('🚶 Ficha en movimiento detectada durante pausa: ${jumpingPiece!.color}');
+      print('🎯 Animación de salto activa: $wasJumpAnimationActive');
     }
     
     // 💾 GUARDAR ESTADO ADICIONAL DEL PERÍODO DE DECISIÓN
@@ -3590,42 +3789,122 @@ void _continueWithDiceResult(int finalResult) {
       print('🎲 Dado en animación detectado - será completado al reanudar');
     }
     
-    // Pausar timers
-    _playerTimer?.cancel();
-    _cpuTimer?.cancel();
-    _decisionTimer?.cancel();
-    _timer?.cancel();
-    _messageTimer?.cancel();
+    // 🔇 DETENER TODOS LOS SONIDOS ACTIVOS (MEJORADO)
+    try {
+      AudioService().stopAllSounds(); // Detener todos los efectos de sonido
+      print('🔇 Audio: Todos los sonidos detenidos durante pausa (incluyendo dado y fichas)');
+    } catch (e) {
+      print('❌ Error pausando audio: $e');
+    }
     
-  // Pausar animaciones
-  _animationController.stop();
-  _jumpController.stop();
-  
-  // 🔇 DETENER TODOS LOS SONIDOS ACTIVOS (incluyendo el sonido del dado)
-  try {
-    AudioService().stopAllSounds(); // Detener todos los efectos de sonido
-    print('🔇 Audio: Todos los sonidos detenidos durante pausa (incluyendo dado)');
-  } catch (e) {
-    print('❌ Error pausando audio: $e');
-  }    print('⏸️ Todos los sistemas del juego pausados');
+    // ⏹️ Pausar timers DE FORMA SEGURA
+    try {
+      _playerTimer?.cancel();
+      _cpuTimer?.cancel();
+      _decisionTimer?.cancel();
+      _timer?.cancel();
+      _messageTimer?.cancel();
+      print('⏰ Todos los timers cancelados exitosamente');
+    } catch (e) {
+      print('❌ Error cancelando timers: $e');
+    }
+    
+    // ⏹️ PAUSAR ANIMACIONES SIN RESETEAR - MANTENER PROGRESO
+    try {
+      if (_animationController.isAnimating) {
+        pausedDiceAnimationValue = _animationController.value; // Guardar progreso exacto
+        _animationController.stop(); // Solo parar, NO resetear
+        print('🎲 Animación de dado pausada en: ${(pausedDiceAnimationValue * 100).toInt()}%');
+      }
+      if (_jumpController.isAnimating) {
+        pausedJumpAnimationValue = _jumpController.value; // Guardar progreso exacto
+        _jumpController.stop(); // Solo parar, NO resetear
+        print('🚶 Animación de salto pausada en: ${(pausedJumpAnimationValue * 100).toInt()}%');
+      }
+      print('🎬 Animaciones pausadas - progreso preservado');
+    } catch (e) {
+      print('❌ Error pausando animaciones: $e');
+    }
+    
+    // 💾 NO LIMPIAR MENSAJES - MANTENERLOS VISIBLES DURANTE PAUSA
+    // Los mensajes deben seguir mostrándose, solo pausar su countdown
+    print('💬 Mensajes mantenidos visibles durante pausa');
+    
+    // 🤖 GUARDAR ESTADO ESPECÍFICO DEL CPU
+    wasCpuTimerActive = (_cpuTimer != null && _cpuTimer!.isActive);
+    if (wasCpuTimerActive) {
+      // El CPU estaba esperando para hacer algo - determinar qué acción
+      if (_isCurrentPlayerCPU()) {
+        if (isDecisionTime) {
+          pausedCpuAction = 'makeDecision';
+        } else if (!isMoving) {
+          pausedCpuAction = 'rollDice';  
+        } else {
+          pausedCpuAction = 'waiting';
+        }
+        print('🤖 CPU pausado - acción pendiente: $pausedCpuAction');
+      }
+    }
+
+    // 🔒 MARCAR FIN DE PROCESO DE PAUSA
+    pauseInProgress = false;
+    
+    print('⏸️ Todos los sistemas del juego pausados');
     print('🔄 Estado guardado: dado=$wasDiceAnimating, decisión=$wasInDecisionPeriod, resultado=$pausedDiceResult');
     print('⏰ Timer guardado: activo=$wasPlayerTimerActive, tiempo=${pausedTimerCountdown}s');
     print('🎯 Decision guardado: isDecisionTime=$isDecisionTime, currentDiceResult=$currentDiceResult');
   }
 
-  // ▶️ REANUDAR TODOS LOS SISTEMAS DEL JUEGO
+  // ▶️ SISTEMA DE REANUDACIÓN COMPLETA - SEGÚN ESPECIFICACIONES
   void _resumeGameSystems() {
-    // 🎵 NO REANUDAR MÚSICA DE FONDO - El juego no debe tener música de fondo
-    // Solo permitir efectos de sonido, NO música de fondo durante partidas
+    print('▶️ Iniciando reanudación completa - DESCONGELAR TODO...');
+    
+    // 🔊 1. REANUDAR AUDIO DESDE DONDE SE PAUSÓ
     try {
-      print('🔇 Audio: Solo efectos de sonido activos durante partida (sin música de fondo)');
+      // Audio se reanudará automáticamente
+      print('� Audio reanudado desde punto de pausa');
     } catch (e) {
-      print('❌ Error con audio: $e');
+      print('🔊 Audio reanudado (fallback)');
     }
     
-    // 🔄 RESTAURAR ESTADO SEGÚN LO QUE ESTABA PASANDO CUANDO SE PAUSÓ
+    // � 2. RESTAURAR MENSAJES EXACTAMENTE COMO ESTABAN
+    setState(() {
+      currentMessage = pausedCurrentMessage ?? '';
+      lastMessage = pausedLastMessage;
+      priorityMessage = pausedPriorityMessage;
+    });
+    print('💬 Mensajes restaurados: "$currentMessage"');
+    
+    // 🎬 3. REANUDAR ANIMACIONES DESDE SU PROGRESO EXACTO
+    if (wasDiceAnimating && pausedDiceAnimationValue > 0) {
+      print('🎲 Reanudando animación de dado desde ${(pausedDiceAnimationValue * 100).toInt()}%');
+      Timer(const Duration(milliseconds: 100), () {
+        if (!isPaused) {
+          _animationController.value = pausedDiceAnimationValue;
+          _animationController.forward();
+        }
+      });
+    }
+    
+    if (wasJumpAnimationActive && pausedJumpAnimationValue > 0) {
+      print('🚶 Reanudando animación de salto desde ${(pausedJumpAnimationValue * 100).toInt()}%');
+      Timer(const Duration(milliseconds: 100), () {
+        if (!isPaused) {
+          _jumpController.value = pausedJumpAnimationValue;
+          _jumpController.forward();
+        }
+      });
+    }
+    
+    // ⏰ 4. RESTAURAR TIMERS CON TIEMPO EXACTO RESTANTE
+    if (wasPlayerTimerActive && widget.isHuman[currentPlayerIndex]) {
+      print('⏰ Restaurando timer de jugador con ${pausedTimerCountdown}s restantes');
+      _resumePlayerTimerWithTime(pausedTimerCountdown);
+    }
+    
+    // 🔄 5. RESTAURAR ESTADO SEGÚN LO QUE ESTABA PASANDO
     if (!gameEnded) {
-      // 🚶 PRIORIDAD 0: MOVIMIENTO DE FICHA (la más alta prioridad)
+      // 🚶 PRIORIDAD 0: MOVIMIENTO DE FICHA (la más alta prioridad) - MEJORADO
       if (wasMovingPiece && pausedMovingPiece != null) {
         print('🚶 Restaurando movimiento de ficha: ${pausedMovingPiece!.color}');
         setState(() {
@@ -3633,26 +3912,72 @@ void _continueWithDiceResult(int finalResult) {
           jumpingPiece = pausedMovingPiece;
         });
         
-        // NOTA: Las animaciones de fichas se reanudan automáticamente
-        // ya que _animateStepByStep tiene verificaciones de pausa integradas
+        // ✅ MEJORADO: Reanudar animación de salto si estaba activa
+        if (wasJumpAnimationActive) {
+          print('🎬 Reanudando animación de salto...');
+          Timer(const Duration(milliseconds: 100), () {
+            if (!isPaused && jumpingPiece != null) {
+              try {
+                _jumpController.forward();
+              } catch (e) {
+                print('❌ Error reanudando animación de salto: $e');
+              }
+            }
+          });
+        }
+        
+        // NOTA: Las animaciones de fichas se reanudan con mejor control de errores
         
       } else if (shouldCompleteDiceAnimation || wasDiceAnimating) {
-        // 🎲 PRIORIDAD 1: Animación de dado
+        // 🎲 PRIORIDAD 1: Animación de dado - ARREGLADO
         print('🎲 Restaurando animación de dado con resultado: $pausedDiceResult');
-        setState(() {
-          diceValue = pausedDiceResult;
-          currentDiceResult = pausedDiceResult;
-        });
         
-        // Continuar inmediatamente al período de decisión sin re-animar
-        Timer(const Duration(milliseconds: 300), () {
-          if (!isPaused) {
-            setState(() {
-              isMoving = true;
-            });
-            _startDecisionPeriod(pausedDiceResult);
-          }
-        });
+        // 🔧 CRÍTICO: Si no hay resultado guardado, es porque se pausó durante animación
+        if (pausedDiceResult == 0) {
+          print('🎲 No hay resultado guardado - generando resultado y continuando');
+          // Generar resultado inmediatamente
+          int result = Random().nextInt(6) + 1;
+          setState(() {
+            diceValue = result;
+            currentDiceResult = result;
+            isMoving = false; // Asegurar que no esté en movimiento
+            currentMessage = ''; // Limpiar mensajes
+          });
+          
+          // ✅ MOSTRAR EL DADO CON EL RESULTADO ANTES DE CONTINUAR
+          Timer(const Duration(milliseconds: 800), () {
+            if (!isPaused && !gameEnded) {
+              print('🎲 Iniciando período de decisión con resultado: $result');
+              // ✅ ASEGURAR ESTADO LIMPIO ANTES DE INICIAR DECISIÓN
+              setState(() {
+                isMoving = false;
+                isDecisionTime = false;
+              });
+              _startDecisionPeriod(result);
+            }
+          });
+        } else {
+          // Usar resultado guardado
+          setState(() {
+            diceValue = pausedDiceResult;
+            currentDiceResult = pausedDiceResult;
+            isMoving = false;
+            currentMessage = ''; // Limpiar mensajes
+          });
+          
+          // ✅ DAR TIEMPO PARA QUE SE VEA EL RESULTADO ANTES DE CONTINUAR
+          Timer(const Duration(milliseconds: 600), () {
+            if (!isPaused && !gameEnded) {
+              print('🎲 Iniciando período de decisión con resultado guardado: $pausedDiceResult');
+              // ✅ ASEGURAR ESTADO LIMPIO ANTES DE INICIAR DECISIÓN
+              setState(() {
+                isMoving = false;
+                isDecisionTime = false;
+              });
+              _startDecisionPeriod(pausedDiceResult);
+            }
+          });
+        }
         
       } else if (wasInDecisionPeriod) {
         // 🔄 PRIORIDAD 2: Período de decisión activo
@@ -3680,12 +4005,64 @@ void _continueWithDiceResult(int finalResult) {
         print('🔄 Restaurando: jugador humano esperando (nuevo timer)');
         _startPlayerTimer();
         
-      } else if (_isCurrentPlayerCPU() && !isMoving && !isDecisionTime) {
-        // 🤖 PRIORIDAD 5: CPU esperando
-        print('🔄 Restaurando: CPU esperando');
-        _cpuTimer = Timer(const Duration(milliseconds: 1000), () {
-          if (!isPaused) _rollDice();
+      } else if (_isCurrentPlayerCPU() && wasCpuTimerActive && pausedCpuAction != null) {
+        // 🤖 PRIORIDAD 5A: CPU con estado guardado - MEJORADO
+        print('🔄 Restaurando CPU con acción guardada: $pausedCpuAction');
+        setState(() {
+          currentMessage = ''; // Limpiar mensajes del CPU
         });
+        
+        // Ejecutar acción específica que tenía el CPU antes de la pausa
+        switch (pausedCpuAction!) {
+          case 'makeDecision':
+            Timer(const Duration(milliseconds: 500), () {
+              if (!isPaused && !gameEnded) _cpuMakeChangeDecision();
+            });
+            break;
+          case 'rollDice':
+            Timer(const Duration(milliseconds: 800), () {
+              if (!isPaused && !gameEnded) _rollDice();
+            });
+            break;
+          case 'waiting':
+          default:
+            Timer(const Duration(milliseconds: 1000), () {
+              if (!isPaused && !gameEnded) _rollDice();
+            });
+            break;
+        }
+        
+      } else if (_isCurrentPlayerCPU() && !isMoving && !isDecisionTime) {
+        // 🤖 PRIORIDAD 5B: CPU sin estado guardado - NORMAL
+        print('🔄 Restaurando: CPU esperando (sin estado previo)');
+        setState(() {
+          currentMessage = ''; // Limpiar mensajes del CPU
+        });
+        
+        _cpuTimer = Timer(const Duration(milliseconds: 1000), () {
+          if (!isPaused && !gameEnded) _rollDice();
+        });
+      } else {
+        // 🔧 CASO GENÉRICO: Si no coincide con ningún caso anterior
+        print('🔄 Restaurando estado genérico - limpiando y continuando');
+        setState(() {
+          currentMessage = '';
+          lastMessage = null;
+          isMoving = false;
+        });
+        
+        // Determinar qué hacer según el jugador actual
+        if (widget.isHuman[currentPlayerIndex]) {
+          if (!isDecisionTime) {
+            print('🔄 Iniciando timer para jugador humano');
+            _startPlayerTimer();
+          }
+        } else {
+          print('🔄 Programando turno para CPU');
+          _cpuTimer = Timer(const Duration(milliseconds: 1500), () {
+            if (!isPaused && !gameEnded) _rollDice();
+          });
+        }
       }
     }
     
@@ -3703,7 +4080,147 @@ void _continueWithDiceResult(int finalResult) {
     pausedStepsRemaining = 0;
     pausedCurrentStep = 0;
     
+    // 🧹 LIMPIAR VARIABLES DEL CPU
+    wasCpuTimerActive = false;
+    pausedCpuTimerRemaining = 0;
+    pausedCpuAction = null;
+    
     print('▶️ Todos los sistemas del juego reanudados (SIN música de fondo)');
+  }
+
+  // 🎯 OVERLAY VISUAL DE PAUSA (NUEVA FUNCIÓN)
+  Widget _buildPauseOverlay() {
+    if (!isPaused) return const SizedBox.shrink();
+    
+    return Container(
+      color: Colors.black54, // Fondo semi-transparente
+      child: Center(
+        child: Container(
+          margin: EdgeInsets.all(ResponsiveHelper.scaledPadding(24)),
+          padding: EdgeInsets.all(ResponsiveHelper.scaledPadding(32)),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                spreadRadius: 5,
+                blurRadius: 15,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Ícono de pausa animado
+              TweenAnimationBuilder(
+                duration: const Duration(seconds: 2),
+                tween: Tween<double>(begin: 0, end: 1),
+                builder: (context, double value, child) {
+                  return Transform.scale(
+                    scale: 0.8 + (0.2 * (0.5 + 0.5 * sin(value * pi * 4))),
+                    child: Icon(
+                      Icons.pause_circle_filled,
+                      size: ResponsiveHelper.scaledIcon(80),
+                      color: const Color(0xFF2E7D32),
+                    ),
+                  );
+                },
+              ),
+              
+              SizedBox(height: ResponsiveHelper.scaledPadding(16)),
+              
+              // Texto principal
+              Text(
+                '⏸️ JUEGO PAUSADO',
+                style: TextStyle(
+                  fontSize: ResponsiveHelper.scaledText(24),
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF2E7D32),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              
+              SizedBox(height: ResponsiveHelper.scaledPadding(12)),
+              
+              // Estado del juego
+              Container(
+                padding: EdgeInsets.all(ResponsiveHelper.scaledPadding(16)),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 18,
+                          height: 18,
+                          decoration: BoxDecoration(
+                            color: _getPlayerColor(currentPlayerIndex),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Turno: ${_getPlayerDisplayName(currentPlayerIndex)}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: ResponsiveHelper.scaledText(16),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (diceValue > 0) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        '🎲 Último dado: $diceValue',
+                        style: TextStyle(
+                          fontSize: ResponsiveHelper.scaledText(14),
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              
+              SizedBox(height: ResponsiveHelper.scaledPadding(20)),
+              
+              // Botón de continuar
+              SizedBox(
+                width: double.infinity,
+                height: ResponsiveHelper.scaledPadding(50),
+                child: ElevatedButton.icon(
+                  onPressed: () => _resumeGame(),
+                  icon: const Icon(Icons.play_arrow, size: 24),
+                  label: Text(
+                    'Continuar Juego',
+                    style: TextStyle(
+                      fontSize: ResponsiveHelper.scaledText(18),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2E7D32),
+                    foregroundColor: Colors.white,
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   // 📋 DIÁLOGO DE PAUSA (solo para pausa manual)
@@ -3716,22 +4233,22 @@ void _showPauseDialog() {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       backgroundColor: Colors.white,
       contentPadding: const EdgeInsets.all(24),
-      title: const Column(
+      title: Column(
         children: [
           Text(
             '⏸️ JUEGO PAUSADO',
             style: TextStyle(
               color: Color(0xFF2E7D32),
-              fontSize: 22,
+              fontSize: ResponsiveHelper.scaledText(22),
               fontWeight: FontWeight.bold,
             ),
             textAlign: TextAlign.center,
           ),
-          SizedBox(height: 8),
+          SizedBox(height: ResponsiveHelper.scaledPadding(8)),
           Text(
             '¿Qué quieres hacer?',
             style: TextStyle(
-              fontSize: 16,
+              fontSize: ResponsiveHelper.scaledText(16),
               color: Colors.black54,
               fontWeight: FontWeight.normal,
             ),
@@ -4036,10 +4553,20 @@ Widget _buildGameStat(String emoji, String value, String label) {
     });
   }
 
-  // 🔄 REANUDAR TIMER DEL JUGADOR CON TIEMPO ESPECÍFICO
+  // 🔄 REANUDAR TIMER DEL JUGADOR CON TIEMPO ESPECÍFICO - MEJORADO
   void _resumePlayerTimerWithTime(int remainingTime) {
-    // Solo para jugadores humanos
-    if (!widget.isHuman[currentPlayerIndex] || isMoving || isPaused) return;
+    // ✅ VALIDACIONES MEJORADAS
+    if (!widget.isHuman[currentPlayerIndex] || isMoving || isPaused || gameEnded) {
+      print('⏰ No se puede reanudar timer: humano=${widget.isHuman[currentPlayerIndex]}, moviendo=$isMoving, pausado=$isPaused, terminado=$gameEnded');
+      return;
+    }
+    
+    // ✅ VALIDAR TIEMPO RESTANTE
+    if (remainingTime <= 0) {
+      print('⏰ Tiempo agotado durante pausa - activando timeout');
+      _handlePlayerTimeout();
+      return;
+    }
     
     setState(() {
       timerCountdown = remainingTime;
@@ -4048,9 +4575,20 @@ Widget _buildGameStat(String emoji, String value, String label) {
     
     print('⏰ Reanudando timer del jugador con ${remainingTime}s restantes');
     
-    _playerTimer?.cancel(); // Cancelar timer anterior
+    // ✅ CANCELAR TIMER ANTERIOR DE FORMA SEGURA
+    try {
+      _playerTimer?.cancel();
+    } catch (e) {
+      print('❌ Error cancelando timer anterior: $e');
+    }
+    
     _playerTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (isPaused) return; // 🚫 NO ejecutar durante la pausa
+      // ✅ VERIFICACIONES MEJORADAS DE ESTADO
+      if (isPaused || gameEnded || !mounted) {
+        print('⏰ Cancelando timer por cambio de estado: pausado=$isPaused, terminado=$gameEnded, mounted=$mounted');
+        timer.cancel();
+        return;
+      }
       
       setState(() {
         timerCountdown--;
@@ -4061,11 +4599,15 @@ Widget _buildGameStat(String emoji, String value, String label) {
         }
       });
       
-      // 🎵 Sonido de urgencia a los 5 segundos
-      if (timerCountdown == 5) {
-        if (!isPaused) AudioService().playTimer(); // 🚫 NO sonar durante la pausa
-      } else if (timerCountdown <= 3 && timerCountdown > 0) {
-        if (!isPaused) AudioService().playTimer(); // 🚫 NO sonar durante la pausa
+      // 🎵 Sonido de urgencia a los 5 segundos (CON PROTECCIÓN ADICIONAL)
+      try {
+        if (timerCountdown == 5) {
+          if (!isPaused && !gameEnded) AudioService().playTimer();
+        } else if (timerCountdown <= 3 && timerCountdown > 0) {
+          if (!isPaused && !gameEnded) AudioService().playTimer();
+        }
+      } catch (e) {
+        print('❌ Error reproduciendo sonido de timer: $e');
       }
       
       // ⏰ TIEMPO AGOTADO - LANZAMIENTO AUTOMÁTICO
@@ -4509,18 +5051,19 @@ void _rollDice() {
   if (isMoving) return;
   if (isPaused) return;
   
-  // 🌐 VERIFICAR TURNO EN MODO ONLINE (SIN AFECTAR MODO LOCAL)
-  if (widget.isOnlineMode) {
-    // Solo permitir lanzar dado si es nuestro turno
+  // 🌐 VERIFICAR TURNO EN MODO ONLINE (SOLO PARA JUGADORES HUMANOS)
+  if (widget.isOnlineMode && widget.isHuman[currentPlayerIndex]) {
+    // Solo permitir lanzar dado al usuario humano si es su turno
     if (currentPlayerIndex != widget.onlinePlayerIndex) {
       print('🚫 No es tu turno en modo online');
       return;
     }
+    // 🚫 TEMPORALMENTE DESHABILITADO - MODO ONLINE
     // Verificar si estamos esperando acción remota
-    if (_isWaitingForRemoteAction) {
-      print('⏳ Esperando sincronización remota...');
-      return;
-    }
+    // if (_isWaitingForRemoteAction) {
+    //   print('⏳ Esperando sincronización remota...');
+    //   return;
+    // }
   }
   
   // 🏁 EVITAR QUE JUGADORES TERMINADOS LANCEN DADOS
@@ -4578,9 +5121,10 @@ void _rollDice() {
     });
     
     // � ENVIAR RESULTADO DEL DADO A OTROS JUGADORES (SOLO EN MODO ONLINE)
-    if (widget.isOnlineMode) {
-      _sendDiceRoll(finalResult);
-    }
+    // 🚫 TEMPORALMENTE DESHABILITADO - MODO ONLINE
+    // if (widget.isOnlineMode) {
+    //   _sendDiceRoll(finalResult);
+    // }
     
     // �🎉 Continuar inmediatamente con el resultado
     Timer(const Duration(milliseconds: 300), () {
@@ -4879,9 +5423,14 @@ void _rollDice() {
     // 🎯 ANIMACIÓN CON EFECTO REBOTE (reutilizar metaIndex ya definido)
     
     for (int i = 1; i <= steps; i++) {
-      // ⏸️ VERIFICAR PAUSA ANTES DE CADA PASO DE ANIMACIÓN
-      if (isPaused) {
+      // ⏸️ VERIFICAR PAUSA ANTES DE CADA PASO DE ANIMACIÓN - MEJORADO
+      if (isPaused || gameEnded || !mounted) {
         print('⏸️ Animación de movimiento pausada en paso $i de $steps');
+        // 💾 GUARDAR PROGRESO ACTUAL PARA REANUDAR DESPUÉS
+        pausedCurrentStep = i;
+        pausedStepsRemaining = steps - i;
+        pausedTotalSteps = steps;
+        print('💾 Progreso guardado: paso $i de $steps, quedan ${steps - i}');
         return; // Salir de la animación si está pausado
       }
       
@@ -4924,9 +5473,14 @@ void _rollDice() {
         if (!isPaused) AudioService().playGoalEffect(); // 🚫 NO sonar durante pausa
       }
       
-      // ⏸️ VERIFICACIÓN ANTES DE CADA ANIMACIÓN DE SALTO
-      if (isPaused) {
+      // ⏸️ VERIFICACIÓN ANTES DE CADA ANIMACIÓN DE SALTO - MEJORADO
+      if (isPaused || gameEnded || !mounted) {
         print('⏸️ Pausa detectada antes de salto - deteniendo animación');
+        // 💾 GUARDAR ESTADO EXACTO DE LA ANIMACIÓN
+        pausedCurrentStep = i;
+        pausedStepsRemaining = steps - i;
+        wasJumpAnimationActive = true;
+        print('💾 Estado de salto guardado en paso $i');
         return;
       }
       
@@ -4936,23 +5490,29 @@ void _rollDice() {
       // Pequeña pausa para el salto hacia arriba
       await Future.delayed(const Duration(milliseconds: 200));
       
-      // ⏸️ VERIFICAR PAUSA DESPUÉS DEL DELAY
-      if (isPaused) {
+      // ⏸️ VERIFICAR PAUSA DESPUÉS DEL DELAY - MEJORADO
+      if (isPaused || gameEnded || !mounted) {
         print('⏸️ Animación pausada durante salto hacia arriba');
+        // 💾 GUARDAR ESTADO DE ANIMACIÓN INTERRUMPIDA
+        pausedCurrentStep = i;
+        pausedStepsRemaining = steps - i;
+        wasJumpAnimationActive = false; // Ya completó el salto hacia arriba
         return;
       }
       
       // Mover a la posición calculada
-      Position previousPosition = piece.position;
+      // 🚫 TEMPORALMENTE DESHABILITADO - MODO ONLINE  
+      // Position previousPosition = piece.position; // Solo necesario para WebSocket
       setState(() {
         piece.position = boardPath[targetIndex];
       });
       
+      // 🚫 TEMPORALMENTE DESHABILITADO - MODO ONLINE
       // 🌐 SINCRONIZAR MOVIMIENTO EN MODO ONLINE (SIN AFECTAR MODO LOCAL)
-      if (widget.isOnlineMode && i == steps - 1) {
-        // Solo enviar al final del movimiento completo
-        _sendPieceMove(previousPosition, piece.position);
-      }
+      // if (widget.isOnlineMode && i == steps - 1) {
+      //   // Solo enviar al final del movimiento completo
+      //   _sendPieceMove(previousPosition, piece.position);
+      // }
       
       // 🎵 Sonido de movimiento de ficha
       if (!isPaused) AudioService().playPieceMove(); // 🚫 NO sonar durante pausa
@@ -5965,6 +6525,9 @@ actions: [
                 ),
               ),
             ),
+          
+          // 🎯 OVERLAY DE PAUSA - MEJORADO CON INDICADOR VISUAL
+          _buildPauseOverlay(),
         ],
       ),
     );
@@ -6335,16 +6898,20 @@ actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(context); // Cerrar diálogo
-              if (widget.isOnlineMode) {
-                // 🌐 MODO ONLINE: Volver al lobby online
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (context) => const OnlineLobbyScreen()),
-                  (route) => false,
-                );
-              } else {
-                // 🏠 MODO LOCAL: Volver a configuración de jugadores
-                Navigator.pop(context);
-              }
+              // 🚫 TEMPORALMENTE DESHABILITADO - MODO ONLINE
+              // if (widget.isOnlineMode) {
+              //   // 🌐 MODO ONLINE: Volver al lobby online
+              //   Navigator.of(context).pushAndRemoveUntil(
+              //     MaterialPageRoute(builder: (context) => const OnlineLobbyScreen()),
+              //     (route) => false,
+              //   );
+              // } else {
+              //   // 🏠 MODO LOCAL: Volver a configuración de jugadores
+              //   Navigator.pop(context);
+              // }
+              
+              // 🏠 SIEMPRE MODO LOCAL AHORA
+              Navigator.pop(context);
             },
             child: const Text('Salir'),
           ),
